@@ -16,6 +16,7 @@ type AuthContextValue = {
 const AuthContext = createContext<AuthContextValue | null>(null);
 const backendUrl = process.env.NEXT_PUBLIC_BACKEND_URL?.replace(/\/$/, "") ?? "";
 const tokenKey = "almadel_access_token";
+const userKey = "almadel_auth_user";
 
 function endpoint(path: string) {
   if (!backendUrl) throw new Error("BACKEND_URL is not configured.");
@@ -24,6 +25,22 @@ function endpoint(path: string) {
 
 function getToken() {
   return typeof window === "undefined" ? null : localStorage.getItem(tokenKey);
+}
+
+function storeUser(user: AuthUser) {
+  localStorage.setItem(userKey, JSON.stringify(user));
+}
+
+function getStoredUser() {
+  if (typeof window === "undefined") return null;
+
+  try {
+    const value = localStorage.getItem(userKey);
+    return value ? (JSON.parse(value) as AuthUser) : null;
+  } catch {
+    localStorage.removeItem(userKey);
+    return null;
+  }
 }
 
 async function parseResponse(response: Response) {
@@ -49,9 +66,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const refreshUser = useCallback(async () => {
     const token = getToken();
     if (!token) { setUser(null); setIsLoading(false); return; }
-    try { setUser(normalizeUser(await parseResponse(await fetch(endpoint("/auth/me"), { cache: "no-store", headers: { Authorization: `Bearer ${token}` } })))); }
-    catch { setUser(null); }
-    finally { setIsLoading(false); }
+    setUser(getStoredUser());
+    setIsLoading(false);
   }, []);
 
   useEffect(() => {
@@ -61,7 +77,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }, [refreshUser]);
 
   const login = useCallback(async (credentials: Credentials) => {
-    const data = await parseResponse(await fetch(endpoint("/auth/login"), {
+    const data = await parseResponse(await fetch(endpoint("/auth/sign-in"), {
       method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(credentials),
     }));
     const token = data.access_token || data.accessToken || data.token;
@@ -71,23 +87,24 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       localStorage.removeItem(tokenKey);
       throw new Error(`This account is registered as ${nextUser.role}, not ${credentials.role}.`);
     }
+    storeUser(nextUser);
     setUser(nextUser); return nextUser;
   }, []);
 
   const signup = useCallback(async (details: SignupData) => {
-    const data = await parseResponse(await fetch(endpoint("/auth/signup"), {
-      method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ ...details, role: "staff" }),
+    const data = await parseResponse(await fetch(endpoint("/auth/staff/sign-up"), {
+      method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ fullName: details.name, email: details.email, password: details.password }),
     }));
     const token = data.access_token || data.accessToken || data.token;
     if (token) localStorage.setItem(tokenKey, String(token));
     const nextUser = normalizeUser(data);
+    storeUser(nextUser);
     setUser(nextUser); return nextUser;
   }, []);
 
   const logout = useCallback(async () => {
-    const token = getToken();
-    if (token) await fetch(endpoint("/auth/logout"), { method: "POST", headers: { Authorization: `Bearer ${token}` } }).catch(() => undefined);
     localStorage.removeItem(tokenKey);
+    localStorage.removeItem(userKey);
     setUser(null);
   }, []);
   const value = useMemo(() => ({ user, isLoading, isAuthenticated: Boolean(user), login, signup, logout, refreshUser }), [user, isLoading, login, signup, logout, refreshUser]);
