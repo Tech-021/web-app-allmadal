@@ -169,7 +169,7 @@ export default function ProductsPage() {
         </button>
       </div>
 
-      <div style={{ display: "flex", gap: 8, marginBottom: 18 }}>
+      <div className="no-scrollbar" style={{ display: "flex", gap: 8, marginBottom: 18, overflowX: "auto", paddingBottom: 4 }}>
         {(["All", "Healthy", "Low Stock", "Out of Stock"] as const).map((tab) => (
           <button
             key={tab}

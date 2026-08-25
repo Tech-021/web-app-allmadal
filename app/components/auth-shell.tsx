@@ -33,12 +33,12 @@ export function AuthShell({ children, mode }: { children: React.ReactNode; mode:
         <p className="relative text-xs text-white/40">© 2026 Almadel. All rights reserved.</p>
       </aside>
       <section className="flex min-h-screen flex-col px-5 py-6 sm:px-10 lg:px-14">
-        <header className="flex items-center justify-between lg:justify-end">
+        <header className="flex items-center justify-between lg:justify-end pb-4 border-b border-gray-100 lg:border-0 lg:pb-0">
           <div className="flex items-center gap-2.5 lg:hidden">
             <AlmadelLogoMark />
-            <span className="font-extrabold text-[#111827]">Almadel</span>
+            <span className="font-extrabold text-base text-[#111827]">Almadel</span>
           </div>
-          <p className="text-sm font-medium text-[#4b5563]">
+          <p className="text-xs sm:text-sm font-medium text-[#4b5563]">
             {mode === "login" ? "New to Almadel?" : "Already have an account?"}{" "}
             <Link className="ml-1 font-bold text-[#00875A] transition hover:underline" href={mode === "login" ? "/signup" : "/login"}>
               {mode === "login" ? "Naya Account Banayein" : "Sign in"}

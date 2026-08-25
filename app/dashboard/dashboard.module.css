@@ -627,18 +627,28 @@
   }
 }
 
-@media (max-width: 430px) {
+@media (max-width: 640px) {
   .topbar {
-    display: block;
-    position: relative;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 14px;
   }
-  .refresh {
-    position: absolute;
-    right: 0;
-    top: 0;
+  .topbar h1 {
+    font-size: 22px;
+  }
+  .topbar p {
+    font-size: 13px;
+    line-height: 1.45;
   }
   .metricGrid {
     grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 10px;
+  }
+  .metric {
+    padding: 14px;
+  }
+  .metric strong {
+    font-size: 19px;
   }
   .valuePanel p {
     line-height: 1.5;

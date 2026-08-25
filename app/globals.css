@@ -60,6 +60,15 @@ button, a {
   background: #a3b2a7;
 }
 
+/* Hide scrollbar for clean horizontal filter pills on mobile */
+.no-scrollbar::-webkit-scrollbar {
+  display: none;
+}
+.no-scrollbar {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+
 /* Card Surface with Soft Rounded Radius */
 .almadel-card {
   background: #ffffff;
@@ -80,4 +89,12 @@ button, a {
   background: #006b3f;
   box-shadow: 0 6px 20px rgba(0, 135, 90, 0.25);
 }
+
+/* Responsive Touch Target Helper */
+@media (max-width: 640px) {
+  button, input, select {
+    min-height: 44px;
+  }
+}
+
 
