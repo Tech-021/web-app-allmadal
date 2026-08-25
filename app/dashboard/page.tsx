@@ -35,10 +35,17 @@ function Icon({ name }: { name: "chart" | "cash" | "cube" | "logout" | "people" 
 function money(value: number) { return `Rs ${Math.round(value).toLocaleString()}`; }
 
 function MetricCard({ icon, label, tone, value }: { icon: Parameters<typeof Icon>[0]["name"]; label: string; tone: string; value: string }) {
-  return <article className={styles.metric}>
-    <span className={`${styles.metricIcon} ${styles[tone]}`}><Icon name={icon} /></span>
-    <p>{label}</p><strong>{value}</strong>
-  </article>;
+  return (
+    <article className={`${styles.metric} ${styles[tone]}`}>
+      <span className={styles.metricIcon}>
+        <Icon name={icon} />
+      </span>
+      <div>
+        <p>{label}</p>
+        <strong>{value}</strong>
+      </div>
+    </article>
+  );
 }
 
 function SalesChart({ sales }: { sales: Sale[] }) {
