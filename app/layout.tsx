@@ -1,10 +1,11 @@
 import type { Metadata } from "next";
 import "./globals.css";
 import { AuthProvider } from "@/hooks/useAuth";
+import { ToastProvider } from "@/app/components/toast-context";
 
 export const metadata: Metadata = {
-  title: "Al Madel | Staff Portal",
-  description: "Secure access for Al Madel staff and administrators",
+  title: "Almadel | Store Management Portal",
+  description: "Apni Dukaan Ko Asaan Banayein - Store management and POS workspace",
 };
 
 export default function RootLayout({
@@ -15,8 +16,11 @@ export default function RootLayout({
   return (
     <html lang="en" className="h-full antialiased">
       <body className="min-h-full flex flex-col">
-        <AuthProvider>{children}</AuthProvider>
+        <AuthProvider>
+          <ToastProvider>{children}</ToastProvider>
+        </AuthProvider>
       </body>
     </html>
   );
 }
+

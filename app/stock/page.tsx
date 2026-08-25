@@ -3,9 +3,11 @@
 import { FormEvent, useCallback, useEffect, useMemo, useState } from "react";
 import { WorkspaceShell } from "@/app/components/workspace-shell";
 import { api, Product } from "@/app/lib/api";
+import { useToast } from "@/app/components/toast-context";
 import ui from "@/app/components/workspace-ui.module.css";
 
 export default function StockPage() {
+  const { showToast } = useToast();
   const [products, setProducts] = useState<Product[]>([]);
   const [search, setSearch] = useState("");
   const [barcode, setBarcode] = useState("");
@@ -19,9 +21,11 @@ export default function StockPage() {
     try {
       setProducts(await api<Product[]>("/products"));
     } catch (e) {
-      setError(e instanceof Error ? e.message : "Could not load products.");
+      const msg = e instanceof Error ? e.message : "Could not load products.";
+      setError(msg);
+      showToast(msg, "error");
     }
-  }, []);
+  }, [showToast]);
 
   useEffect(() => {
     const t = setTimeout(() => void load(), 0);
@@ -46,7 +50,9 @@ export default function StockPage() {
   async function submit(e: FormEvent) {
     e.preventDefault();
     if (!barcode || Number(quantity) < 1) {
-      setError("Choose a product and enter a quantity of at least 1.");
+      const msg = "Choose a product and enter a quantity of at least 1.";
+      setError(msg);
+      showToast(msg, "error");
       return;
     }
     setLoading(true);
@@ -56,15 +62,17 @@ export default function StockPage() {
         method: "POST",
         body: JSON.stringify({ barcode, quantity, note }),
       });
-      setNotice(
-        `${updated.name} stock updated from ${selected?.stock ?? 0} to ${updated.stock}.`
-      );
+      const msg = `${updated.name} stock updated from ${selected?.stock ?? 0} to ${updated.stock}.`;
+      setNotice(msg);
+      showToast(msg, "success");
       setQuantity("1");
       setNote("");
       setSearch("");
       await load();
     } catch (e) {
-      setError(e instanceof Error ? e.message : "Could not add stock.");
+      const msg = e instanceof Error ? e.message : "Could not add stock.";
+      setError(msg);
+      showToast(msg, "error");
     } finally {
       setLoading(false);
     }
@@ -222,4 +230,3 @@ export default function StockPage() {
     </WorkspaceShell>
   );
 }
-

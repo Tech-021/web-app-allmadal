@@ -3,6 +3,7 @@
 import { FormEvent, useCallback, useEffect, useMemo, useState } from "react";
 import { WorkspaceShell } from "@/app/components/workspace-shell";
 import { api, Product } from "@/app/lib/api";
+import { useToast } from "@/app/components/toast-context";
 import ui from "@/app/components/workspace-ui.module.css";
 
 type Draft = {
@@ -20,6 +21,7 @@ const blank: Draft = {
 const money = (n: number) => `Rs ${Number(n).toLocaleString()}`;
 
 export default function ProductsPage() {
+  const { showToast, confirmDialog } = useToast();
   const [products, setProducts] = useState<Product[]>([]);
   const [query, setQuery] = useState("");
   const [statusFilter, setStatusFilter] = useState<"All" | "Healthy" | "Low Stock" | "Out of Stock">("All");
@@ -35,11 +37,13 @@ export default function ProductsPage() {
     try {
       setProducts(await api<Product[]>("/products"));
     } catch (e) {
-      setError(e instanceof Error ? e.message : "Could not load products.");
+      const msg = e instanceof Error ? e.message : "Could not load products.";
+      setError(msg);
+      showToast(msg, "error");
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [showToast]);
 
   useEffect(() => {
     const t = setTimeout(() => void load(), 0);
@@ -91,7 +95,9 @@ export default function ProductsPage() {
   async function submit(e: FormEvent) {
     e.preventDefault();
     if (!draft.name.trim() || !draft.barcode.trim() || draft.sellingPrice === "") {
-      setError("Product name, barcode, and selling price are required.");
+      const msg = "Product name, barcode, and selling price are required.";
+      setError(msg);
+      showToast(msg, "error");
       return;
     }
     setSaving(true);
@@ -101,23 +107,37 @@ export default function ProductsPage() {
         body: JSON.stringify({ ...draft, price: draft.sellingPrice }),
       });
       setEditing(undefined);
-      setNotice(editing ? "Product updated." : "Product added.");
+      const msg = editing ? "Product updated successfully." : "Product added successfully.";
+      setNotice(msg);
+      showToast(msg, "success");
       await load();
     } catch (e) {
-      setError(e instanceof Error ? e.message : "Could not save product.");
+      const msg = e instanceof Error ? e.message : "Could not save product.";
+      setError(msg);
+      showToast(msg, "error");
     } finally {
       setSaving(false);
     }
   }
 
   async function remove(p: Product) {
-    if (!confirm(`Delete ${p.name}?`)) return;
+    const confirmed = await confirmDialog({
+      title: "Delete Product",
+      message: `Are you sure you want to delete "${p.name}"? This action cannot be undone.`,
+      confirmLabel: "Delete Product",
+      danger: true,
+    });
+    if (!confirmed) return;
+
     try {
       await api(`/products/${p.id}`, { method: "DELETE" });
       setNotice("Product deleted.");
+      showToast(`"${p.name}" deleted successfully.`, "success");
       await load();
     } catch (e) {
-      setError(e instanceof Error ? e.message : "Could not delete product.");
+      const msg = e instanceof Error ? e.message : "Could not delete product.";
+      setError(msg);
+      showToast(msg, "error");
     }
   }
 
