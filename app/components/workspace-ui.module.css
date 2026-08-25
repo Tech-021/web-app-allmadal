@@ -282,6 +282,7 @@
   display: grid;
   place-items: center;
   padding: 20px;
+  animation: almadelFadeIn 0.25s cubic-bezier(0.16, 1, 0.3, 1);
 }
 
 .sheet {
@@ -293,6 +294,7 @@
   padding: 28px;
   box-shadow: 0 20px 45px rgba(0, 0, 0, 0.15);
   border: 1px solid #eaeaeb;
+  animation: almadelScaleUp 0.3s cubic-bezier(0.16, 1, 0.3, 1);
 }
 
 .sheetHead {
