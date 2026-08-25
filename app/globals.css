@@ -1,9 +1,105 @@
 @import "tailwindcss";
 
-:root { --background: #f7f8f7; --foreground: #17251e; }
-* { box-sizing: border-box; }
-html { background: var(--background); }
-body { margin: 0; background: var(--background); color: var(--foreground); font-family: Arial, Helvetica, sans-serif; }
-button, input { font: inherit; }
-button, a { -webkit-tap-highlight-color: transparent; }
-::selection { background: #cfe0d5; color: #173d2b; }
+:root {
+  --background: #f7f9f8;
+  --foreground: #111827;
+  --brand-primary: #00875a;
+  --brand-dark: #006b3f;
+  --brand-light: #e6f4ed;
+  --tint-mint: #e6f4ed;
+  --tint-blue: #eef4ff;
+  --tint-orange: #fff3eb;
+  --tint-purple: #f4f0fd;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html {
+  background: var(--background);
+  scroll-behavior: smooth;
+}
+
+body {
+  margin: 0;
+  background: var(--background);
+  color: var(--foreground);
+  font-family: var(--font-sans), 'Plus Jakarta Sans', system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  letter-spacing: -0.015em;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+button, input, select, textarea {
+  font-family: var(--font-sans), 'Plus Jakarta Sans', system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+}
+
+button, a, [role="button"] {
+  -webkit-tap-highlight-color: transparent;
+  cursor: pointer;
+}
+
+button:disabled, input:disabled, select:disabled {
+  cursor: not-allowed;
+}
+
+::selection {
+  background: #c3e9d7;
+  color: #005230;
+}
+
+/* Custom subtle scrollbar */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+::-webkit-scrollbar-thumb {
+  background: #d1d8d3;
+  border-radius: 99px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: #a3b2a7;
+}
+
+/* Hide scrollbar for clean horizontal filter pills on mobile */
+.no-scrollbar::-webkit-scrollbar {
+  display: none;
+}
+.no-scrollbar {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+
+/* Card Surface with Soft Rounded Radius */
+.almadel-card {
+  background: #ffffff;
+  border: 1px solid #eaeaeb;
+  border-radius: 16px;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.03);
+}
+
+.btn-green-pill {
+  background: #00875a;
+  color: #ffffff;
+  border-radius: 9999px;
+  font-weight: 700;
+  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.btn-green-pill:hover:not(:disabled) {
+  background: #006b3f;
+  box-shadow: 0 6px 20px rgba(0, 135, 90, 0.25);
+}
+
+/* Responsive Touch Target Helper */
+@media (max-width: 640px) {
+  button, input, select {
+    min-height: 44px;
+  }
+}
+
+
