@@ -35,8 +35,13 @@ button, input, select, textarea {
   font: inherit;
 }
 
-button, a {
+button, a, [role="button"] {
   -webkit-tap-highlight-color: transparent;
+  cursor: pointer;
+}
+
+button:disabled, input:disabled, select:disabled {
+  cursor: not-allowed;
 }
 
 ::selection {
