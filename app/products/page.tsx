@@ -31,6 +31,8 @@ export default function ProductsPage() {
   const [editing, setEditing] = useState<Product | null | undefined>(undefined);
   const [draft, setDraft] = useState(blank);
   const [saving, setSaving] = useState(false);
+  const [selectedIds, setSelectedIds] = useState<number[]>([]);
+  const [bulkDeleting, setBulkDeleting] = useState(false);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -70,6 +72,30 @@ export default function ProductsPage() {
     }
     return result;
   }, [products, query, statusFilter]);
+
+  const allShownSelected = useMemo(() => {
+    return shown.length > 0 && shown.every((p) => selectedIds.includes(p.id));
+  }, [shown, selectedIds]);
+
+  const someShownSelected = useMemo(() => {
+    return shown.some((p) => selectedIds.includes(p.id));
+  }, [shown, selectedIds]);
+
+  const toggleSelectAll = () => {
+    if (allShownSelected) {
+      const shownIds = new Set(shown.map((p) => p.id));
+      setSelectedIds((prev) => prev.filter((id) => !shownIds.has(id)));
+    } else {
+      const shownIds = shown.map((p) => p.id);
+      setSelectedIds((prev) => Array.from(new Set([...prev, ...shownIds])));
+    }
+  };
+
+  const toggleSelect = (id: number) => {
+    setSelectedIds((prev) =>
+      prev.includes(id) ? prev.filter((item) => item !== id) : [...prev, id]
+    );
+  };
 
   function open(p?: Product) {
     setEditing(p ?? null);
@@ -133,11 +159,60 @@ export default function ProductsPage() {
       await api(`/products/${p.id}`, { method: "DELETE" });
       setNotice("Product deleted.");
       showToast(`"${p.name}" deleted successfully.`, "success");
+      setSelectedIds((prev) => prev.filter((id) => id !== p.id));
       await load();
     } catch (e) {
       const msg = e instanceof Error ? e.message : "Could not delete product.";
       setError(msg);
       showToast(msg, "error");
+    }
+  }
+
+  async function handleBulkDelete() {
+    if (selectedIds.length === 0) return;
+
+    const count = selectedIds.length;
+    const confirmed = await confirmDialog({
+      title: `Delete ${count} Product${count > 1 ? "s" : ""}`,
+      message: `Are you sure you want to delete ${count} selected product${count > 1 ? "s" : ""}? This action cannot be undone.`,
+      confirmLabel: `Delete ${count} Product${count > 1 ? "s" : ""}`,
+      danger: true,
+    });
+    if (!confirmed) return;
+
+    setBulkDeleting(true);
+    const toDelete = [...selectedIds];
+    try {
+      const results = await Promise.allSettled(
+        toDelete.map((id) => api(`/products/${id}`, { method: "DELETE" }))
+      );
+
+      const successfulIds = toDelete.filter((_, idx) => results[idx].status === "fulfilled");
+      const rejectedResults = results.filter((r): r is PromiseRejectedResult => r.status === "rejected");
+      const failedCount = rejectedResults.length;
+      const firstErrorMsg = rejectedResults[0]?.reason instanceof Error
+        ? rejectedResults[0].reason.message
+        : "Failed to delete products.";
+
+      if (failedCount === 0) {
+        showToast(`Successfully deleted ${successfulIds.length} product${successfulIds.length > 1 ? "s" : ""}.`, "success");
+        setNotice(`Deleted ${successfulIds.length} product${successfulIds.length > 1 ? "s" : ""}.`);
+      } else if (successfulIds.length > 0) {
+        showToast(`Deleted ${successfulIds.length} products (${failedCount} failed: ${firstErrorMsg})`, "error");
+        setNotice(`Deleted ${successfulIds.length} products. Some items could not be deleted.`);
+      } else {
+        showToast(`Failed to delete products: ${firstErrorMsg}`, "error");
+        setError(firstErrorMsg);
+      }
+
+      setSelectedIds((prev) => prev.filter((id) => !successfulIds.includes(id)));
+      await load();
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : "Bulk deletion encountered an error.";
+      showToast(msg, "error");
+      setError(msg);
+    } finally {
+      setBulkDeleting(false);
     }
   }
 
@@ -149,9 +224,28 @@ export default function ProductsPage() {
           <h1>Products</h1>
           <p>Manage product details, pricing, barcodes, and stock status.</p>
         </div>
-        <button className={ui.primary} onClick={() => open()}>
-          ＋ Add product
-        </button>
+        <div style={{ display: "flex", gap: 10, alignItems: "center" }}>
+          {selectedIds.length > 0 && (
+            <button
+              className={ui.danger}
+              disabled={bulkDeleting}
+              onClick={() => void handleBulkDelete()}
+              style={{
+                background: "#fee2e2",
+                color: "#dc2626",
+                border: "1px solid #fecaca",
+                padding: "10px 18px",
+                fontWeight: 800,
+                boxShadow: "0 2px 8px rgba(220, 38, 38, 0.15)",
+              }}
+            >
+              {bulkDeleting ? "Deleting…" : `🗑️ Delete Selected (${selectedIds.length})`}
+            </button>
+          )}
+          <button className={ui.primary} onClick={() => open()}>
+            ＋ Add product
+          </button>
+        </div>
       </div>
 
       {error && <div className={ui.error}>{error}</div>}
@@ -192,11 +286,104 @@ export default function ProductsPage() {
         ))}
       </div>
 
+      {/* Floating Bulk Action Banner when items are selected */}
+      {selectedIds.length > 0 && (
+        <div
+          style={{
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "space-between",
+            background: "linear-gradient(135deg, #056839 0%, #00875a 100%)",
+            color: "#ffffff",
+            padding: "12px 20px",
+            borderRadius: 16,
+            marginBottom: 18,
+            boxShadow: "0 6px 20px rgba(0, 135, 90, 0.25)",
+            animation: "fadeIn 0.2s ease-out",
+          }}
+        >
+          <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+            <span
+              style={{
+                display: "grid",
+                placeItems: "center",
+                width: 28,
+                height: 28,
+                borderRadius: 9999,
+                background: "rgba(255, 255, 255, 0.25)",
+                fontSize: 14,
+                fontWeight: 900,
+              }}
+            >
+              ✓
+            </span>
+            <span style={{ fontSize: 13, fontWeight: 700 }}>
+              <strong>{selectedIds.length}</strong> product{selectedIds.length > 1 ? "s" : ""} selected
+            </span>
+          </div>
+          <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+            <button
+              onClick={() => setSelectedIds([])}
+              style={{
+                background: "rgba(255, 255, 255, 0.18)",
+                border: "1px solid rgba(255, 255, 255, 0.3)",
+                color: "#ffffff",
+                padding: "6px 14px",
+                borderRadius: 9999,
+                fontSize: 12,
+                fontWeight: 700,
+                cursor: "pointer",
+                transition: "background 0.15s ease",
+              }}
+            >
+              Deselect All
+            </button>
+            <button
+              disabled={bulkDeleting}
+              onClick={() => void handleBulkDelete()}
+              style={{
+                background: "#dc2626",
+                border: "none",
+                color: "#ffffff",
+                padding: "7px 16px",
+                borderRadius: 9999,
+                fontSize: 12,
+                fontWeight: 800,
+                cursor: bulkDeleting ? "not-allowed" : "pointer",
+                boxShadow: "0 2px 10px rgba(220, 38, 38, 0.35)",
+                transition: "all 0.15s ease",
+              }}
+            >
+              {bulkDeleting ? "Deleting…" : `Delete Selected (${selectedIds.length})`}
+            </button>
+          </div>
+        </div>
+      )}
+
       <section className={ui.panel}>
         <div className={ui.tableWrap}>
           <table className={ui.table}>
             <thead>
               <tr>
+                <th style={{ width: 42, paddingRight: 0, textAlign: "center" }}>
+                  <input
+                    type="checkbox"
+                    checked={allShownSelected}
+                    ref={(el) => {
+                      if (el) el.indeterminate = !allShownSelected && someShownSelected;
+                    }}
+                    onChange={toggleSelectAll}
+                    style={{
+                      width: 17,
+                      height: 17,
+                      accentColor: "#00875a",
+                      cursor: "pointer",
+                      borderRadius: 4,
+                      verticalAlign: "middle",
+                    }}
+                    title={allShownSelected ? "Deselect all shown" : "Select all shown"}
+                  />
+                </th>
                 <th>Product</th>
                 <th>Barcode / SKU</th>
                 <th>Category</th>
@@ -207,53 +394,77 @@ export default function ProductsPage() {
               </tr>
             </thead>
             <tbody>
-              {shown.map((p) => (
-                <tr key={p.id}>
-                  <td>
-                    <strong>{p.name}</strong>
-                  </td>
-                  <td>
-                    {p.barcode}
-                    <br />
-                    <span className={ui.muted}>{p.sku || "No SKU"}</span>
-                  </td>
-                  <td>
-                    {p.category ? (
-                      <span className={ui.badge}>{p.category}</span>
-                    ) : (
-                      "—"
-                    )}
-                  </td>
-                  <td>{money(p.costPrice)}</td>
-                  <td>
-                    <strong style={{ color: "#00875a" }}>
-                      {money(p.sellingPrice || p.price)}
-                    </strong>
-                  </td>
-                  <td>
-                    {Number(p.stock) === 0 ? (
-                      <span className={ui.outOfStock}>● Out of Stock ({p.stock})</span>
-                    ) : Number(p.stock) <= Number(p.lowStockThreshold ?? 5) ? (
-                      <span className={ui.lowStock}>● Low Stock ({p.stock})</span>
-                    ) : (
-                      <span className={ui.healthy}>● Healthy ({p.stock})</span>
-                    )}
-                  </td>
-                  <td>
-                    <div className={ui.actions}>
-                      <button className={ui.secondary} onClick={() => open(p)}>
-                        Edit
-                      </button>
-                      <button className={ui.danger} onClick={() => void remove(p)}>
-                        Delete
-                      </button>
-                    </div>
-                  </td>
-                </tr>
-              ))}
+              {shown.map((p) => {
+                const isSelected = selectedIds.includes(p.id);
+                return (
+                  <tr
+                    key={p.id}
+                    style={{
+                      background: isSelected ? "#f0fdf4" : undefined,
+                      transition: "background 0.15s ease",
+                    }}
+                  >
+                    <td style={{ width: 42, paddingRight: 0, textAlign: "center" }}>
+                      <input
+                        type="checkbox"
+                        checked={isSelected}
+                        onChange={() => toggleSelect(p.id)}
+                        style={{
+                          width: 17,
+                          height: 17,
+                          accentColor: "#00875a",
+                          cursor: "pointer",
+                          borderRadius: 4,
+                          verticalAlign: "middle",
+                        }}
+                      />
+                    </td>
+                    <td>
+                      <strong>{p.name}</strong>
+                    </td>
+                    <td>
+                      {p.barcode}
+                      <br />
+                      <span className={ui.muted}>{p.sku || "No SKU"}</span>
+                    </td>
+                    <td>
+                      {p.category ? (
+                        <span className={ui.badge}>{p.category}</span>
+                      ) : (
+                        "—"
+                      )}
+                    </td>
+                    <td>{money(p.costPrice)}</td>
+                    <td>
+                      <strong style={{ color: "#00875a" }}>
+                        {money(p.sellingPrice || p.price)}
+                      </strong>
+                    </td>
+                    <td>
+                      {Number(p.stock) === 0 ? (
+                        <span className={ui.outOfStock}>● Out of Stock ({p.stock})</span>
+                      ) : Number(p.stock) <= Number(p.lowStockThreshold ?? 5) ? (
+                        <span className={ui.lowStock}>● Low Stock ({p.stock})</span>
+                      ) : (
+                        <span className={ui.healthy}>● Healthy ({p.stock})</span>
+                      )}
+                    </td>
+                    <td>
+                      <div className={ui.actions}>
+                        <button className={ui.secondary} onClick={() => open(p)}>
+                          Edit
+                        </button>
+                        <button className={ui.danger} onClick={() => void remove(p)}>
+                          Delete
+                        </button>
+                      </div>
+                    </td>
+                  </tr>
+                );
+              })}
               {!loading && !shown.length && (
                 <tr>
-                  <td colSpan={7} className={ui.empty}>
+                  <td colSpan={8} className={ui.empty}>
                     No products found.
                   </td>
                 </tr>
