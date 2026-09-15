@@ -509,10 +509,24 @@ export default function ProductsPage() {
                     className={ui.input}
                     type={["costPrice", "sellingPrice", "stock", "lowStockThreshold"].includes(key) ? "number" : "text"}
                     min="0"
+                    list={key === "category" ? "categories-options" : undefined}
                     required={["name", "barcode", "sellingPrice"].includes(key)}
                     value={draft[key]}
                     onChange={(e) => setDraft({ ...draft, [key]: e.target.value })}
                   />
+                  {key === "category" && (
+                    <datalist id="categories-options">
+                      {Array.from(
+                        new Set(
+                          products
+                            .map((p) => p.category?.trim())
+                            .filter((c): c is string => Boolean(c))
+                        )
+                      ).map((cat) => (
+                        <option key={cat} value={cat} />
+                      ))}
+                    </datalist>
+                  )}
                 </div>
               ))}
             </div>
