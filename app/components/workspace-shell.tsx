@@ -164,19 +164,6 @@ export function WorkspaceShell({ children }: { children: React.ReactNode }) {
                       {b.id === activeBusiness.id && <span className="text-[11px]">✓</span>}
                     </button>
                   ))}
-
-                  {user.role === "admin" && (
-                    <div className="pt-1 border-t border-gray-100 mt-1">
-                      <Link
-                        href="/setup-business"
-                        onClick={() => setBizDropdownOpen(false)}
-                        className="w-full flex items-center gap-1.5 p-2 rounded-xl text-xs font-bold text-[#00875a] hover:bg-[#e6f4ed] transition"
-                      >
-                        <span>+</span>
-                        <span>Set Up New Business</span>
-                      </Link>
-                    </div>
-                  )}
                 </div>
               )}
             </div>
