@@ -4,6 +4,7 @@ import { FormEvent, useCallback, useEffect, useMemo, useState } from "react";
 import { WorkspaceShell } from "@/app/components/workspace-shell";
 import { api, Product } from "@/app/lib/api";
 import { useToast } from "@/app/components/toast-context";
+import { logActivity } from "@/app/lib/logger";
 import ui from "@/app/components/workspace-ui.module.css";
 
 type Draft = {
@@ -136,6 +137,17 @@ export default function ProductsPage() {
       const msg = editing ? "Product updated successfully." : "Product added successfully.";
       setNotice(msg);
       showToast(msg, "success");
+
+      logActivity(
+        editing ? "PRODUCT_UPDATE" : "PRODUCT_CREATE",
+        "Product",
+        editing
+          ? `Updated product '${draft.name}' (Barcode: ${draft.barcode}, Price: Rs. ${draft.sellingPrice})`
+          : `Created new product '${draft.name}' (Barcode: ${draft.barcode}, Price: Rs. ${draft.sellingPrice}, Stock: ${draft.stock})`,
+        draft.name,
+        { barcode: draft.barcode, category: draft.category, price: draft.sellingPrice, stock: draft.stock }
+      );
+
       await load();
     } catch (e) {
       const msg = e instanceof Error ? e.message : "Could not save product.";
@@ -160,6 +172,15 @@ export default function ProductsPage() {
       setNotice("Product deleted.");
       showToast(`"${p.name}" deleted successfully.`, "success");
       setSelectedIds((prev) => prev.filter((id) => id !== p.id));
+
+      logActivity(
+        "PRODUCT_DELETE",
+        "Product",
+        `Deleted product '${p.name}' (Barcode: ${p.barcode})`,
+        p.name,
+        { id: p.id, barcode: p.barcode }
+      );
+
       await load();
     } catch (e) {
       const msg = e instanceof Error ? e.message : "Could not delete product.";
@@ -197,9 +218,23 @@ export default function ProductsPage() {
       if (failedCount === 0) {
         showToast(`Successfully deleted ${successfulIds.length} product${successfulIds.length > 1 ? "s" : ""}.`, "success");
         setNotice(`Deleted ${successfulIds.length} product${successfulIds.length > 1 ? "s" : ""}.`);
+        logActivity(
+          "BULK_PRODUCT_DELETE",
+          "Product",
+          `Bulk deleted ${successfulIds.length} products`,
+          `${successfulIds.length} items`,
+          { deletedProductIds: successfulIds }
+        );
       } else if (successfulIds.length > 0) {
         showToast(`Deleted ${successfulIds.length} products (${failedCount} failed: ${firstErrorMsg})`, "error");
         setNotice(`Deleted ${successfulIds.length} products. Some items could not be deleted.`);
+        logActivity(
+          "BULK_PRODUCT_DELETE",
+          "Product",
+          `Bulk deleted ${successfulIds.length} products (${failedCount} failed)`,
+          `${successfulIds.length} items`,
+          { deletedProductIds: successfulIds, failedCount }
+        );
       } else {
         showToast(`Failed to delete products: ${firstErrorMsg}`, "error");
         setError(firstErrorMsg);

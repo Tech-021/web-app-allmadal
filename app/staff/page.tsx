@@ -6,6 +6,7 @@ import { WorkspaceShell } from "@/app/components/workspace-shell";
 import { api, StaffItem } from "@/app/lib/api";
 import { useAuth } from "@/hooks/useAuth";
 import { useToast } from "@/app/components/toast-context";
+import { logActivity } from "@/app/lib/logger";
 import ui from "@/app/components/workspace-ui.module.css";
 
 type Draft = { fullName: string; email: string; password: string; confirm: string };
@@ -105,6 +106,17 @@ export default function StaffPage() {
       const msg = modal?.item ? "Staff account updated successfully." : "Staff account created successfully.";
       setNotice(msg);
       showToast(msg, "success");
+
+      logActivity(
+        modal?.item ? "STAFF_UPDATE" : "STAFF_CREATE",
+        "Staff",
+        modal?.item
+          ? `Updated staff account for '${draft.fullName}' (${draft.email})`
+          : `Created new staff account for '${draft.fullName}' (${draft.email})`,
+        draft.fullName || draft.email,
+        { email: draft.email, fullName: draft.fullName }
+      );
+
       await load();
     } catch (e) {
       const msg = e instanceof Error ? e.message : "Could not save staff.";
@@ -130,6 +142,15 @@ export default function StaffPage() {
       const msg = `Staff account for "${name}" deleted.`;
       setNotice(msg);
       showToast(msg, "success");
+
+      logActivity(
+        "STAFF_DELETE",
+        "Staff",
+        `Deleted staff account for '${name}' (${item.user.email})`,
+        name,
+        { userId: item.user.id, email: item.user.email }
+      );
+
       await load();
     } catch (e) {
       const msg = e instanceof Error ? e.message : "Could not delete staff.";

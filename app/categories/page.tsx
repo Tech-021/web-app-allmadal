@@ -4,6 +4,7 @@ import { FormEvent, useCallback, useEffect, useMemo, useState } from "react";
 import { WorkspaceShell } from "@/app/components/workspace-shell";
 import { api, Product } from "@/app/lib/api";
 import { useToast } from "@/app/components/toast-context";
+import { logActivity } from "@/app/lib/logger";
 import ui from "@/app/components/workspace-ui.module.css";
 
 export type Category = {
@@ -235,6 +236,14 @@ export default function CategoriesPage() {
 
         showToast(`Category "${cleanName}" updated successfully.`, "success");
         setNotice(`Category "${cleanName}" updated.`);
+
+        logActivity(
+          "CATEGORY_UPDATE",
+          "Category",
+          `Updated category '${oldName}' -> '${cleanName}'`,
+          cleanName,
+          { oldName, newName: cleanName, description }
+        );
       } else {
         // Create new category
         await api("/categories", {
@@ -256,6 +265,14 @@ export default function CategoriesPage() {
 
         showToast(`Category "${cleanName}" added successfully.`, "success");
         setNotice(`Category "${cleanName}" added.`);
+
+        logActivity(
+          "CATEGORY_CREATE",
+          "Category",
+          `Created category '${cleanName}'`,
+          cleanName,
+          { name: cleanName, description }
+        );
       }
 
       setEditing(undefined);
@@ -316,6 +333,15 @@ export default function CategoriesPage() {
 
       showToast(`Category "${cat.name}" deleted.`, "success");
       setNotice(`Category "${cat.name}" deleted.`);
+
+      logActivity(
+        "CATEGORY_DELETE",
+        "Category",
+        `Deleted category '${cat.name}' (${affectedCount} products unassigned)`,
+        cat.name,
+        { name: cat.name, unassignedProductsCount: affectedCount }
+      );
+
       await load();
     } catch (err) {
       const msg = err instanceof Error ? err.message : "Could not delete category.";

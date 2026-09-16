@@ -59,6 +59,8 @@ function normalizeUser(data: Record<string, unknown>): AuthUser {
   };
 }
 
+import { logActivity } from "@/app/lib/logger";
+
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<AuthUser | null>(null);
   const [isLoading, setIsLoading] = useState(true);
@@ -88,7 +90,18 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       throw new Error(`This account is registered as ${nextUser.role}, not ${credentials.role}.`);
     }
     storeUser(nextUser);
-    setUser(nextUser); return nextUser;
+    setUser(nextUser);
+
+    logActivity(
+      "AUTH_LOGIN",
+      "Auth",
+      `User ${nextUser.name} (${nextUser.email}) signed in with ${nextUser.role} role`,
+      "/login",
+      { role: nextUser.role },
+      { name: nextUser.name, email: nextUser.email, role: nextUser.role }
+    );
+
+    return nextUser;
   }, []);
 
   const signup = useCallback(async (details: SignupData) => {
@@ -99,10 +112,32 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     if (token) localStorage.setItem(tokenKey, String(token));
     const nextUser = normalizeUser(data);
     storeUser(nextUser);
-    setUser(nextUser); return nextUser;
+    setUser(nextUser);
+
+    logActivity(
+      "AUTH_SIGNUP",
+      "Auth",
+      `New staff member registered: ${nextUser.name} (${nextUser.email})`,
+      "/signup",
+      { role: "staff" },
+      { name: nextUser.name, email: nextUser.email, role: "staff" }
+    );
+
+    return nextUser;
   }, []);
 
   const logout = useCallback(async () => {
+    const current = getStoredUser();
+    if (current) {
+      logActivity(
+        "AUTH_LOGOUT",
+        "Auth",
+        `User ${current.name} (${current.email}) signed out`,
+        "/login",
+        undefined,
+        { name: current.name, email: current.email, role: current.role }
+      );
+    }
     localStorage.removeItem(tokenKey);
     localStorage.removeItem(userKey);
     setUser(null);

@@ -6,6 +6,8 @@ import { useEffect } from "react";
 import { useAuth } from "@/hooks/useAuth";
 import styles from "./workspace-shell.module.css";
 
+import { logActivity } from "@/app/lib/logger";
+
 const links: Array<{
   href: string;
   label: string;
@@ -25,6 +27,7 @@ const links: Array<{
   },
   { href: "/stock", label: "Stock", icon: "＋" },
   { href: "/staff", label: "Staff", icon: "♙", admin: true },
+  { href: "/logs", label: "Activity Logs", icon: "📑", admin: true },
 ];
 
 function ShoppingBagIcon() {
@@ -45,6 +48,29 @@ export function WorkspaceShell({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     if (!isLoading && !user) router.replace("/login");
   }, [isLoading, user, router]);
+
+  // Track page visits
+  useEffect(() => {
+    if (user && pathname) {
+      const pageNames: Record<string, string> = {
+        "/dashboard": "Dashboard",
+        "/products": "Products Catalog",
+        "/categories": "Categories Manager",
+        "/stock": "Stock Management",
+        "/staff": "Staff Management",
+        "/logs": "Activity Logs",
+      };
+      const title = pageNames[pathname] || pathname;
+      logActivity(
+        "PAGE_VISIT",
+        "Visit",
+        `Visited ${title} page (${pathname})`,
+        pathname,
+        { path: pathname },
+        { name: user.name, email: user.email, role: user.role }
+      );
+    }
+  }, [user, pathname]);
 
   if (isLoading || !user) return <main className={styles.loading}>Loading Almadel workspace…</main>;
 

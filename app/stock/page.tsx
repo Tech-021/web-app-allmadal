@@ -4,6 +4,7 @@ import { FormEvent, useCallback, useEffect, useMemo, useState } from "react";
 import { WorkspaceShell } from "@/app/components/workspace-shell";
 import { api, Product } from "@/app/lib/api";
 import { useToast } from "@/app/components/toast-context";
+import { logActivity } from "@/app/lib/logger";
 import ui from "@/app/components/workspace-ui.module.css";
 
 const money = (n: number) => `Rs ${Number(n).toLocaleString()}`;
@@ -124,6 +125,15 @@ export default function StockPage() {
       });
       const msg = `${updated.name} stock updated to ${updated.stock} units.`;
       showToast(msg, "success");
+
+      logActivity(
+        "STOCK_UPDATE",
+        "Stock",
+        `Added +${quantity} units to '${updated.name}' (New stock: ${updated.stock})${note ? ` [Note: ${note}]` : ""}`,
+        updated.name,
+        { barcode, quantityAdded: Number(quantity), newStock: updated.stock, note }
+      );
+
       setQuantity("1");
       setNote("");
       setSearch("");
