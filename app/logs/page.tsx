@@ -231,51 +231,7 @@ export default function LogsPage() {
     }
   };
 
-  const handleExportCSV = () => {
-    if (!logs.length) {
-      showToast("No logs available to export.", "info");
-      return;
-    }
-
-    const headers = ["Timestamp", "User Name", "User Email", "Role", "Category", "Action", "Details", "Target"];
-    const rows = filteredLogs.map((log) => [
-      `"${log.timestamp}"`,
-      `"${log.user.name.replace(/"/g, '""')}"`,
-      `"${log.user.email.replace(/"/g, '""')}"`,
-      `"${log.user.role}"`,
-      `"${log.category}"`,
-      `"${log.action}"`,
-      `"${log.details.replace(/"/g, '""')}"`,
-      `"${(log.target || "").replace(/"/g, '""')}"`,
-    ]);
-
-    const csvContent = [headers.join(","), ...rows.map((r) => r.join(","))].join("\n");
-    const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement("a");
-    link.setAttribute("href", url);
-    link.setAttribute("download", `almadel-db-logs-${new Date().toISOString().slice(0, 10)}.csv`);
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
-    showToast("Database audit logs exported as CSV successfully.", "success");
-  };
-
-  const handleExportJSON = () => {
-    if (!logs.length) {
-      showToast("No logs available to export.", "info");
-      return;
-    }
-    const blob = new Blob([JSON.stringify(filteredLogs, null, 2)], { type: "application/json" });
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement("a");
-    link.setAttribute("href", url);
-    link.setAttribute("download", `almadel-db-logs-${new Date().toISOString().slice(0, 10)}.json`);
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
-    showToast("Database audit logs exported as JSON successfully.", "success");
-  };
+  
 
   return (
     <WorkspaceShell>
@@ -285,17 +241,9 @@ export default function LogsPage() {
           <h1>System Activity Logs</h1>
           <p>Complete database audit log of product updates, stock shifts, category edits, and staff operations in PostgreSQL.</p>
         </div>
-        <div style={{ display: "flex", gap: 10, alignItems: "center" }}>
-          <button className={ui.secondary} onClick={handleExportCSV} title="Export current filtered view to CSV file">
-            Export CSV
-          </button>
-          <button className={ui.secondary} onClick={handleExportJSON} title="Export current filtered view to JSON file">
-            Export JSON
-          </button>
-          <button className={ui.danger} onClick={handleClearAll} title="Clear database log records">
-            Clear Database Logs
-          </button>
-        </div>
+        <button className={ui.danger} onClick={handleClearAll} title="Clear database log records">
+          Clear Database Logs
+        </button>
       </div>
 
       {serverNotice && (
