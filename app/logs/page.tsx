@@ -63,6 +63,10 @@ export default function LogsPage() {
   const [selectedLog, setSelectedLog] = useState<ActivityLog | null>(null);
   const [serverNotice, setServerNotice] = useState("");
 
+  // Pagination State
+  const [currentPage, setCurrentPage] = useState(1);
+  const [pageSize, setPageSize] = useState(10);
+
   const loadLogs = useCallback(async () => {
     setLoading(true);
     setServerNotice("");
@@ -186,6 +190,11 @@ export default function LogsPage() {
     };
   }, [user, router, showToast, loadLogs]);
 
+  // Reset to first page when filtering or searching
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [activeTab, query, pageSize]);
+
   const filteredLogs = useMemo(() => {
     return logs.filter((log) => {
       // Category filter
@@ -217,6 +226,15 @@ export default function LogsPage() {
     });
   }, [logs, activeTab, query]);
 
+  // Pagination calculations
+  const totalItems = filteredLogs.length;
+  const totalPages = Math.max(1, Math.ceil(totalItems / pageSize));
+  const startIndex = (currentPage - 1) * pageSize;
+  const endIndex = Math.min(startIndex + pageSize, totalItems);
+  const paginatedLogs = useMemo(() => {
+    return filteredLogs.slice(startIndex, endIndex);
+  }, [filteredLogs, startIndex, endIndex]);
+
   const handleClearAll = async () => {
     const confirmed = await confirmDialog({
       title: "Clear Database Audit Logs?",
@@ -230,8 +248,6 @@ export default function LogsPage() {
       showToast("All activity logs have been cleared from the database.", "success");
     }
   };
-
-  
 
   return (
     <WorkspaceShell>
@@ -265,7 +281,7 @@ export default function LogsPage() {
         ))}
       </div>
 
-      {/* Search Input */}
+      {/* Search Input & Limit Controls */}
       <div style={{ display: "flex", gap: 10, alignItems: "center", marginBottom: 20 }}>
         <input
           type="text"
@@ -294,7 +310,7 @@ export default function LogsPage() {
               </tr>
             </thead>
             <tbody>
-              {filteredLogs.map((log) => {
+              {paginatedLogs.map((log) => {
                 const badgeStyle = getActionBadgeStyle(log.action, log.category);
                 const initial = log.user.name[0]?.toUpperCase() || "U";
                 return (
@@ -395,7 +411,7 @@ export default function LogsPage() {
                   </tr>
                 );
               })}
-              {!loading && !filteredLogs.length && (
+              {!loading && !paginatedLogs.length && (
                 <tr>
                   <td colSpan={5} className={ui.empty}>
                     {query ? "No activity logs match your search filter." : "No activity logs recorded in the database yet."}
@@ -412,6 +428,135 @@ export default function LogsPage() {
             </tbody>
           </table>
         </div>
+
+        {/* Modern Pagination Bar */}
+        {totalItems > 0 && (
+          <div
+            style={{
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "space-between",
+              flexWrap: "wrap",
+              gap: 12,
+              padding: "16px 20px",
+              borderTop: "1px solid #f1f5f9",
+              background: "#fafbfd",
+              borderRadius: "0 0 24px 24px",
+            }}
+          >
+            {/* Left: Summary text */}
+            <div style={{ fontSize: 13, color: "#64748b", fontWeight: 600 }}>
+              Showing <strong style={{ color: "#0f172a" }}>{startIndex + 1}</strong> to{" "}
+              <strong style={{ color: "#0f172a" }}>{endIndex}</strong> of{" "}
+              <strong style={{ color: "#0f172a" }}>{totalItems}</strong> entries
+            </div>
+
+            {/* Center: Rows per page selector */}
+            <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+              <span style={{ fontSize: 12.5, color: "#64748b", fontWeight: 600 }}>Rows per page:</span>
+              <select
+                value={pageSize}
+                onChange={(e) => setPageSize(Number(e.target.value))}
+                style={{
+                  padding: "6px 12px",
+                  borderRadius: 10,
+                  border: "1px solid #e2e8f0",
+                  background: "#ffffff",
+                  fontSize: 12.5,
+                  fontWeight: 700,
+                  color: "#334155",
+                  outline: "none",
+                  cursor: "pointer",
+                }}
+              >
+                <option value={10}>10</option>
+                <option value={25}>25</option>
+                <option value={50}>50</option>
+                <option value={100}>100</option>
+              </select>
+            </div>
+
+            {/* Right: Page Navigation buttons */}
+            <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+              <button
+                onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
+                disabled={currentPage === 1}
+                style={{
+                  padding: "6px 14px",
+                  borderRadius: 10,
+                  border: "1px solid #e2e8f0",
+                  background: currentPage === 1 ? "#f8fafc" : "#ffffff",
+                  color: currentPage === 1 ? "#94a3b8" : "#1e293b",
+                  fontSize: 12.5,
+                  fontWeight: 700,
+                  cursor: currentPage === 1 ? "not-allowed" : "pointer",
+                  transition: "all 0.15s ease",
+                }}
+              >
+                Previous
+              </button>
+
+              {/* Page Number Pills */}
+              {Array.from({ length: totalPages }, (_, i) => i + 1)
+                .filter((p) => p === 1 || p === totalPages || Math.abs(p - currentPage) <= 1)
+                .reduce<(number | string)[]>((acc, p, idx, arr) => {
+                  if (idx > 0 && (p as number) - (arr[idx - 1] as number) > 1) {
+                    acc.push("...");
+                  }
+                  acc.push(p);
+                  return acc;
+                }, [])
+                .map((item, idx) => {
+                  if (typeof item === "string") {
+                    return (
+                      <span key={`dots-${idx}`} style={{ padding: "0 4px", color: "#94a3b8", fontWeight: 700, fontSize: 13 }}>
+                        ...
+                      </span>
+                    );
+                  }
+                  const isActive = currentPage === item;
+                  return (
+                    <button
+                      key={item}
+                      onClick={() => setCurrentPage(item)}
+                      style={{
+                        minWidth: 32,
+                        height: 32,
+                        borderRadius: 10,
+                        border: isActive ? "1px solid #00875a" : "1px solid #e2e8f0",
+                        background: isActive ? "#00875a" : "#ffffff",
+                        color: isActive ? "#ffffff" : "#334155",
+                        fontSize: 12.5,
+                        fontWeight: 800,
+                        cursor: "pointer",
+                        transition: "all 0.15s ease",
+                      }}
+                    >
+                      {item}
+                    </button>
+                  );
+                })}
+
+              <button
+                onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))}
+                disabled={currentPage === totalPages || totalPages === 0}
+                style={{
+                  padding: "6px 14px",
+                  borderRadius: 10,
+                  border: "1px solid #e2e8f0",
+                  background: currentPage === totalPages || totalPages === 0 ? "#f8fafc" : "#ffffff",
+                  color: currentPage === totalPages || totalPages === 0 ? "#94a3b8" : "#1e293b",
+                  fontSize: 12.5,
+                  fontWeight: 700,
+                  cursor: currentPage === totalPages || totalPages === 0 ? "not-allowed" : "pointer",
+                  transition: "all 0.15s ease",
+                }}
+              >
+                Next
+              </button>
+            </div>
+          </div>
+        )}
       </section>
 
       {/* Log Detail Modal */}
