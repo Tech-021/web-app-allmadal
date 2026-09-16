@@ -140,6 +140,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
     localStorage.removeItem(tokenKey);
     localStorage.removeItem(userKey);
+    localStorage.removeItem("almadel_active_business_id");
     setUser(null);
   }, []);
   const value = useMemo(() => ({ user, isLoading, isAuthenticated: Boolean(user), login, signup, logout, refreshUser }), [user, isLoading, login, signup, logout, refreshUser]);
