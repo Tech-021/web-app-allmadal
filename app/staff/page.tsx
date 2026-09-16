@@ -6,6 +6,7 @@ import { WorkspaceShell } from "@/app/components/workspace-shell";
 import { api, StaffItem } from "@/app/lib/api";
 import { useAuth } from "@/hooks/useAuth";
 import { useToast } from "@/app/components/toast-context";
+import { logActivity } from "@/app/lib/logger";
 import ui from "@/app/components/workspace-ui.module.css";
 
 type Draft = { fullName: string; email: string; password: string; confirm: string };
@@ -105,6 +106,17 @@ export default function StaffPage() {
       const msg = modal?.item ? "Staff account updated successfully." : "Staff account created successfully.";
       setNotice(msg);
       showToast(msg, "success");
+
+      logActivity(
+        modal?.item ? "STAFF_UPDATE" : "STAFF_CREATE",
+        "Staff",
+        modal?.item
+          ? `Updated staff account for '${draft.fullName}' (${draft.email})`
+          : `Created new staff account for '${draft.fullName}' (${draft.email})`,
+        draft.fullName || draft.email,
+        { email: draft.email, fullName: draft.fullName }
+      );
+
       await load();
     } catch (e) {
       const msg = e instanceof Error ? e.message : "Could not save staff.";
@@ -130,6 +142,15 @@ export default function StaffPage() {
       const msg = `Staff account for "${name}" deleted.`;
       setNotice(msg);
       showToast(msg, "success");
+
+      logActivity(
+        "STAFF_DELETE",
+        "Staff",
+        `Deleted staff account for '${name}' (${item.user.email})`,
+        name,
+        { userId: item.user.id, email: item.user.email }
+      );
+
       await load();
     } catch (e) {
       const msg = e instanceof Error ? e.message : "Could not delete staff.";
@@ -137,6 +158,18 @@ export default function StaffPage() {
       showToast(msg, "error");
     }
   }
+
+  const [query, setQuery] = useState("");
+
+  const shown = useMemo(() => {
+    const q = query.toLowerCase().trim();
+    if (!q) return staff;
+    return staff.filter((item) =>
+      [item.user.fullName, item.user.email].some((v) =>
+        String(v ?? "").toLowerCase().includes(q)
+      )
+    );
+  }, [staff, query]);
 
   return (
     <WorkspaceShell>
@@ -169,52 +202,117 @@ export default function StaffPage() {
         </div>
       </section>
 
-      <div className={ui.grid}>
-        {loading && !staff.length ? (
-          <div className={ui.empty}>Loading staff accounts…</div>
-        ) : (
-          staff.map((item) => (
-            <article className={ui.card} key={item.user.id}>
-              <div className={ui.cardHead}>
-                <div>
-                  <h2>{item.user.fullName || "Unnamed staff"}</h2>
-                  <span className={ui.muted}>{item.user.email}</span>
-                </div>
-                <div className={ui.actions}>
-                  <button className={ui.secondary} onClick={() => open(item)}>
-                    Edit
-                  </button>
-                  <button className={ui.danger} onClick={() => void remove(item)}>
-                    Delete
-                  </button>
-                </div>
-              </div>
-              <div className={ui.badges}>
-                <span className={ui.badge}>Staff</span>
-                <span className={`${ui.badge} ${ui.success}`}>Active</span>
-              </div>
-              <div className={ui.stats}>
-                <div className={ui.stat}>
-                  <small>My sales</small>
-                  <strong>{money(item.stats.totalSales)}</strong>
-                </div>
-                <div className={ui.stat}>
-                  <small>My orders</small>
-                  <strong>{item.stats.sales}</strong>
-                </div>
-                <div className={ui.stat}>
-                  <small>Items sold</small>
-                  <strong>{item.stats.totalItemsSold}</strong>
-                </div>
-                <div className={ui.stat}>
-                  <small>Average sale</small>
-                  <strong>{money(item.stats.sales ? item.stats.totalSales / item.stats.sales : 0)}</strong>
-                </div>
-              </div>
-            </article>
-          ))
-        )}
+      <div className={ui.toolbar}>
+        <input
+          className={`${ui.input} ${ui.search}`}
+          placeholder="Search staff by name or email…"
+          value={query}
+          onChange={(e) => setQuery(e.target.value)}
+        />
+        <button className={ui.secondary} onClick={() => void load()}>
+          Refresh
+        </button>
       </div>
+
+      <section className={ui.panel}>
+        <div className={ui.tableWrap}>
+          <table className={ui.table}>
+            <thead>
+              <tr>
+                <th>Staff Member</th>
+                <th>Role / Status</th>
+                <th>Total Sales</th>
+                <th>Orders</th>
+                <th>Items Sold</th>
+                <th>Avg. Sale</th>
+                <th>Actions</th>
+              </tr>
+            </thead>
+            <tbody>
+              {shown.map((item) => {
+                const name = item.user.fullName || "Unnamed staff";
+                const initial = name[0]?.toUpperCase() || "S";
+                return (
+                  <tr key={item.user.id}>
+                    <td>
+                      <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+                        <div
+                          style={{
+                            width: 38,
+                            height: 38,
+                            borderRadius: 12,
+                            background: "#e6f4ed",
+                            color: "#00875a",
+                            fontWeight: 800,
+                            fontSize: 14,
+                            display: "grid",
+                            placeItems: "center",
+                            flexShrink: 0,
+                          }}
+                        >
+                          {initial}
+                        </div>
+                        <div>
+                          <strong style={{ fontSize: 13.5, color: "#111827", display: "block" }}>
+                            {name}
+                          </strong>
+                          <span className={ui.muted}>{item.user.email}</span>
+                        </div>
+                      </div>
+                    </td>
+                    <td>
+                      <div style={{ display: "flex", gap: 6, alignItems: "center" }}>
+                        <span className={ui.badge}>Staff</span>
+                        <span className={`${ui.badge} ${ui.success}`}>Active</span>
+                      </div>
+                    </td>
+                    <td>
+                      <strong style={{ color: "#00875a", fontSize: 13.5 }}>
+                        {money(item.stats.totalSales)}
+                      </strong>
+                    </td>
+                    <td>
+                      <strong>{item.stats.sales}</strong>
+                    </td>
+                    <td>
+                      <strong>{item.stats.totalItemsSold}</strong>
+                    </td>
+                    <td>
+                      <span style={{ fontWeight: 600, color: "#374151" }}>
+                        {money(item.stats.sales ? item.stats.totalSales / item.stats.sales : 0)}
+                      </span>
+                    </td>
+                    <td>
+                      <div className={ui.actions}>
+                        <button className={ui.secondary} onClick={() => open(item)}>
+                          Edit
+                        </button>
+                        <button className={ui.danger} onClick={() => void remove(item)}>
+                          Delete
+                        </button>
+                      </div>
+                    </td>
+                  </tr>
+                );
+              })}
+              {!loading && !shown.length && (
+                <tr>
+                  <td colSpan={7} className={ui.empty}>
+                    {query ? "No staff accounts match your search." : "No staff accounts found."}
+                  </td>
+                </tr>
+              )}
+              {loading && !staff.length && (
+                <tr>
+                  <td colSpan={7} className={ui.empty}>
+                    Loading staff accounts…
+                  </td>
+                </tr>
+              )}
+            </tbody>
+          </table>
+        </div>
+      </section>
 
       {modal && (
         <div

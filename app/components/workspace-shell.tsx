@@ -6,11 +6,28 @@ import { useEffect } from "react";
 import { useAuth } from "@/hooks/useAuth";
 import styles from "./workspace-shell.module.css";
 
-const links = [
+import { logActivity } from "@/app/lib/logger";
+
+const links: Array<{
+  href: string;
+  label: string;
+  icon: string;
+  admin?: boolean;
+  subItems?: Array<{ href: string; label: string }>;
+}> = [
   { href: "/dashboard", label: "Dashboard", icon: "▦" },
-  { href: "/products", label: "Products", icon: "□" },
+  {
+    href: "/products",
+    label: "Products",
+    icon: "□",
+    subItems: [
+      { href: "/products", label: "All Products" },
+      { href: "/categories", label: "Categories" },
+    ],
+  },
   { href: "/stock", label: "Stock", icon: "＋" },
   { href: "/staff", label: "Staff", icon: "♙", admin: true },
+  { href: "/logs", label: "Activity Logs", icon: "📑", admin: true },
 ];
 
 function ShoppingBagIcon() {
@@ -32,6 +49,29 @@ export function WorkspaceShell({ children }: { children: React.ReactNode }) {
     if (!isLoading && !user) router.replace("/login");
   }, [isLoading, user, router]);
 
+  // Track page visits
+  useEffect(() => {
+    if (user && pathname) {
+      const pageNames: Record<string, string> = {
+        "/dashboard": "Dashboard",
+        "/products": "Products Catalog",
+        "/categories": "Categories Manager",
+        "/stock": "Stock Management",
+        "/staff": "Staff Management",
+        "/logs": "Activity Logs",
+      };
+      const title = pageNames[pathname] || pathname;
+      logActivity(
+        "PAGE_VISIT",
+        "Visit",
+        `Visited ${title} page (${pathname})`,
+        pathname,
+        { path: pathname },
+        { name: user.name, email: user.email, role: user.role }
+      );
+    }
+  }, [user, pathname]);
+
   if (isLoading || !user) return <main className={styles.loading}>Loading Almadel workspace…</main>;
 
   return (
@@ -45,12 +85,42 @@ export function WorkspaceShell({ children }: { children: React.ReactNode }) {
           </div>
         </Link>
         <nav>
-          {links.filter((x) => !x.admin || user.role === "admin").map((x) => (
-            <Link key={x.href} href={x.href} className={pathname === x.href ? styles.active : ""}>
-              <i>{x.icon}</i>
-              {x.label}
-            </Link>
-          ))}
+          {links
+            .filter((x) => !x.admin || user.role === "admin")
+            .map((x) => {
+              const isSectionActive =
+                pathname === x.href ||
+                (x.subItems && x.subItems.some((sub) => pathname === sub.href));
+
+              return (
+                <div key={x.href} className={styles.menuGroup}>
+                  <Link
+                    href={x.href}
+                    className={isSectionActive ? styles.active : ""}
+                  >
+                    <i>{x.icon}</i>
+                    <span>{x.label}</span>
+                  </Link>
+
+                  {x.subItems && isSectionActive && (
+                    <div className={styles.subNav}>
+                      {x.subItems.map((sub) => (
+                        <Link
+                          key={sub.href}
+                          href={sub.href}
+                          className={`${styles.subLink} ${
+                            pathname === sub.href ? styles.subLinkActive : ""
+                          }`}
+                        >
+                          <span style={{ fontSize: 10, opacity: 0.7 }}>↳</span>
+                          <span>{sub.label}</span>
+                        </Link>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              );
+            })}
         </nav>
         <div className={styles.user}>
           <b>{user.name[0]?.toUpperCase()}</b>
@@ -77,12 +147,23 @@ export function WorkspaceShell({ children }: { children: React.ReactNode }) {
       <section className={styles.content}>{children}</section>
 
       <nav className={styles.bottom}>
-        {links.filter((x) => !x.admin || user.role === "admin").map((x) => (
-          <Link key={x.href} href={x.href} className={pathname === x.href ? styles.active : ""}>
-            <i>{x.icon}</i>
-            <span>{x.label}</span>
-          </Link>
-        ))}
+        {links
+          .filter((x) => !x.admin || user.role === "admin")
+          .map((x) => {
+            const isSectionActive =
+              pathname === x.href ||
+              (x.subItems && x.subItems.some((sub) => pathname === sub.href));
+            return (
+              <Link
+                key={x.href}
+                href={x.href}
+                className={isSectionActive ? styles.active : ""}
+              >
+                <i>{x.icon}</i>
+                <span>{x.label}</span>
+              </Link>
+            );
+          })}
       </nav>
     </div>
   );

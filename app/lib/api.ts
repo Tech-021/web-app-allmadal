@@ -1,7 +1,7 @@
 const baseUrl = process.env.NEXT_PUBLIC_BACKEND_URL?.replace(/\/$/, "") ?? "";
 
 export async function api<T>(path: string, options: RequestInit = {}): Promise<T> {
-  const token = localStorage.getItem("almadel_access_token");
+  const token = typeof window !== "undefined" ? localStorage.getItem("almadel_access_token") : null;
   if (!baseUrl || !token) throw new Error("Your session is not available. Please sign in again.");
   const response = await fetch(`${baseUrl}${path}`, {
     ...options,
@@ -9,7 +9,15 @@ export async function api<T>(path: string, options: RequestInit = {}): Promise<T
     headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}`, ...options.headers },
   });
   const payload = await response.json().catch(() => ({}));
-  if (!response.ok) throw new Error(payload.message || "Request failed. Please try again.");
+  if (!response.ok) {
+    const errorMsg =
+      payload.message ||
+      payload.error ||
+      payload.detail ||
+      (typeof payload === "string" ? payload : "") ||
+      `Request failed with status ${response.status}.`;
+    throw new Error(errorMsg);
+  }
   return payload as T;
 }
 
