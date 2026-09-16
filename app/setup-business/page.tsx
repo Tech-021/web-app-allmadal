@@ -63,8 +63,10 @@ export default function SetupBusinessPage() {
   const [area, setArea] = useState("");
   const [province, setProvince] = useState<string>("Punjab");
 
+  const [touched, setTouched] = useState<Record<string, boolean>>({});
+  const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
   const [saving, setSaving] = useState(false);
-  const [error, setError] = useState("");
+  const [generalError, setGeneralError] = useState("");
   const [showSuccessModal, setShowSuccessModal] = useState(false);
   const [createdBusiness, setCreatedBusiness] = useState<{ id: number; name: string } | null>(null);
 
@@ -74,10 +76,104 @@ export default function SetupBusinessPage() {
     }
   }, [authLoading, isAuthenticated, router]);
 
+  // Validation functions
+  const validateBusinessName = (name: string): string => {
+    const trimmed = name.trim();
+    if (!trimmed) return "Business name is required.";
+    if (trimmed.length < 2) return "Business name must be at least 2 characters long.";
+    if (trimmed.length > 100) return "Business name cannot exceed 100 characters.";
+    return "";
+  };
+
+  const validateMobile = (mobile: string): string => {
+    const trimmed = mobile.trim();
+    if (!trimmed) return "Primary mobile number is required.";
+    const digits = trimmed.replace(/[^0-9]/g, "");
+    if (digits.length < 10 || digits.length > 15) {
+      return "Please enter a valid mobile number (e.g., 0300-1234567 or 03XXXXXXXXX).";
+    }
+    return "";
+  };
+
+  const validateWhatsapp = (whatsapp: string, same: boolean, mobile: string): string => {
+    if (same) {
+      return validateMobile(mobile);
+    }
+    const trimmed = whatsapp.trim();
+    if (!trimmed) return "";
+    const digits = trimmed.replace(/[^0-9]/g, "");
+    if (digits.length < 10 || digits.length > 15) {
+      return "Please enter a valid WhatsApp number (min 10 digits).";
+    }
+    return "";
+  };
+
+  const validateEmail = (val: string): string => {
+    const trimmed = val.trim();
+    if (!trimmed) return "";
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailRegex.test(trimmed)) {
+      return "Please enter a valid email address (e.g., shop@example.com).";
+    }
+    return "";
+  };
+
+  const validateAddress = (val: string): string => {
+    if (val.trim().length > 200) {
+      return "Street address cannot exceed 200 characters.";
+    }
+    return "";
+  };
+
+  const validateAll = () => {
+    const errors: Record<string, string> = {};
+
+    const nameErr = validateBusinessName(businessName);
+    if (nameErr) errors.businessName = nameErr;
+
+    const mobileErr = validateMobile(mobileNumber);
+    if (mobileErr) errors.mobileNumber = mobileErr;
+
+    const whatsappErr = validateWhatsapp(whatsappNumber, sameAsMobile, mobileNumber);
+    if (whatsappErr) errors.whatsappNumber = whatsappErr;
+
+    const emailErr = validateEmail(email);
+    if (emailErr) errors.email = emailErr;
+
+    if (showAddress) {
+      const addrErr = validateAddress(address);
+      if (addrErr) errors.address = addrErr;
+    }
+
+    setFieldErrors(errors);
+    return errors;
+  };
+
+  const markTouched = (field: string) => {
+    setTouched((prev) => ({ ...prev, [field]: true }));
+    if (field === "businessName") {
+      const err = validateBusinessName(businessName);
+      setFieldErrors((prev) => ({ ...prev, businessName: err }));
+    } else if (field === "mobileNumber") {
+      const err = validateMobile(mobileNumber);
+      setFieldErrors((prev) => ({ ...prev, mobileNumber: err }));
+    } else if (field === "whatsappNumber") {
+      const err = validateWhatsapp(whatsappNumber, sameAsMobile, mobileNumber);
+      setFieldErrors((prev) => ({ ...prev, whatsappNumber: err }));
+    } else if (field === "email") {
+      const err = validateEmail(email);
+      setFieldErrors((prev) => ({ ...prev, email: err }));
+    }
+  };
+
   const handleMobileChange = (val: string) => {
     setMobileNumber(val);
     if (sameAsMobile) {
       setWhatsappNumber(val);
+    }
+    if (touched.mobileNumber) {
+      const err = validateMobile(val);
+      setFieldErrors((prev) => ({ ...prev, mobileNumber: err }));
     }
   };
 
@@ -85,19 +181,29 @@ export default function SetupBusinessPage() {
     setSameAsMobile(checked);
     if (checked) {
       setWhatsappNumber(mobileNumber);
+      if (touched.whatsappNumber) {
+        setFieldErrors((prev) => ({ ...prev, whatsappNumber: "" }));
+      }
     }
   };
 
   const handleSubmit = async (e: FormEvent) => {
     e.preventDefault();
-    setError("");
+    setGeneralError("");
 
-    if (!businessName.trim()) {
-      setError("Please enter your business name.");
-      return;
-    }
-    if (!mobileNumber.trim()) {
-      setError("Please enter your primary business mobile number.");
+    setTouched({
+      businessName: true,
+      mobileNumber: true,
+      whatsappNumber: true,
+      email: true,
+      address: true,
+    });
+
+    const errors = validateAll();
+    if (Object.keys(errors).length > 0) {
+      const firstErrorMessage = Object.values(errors)[0];
+      setGeneralError(firstErrorMessage || "Please correct the highlighted fields before submitting.");
+      showToast("Please check the form for invalid inputs.", "error");
       return;
     }
 
@@ -112,9 +218,9 @@ export default function SetupBusinessPage() {
           mobileNumber: mobileNumber.trim(),
           whatsappNumber: sameAsMobile ? mobileNumber.trim() : (whatsappNumber.trim() || null),
           email: email.trim() || null,
-          address: address.trim() || null,
-          city: city.trim() || null,
-          area: area.trim() || null,
+          address: showAddress && address.trim() ? address.trim() : null,
+          city: showAddress && city.trim() ? city.trim() : null,
+          area: showAddress && area.trim() ? area.trim() : null,
           province: showAddress ? province : null,
           accountingStartDate: new Date().toISOString(),
           openingCashBalance: 0,
@@ -140,7 +246,7 @@ export default function SetupBusinessPage() {
       setShowSuccessModal(true);
     } catch (err: any) {
       const msg = err?.message || "Failed to set up business. Please check your details.";
-      setError(msg);
+      setGeneralError(msg);
       showToast(msg, "error");
     } finally {
       setSaving(false);
@@ -184,13 +290,14 @@ export default function SetupBusinessPage() {
             </p>
           </div>
 
-          {error && (
-            <div className="mb-6 p-4 rounded-2xl bg-red-50 border border-red-200 text-red-700 text-xs font-bold">
-              {error}
+          {generalError && (
+            <div className="mb-6 p-4 rounded-2xl bg-red-50 border border-red-200 text-red-700 text-xs font-bold flex items-center gap-2">
+              <span className="text-base">⚠️</span>
+              <span>{generalError}</span>
             </div>
           )}
 
-          <form onSubmit={handleSubmit} className="space-y-8">
+          <form onSubmit={handleSubmit} noValidate className="space-y-8">
             {/* Section 1: Business Information */}
             <div>
               <div className="flex items-center gap-2 mb-4">
@@ -204,17 +311,40 @@ export default function SetupBusinessPage() {
 
               <div className="space-y-4">
                 <div>
-                  <label className="block text-xs font-bold text-gray-700 mb-1.5">
-                    Business Name <span className="text-red-500">*</span>
-                  </label>
+                  <div className="flex items-center justify-between mb-1.5">
+                    <label className="text-xs font-bold text-gray-700">
+                      Business Name <span className="text-red-500">*</span>
+                    </label>
+                    <span className="text-[11px] text-gray-400">
+                      {businessName.length}/100
+                    </span>
+                  </div>
                   <input
                     type="text"
                     required
+                    maxLength={100}
                     value={businessName}
-                    onChange={(e) => setBusinessName(e.target.value)}
+                    onBlur={() => markTouched("businessName")}
+                    onChange={(e) => {
+                      setBusinessName(e.target.value);
+                      if (touched.businessName) {
+                        const err = validateBusinessName(e.target.value);
+                        setFieldErrors((prev) => ({ ...prev, businessName: err }));
+                      }
+                    }}
                     placeholder="e.g. Al-Madina Mobile Center"
-                    className="w-full px-4 py-3 rounded-2xl border border-gray-200 bg-gray-50/50 text-sm font-semibold text-gray-900 placeholder:text-gray-400 focus:bg-white focus:border-[#00875a] focus:ring-4 focus:ring-[#00875a]/10 outline-none transition"
+                    className={`w-full px-4 py-3 rounded-2xl border text-sm font-semibold text-gray-900 placeholder:text-gray-400 outline-none transition ${
+                      touched.businessName && fieldErrors.businessName
+                        ? "border-red-400 bg-red-50/20 focus:border-red-500 focus:ring-4 focus:ring-red-500/10"
+                        : "border-gray-200 bg-gray-50/50 focus:bg-white focus:border-[#00875a] focus:ring-4 focus:ring-[#00875a]/10"
+                    }`}
                   />
+                  {touched.businessName && fieldErrors.businessName && (
+                    <p className="mt-1.5 text-xs font-bold text-red-600 flex items-center gap-1.5 animate-in fade-in">
+                      <span>•</span>
+                      <span>{fieldErrors.businessName}</span>
+                    </p>
+                  )}
                 </div>
 
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
@@ -278,10 +408,21 @@ export default function SetupBusinessPage() {
                       type="tel"
                       required
                       value={mobileNumber}
+                      onBlur={() => markTouched("mobileNumber")}
                       onChange={(e) => handleMobileChange(e.target.value)}
-                      placeholder="03XX-XXXXXXX"
-                      className="w-full px-4 py-3 rounded-2xl border border-gray-200 bg-gray-50/50 text-sm font-semibold text-gray-900 placeholder:text-gray-400 focus:bg-white focus:border-[#00875a] focus:ring-4 focus:ring-[#00875a]/10 outline-none transition"
+                      placeholder="0300-1234567"
+                      className={`w-full px-4 py-3 rounded-2xl border text-sm font-semibold text-gray-900 placeholder:text-gray-400 outline-none transition ${
+                        touched.mobileNumber && fieldErrors.mobileNumber
+                          ? "border-red-400 bg-red-50/20 focus:border-red-500 focus:ring-4 focus:ring-red-500/10"
+                          : "border-gray-200 bg-gray-50/50 focus:bg-white focus:border-[#00875a] focus:ring-4 focus:ring-[#00875a]/10"
+                      }`}
                     />
+                    {touched.mobileNumber && fieldErrors.mobileNumber && (
+                      <p className="mt-1.5 text-xs font-bold text-red-600 flex items-center gap-1.5 animate-in fade-in">
+                        <span>•</span>
+                        <span>{fieldErrors.mobileNumber}</span>
+                      </p>
+                    )}
                   </div>
 
                   <div>
@@ -289,7 +430,7 @@ export default function SetupBusinessPage() {
                       <label className="text-xs font-bold text-gray-700">
                         WhatsApp Number
                       </label>
-                      <label className="flex items-center gap-1.5 text-[11px] font-bold text-[#00875a] cursor-pointer">
+                      <label className="flex items-center gap-1.5 text-[11px] font-bold text-[#00875a] cursor-pointer select-none">
                         <input
                           type="checkbox"
                           checked={sameAsMobile}
@@ -303,10 +444,27 @@ export default function SetupBusinessPage() {
                       type="tel"
                       disabled={sameAsMobile}
                       value={sameAsMobile ? mobileNumber : whatsappNumber}
-                      onChange={(e) => setWhatsappNumber(e.target.value)}
-                      placeholder="03XX-XXXXXXX"
-                      className="w-full px-4 py-3 rounded-2xl border border-gray-200 bg-gray-50/50 text-sm font-semibold text-gray-900 placeholder:text-gray-400 focus:bg-white focus:border-[#00875a] focus:ring-4 focus:ring-[#00875a]/10 outline-none transition disabled:opacity-60 disabled:cursor-not-allowed"
+                      onBlur={() => markTouched("whatsappNumber")}
+                      onChange={(e) => {
+                        setWhatsappNumber(e.target.value);
+                        if (touched.whatsappNumber) {
+                          const err = validateWhatsapp(e.target.value, false, mobileNumber);
+                          setFieldErrors((prev) => ({ ...prev, whatsappNumber: err }));
+                        }
+                      }}
+                      placeholder="0300-1234567"
+                      className={`w-full px-4 py-3 rounded-2xl border text-sm font-semibold text-gray-900 placeholder:text-gray-400 outline-none transition disabled:opacity-60 disabled:cursor-not-allowed ${
+                        !sameAsMobile && touched.whatsappNumber && fieldErrors.whatsappNumber
+                          ? "border-red-400 bg-red-50/20 focus:border-red-500 focus:ring-4 focus:ring-red-500/10"
+                          : "border-gray-200 bg-gray-50/50 focus:bg-white focus:border-[#00875a] focus:ring-4 focus:ring-[#00875a]/10"
+                      }`}
                     />
+                    {!sameAsMobile && touched.whatsappNumber && fieldErrors.whatsappNumber && (
+                      <p className="mt-1.5 text-xs font-bold text-red-600 flex items-center gap-1.5 animate-in fade-in">
+                        <span>•</span>
+                        <span>{fieldErrors.whatsappNumber}</span>
+                      </p>
+                    )}
                   </div>
                 </div>
 
@@ -317,10 +475,27 @@ export default function SetupBusinessPage() {
                   <input
                     type="email"
                     value={email}
-                    onChange={(e) => setEmail(e.target.value)}
+                    onBlur={() => markTouched("email")}
+                    onChange={(e) => {
+                      setEmail(e.target.value);
+                      if (touched.email) {
+                        const err = validateEmail(e.target.value);
+                        setFieldErrors((prev) => ({ ...prev, email: err }));
+                      }
+                    }}
                     placeholder="shop@almadina.com"
-                    className="w-full px-4 py-3 rounded-2xl border border-gray-200 bg-gray-50/50 text-sm font-semibold text-gray-900 placeholder:text-gray-400 focus:bg-white focus:border-[#00875a] focus:ring-4 focus:ring-[#00875a]/10 outline-none transition"
+                    className={`w-full px-4 py-3 rounded-2xl border text-sm font-semibold text-gray-900 placeholder:text-gray-400 outline-none transition ${
+                      touched.email && fieldErrors.email
+                        ? "border-red-400 bg-red-50/20 focus:border-red-500 focus:ring-4 focus:ring-red-500/10"
+                        : "border-gray-200 bg-gray-50/50 focus:bg-white focus:border-[#00875a] focus:ring-4 focus:ring-[#00875a]/10"
+                    }`}
                   />
+                  {touched.email && fieldErrors.email && (
+                    <p className="mt-1.5 text-xs font-bold text-red-600 flex items-center gap-1.5 animate-in fade-in">
+                      <span>•</span>
+                      <span>{fieldErrors.email}</span>
+                    </p>
+                  )}
                 </div>
 
                 {/* Optional Address Toggle */}
@@ -341,6 +516,7 @@ export default function SetupBusinessPage() {
                         </label>
                         <input
                           type="text"
+                          maxLength={200}
                           value={address}
                           onChange={(e) => setAddress(e.target.value)}
                           placeholder="Shop #12, Hafeez Center, Main Boulevard"
@@ -355,6 +531,7 @@ export default function SetupBusinessPage() {
                           </label>
                           <input
                             type="text"
+                            maxLength={60}
                             value={city}
                             onChange={(e) => setCity(e.target.value)}
                             placeholder="Lahore"
@@ -367,6 +544,7 @@ export default function SetupBusinessPage() {
                           </label>
                           <input
                             type="text"
+                            maxLength={60}
                             value={area}
                             onChange={(e) => setArea(e.target.value)}
                             placeholder="Gulberg III"
@@ -486,4 +664,3 @@ export default function SetupBusinessPage() {
     </div>
   );
 }
-
