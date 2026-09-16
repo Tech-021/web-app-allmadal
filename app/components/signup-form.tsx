@@ -24,9 +24,9 @@ export function SignupForm() {
     setBusy(true);
     try {
       await signup({ name: String(form.get("name")), email: String(form.get("email")), password });
-      router.push("/dashboard?role=staff");
+      router.push("/setup-business");
     } catch (e) {
-      setError(e instanceof Error ? e.message : "Unable to create your account.");
+      setError(e instanceof Error ? e.message : "Unable to create your business account.");
     } finally {
       setBusy(false);
     }
@@ -34,24 +34,24 @@ export function SignupForm() {
 
   return (
     <div className="w-full">
-      <h1 className="text-[2rem] font-extrabold tracking-[-.035em] text-[#111827]">Naya Account Banayein</h1>
+      <h1 className="text-[2rem] font-extrabold tracking-[-.035em] text-[#111827]">Create Owner Account</h1>
       <p className="mt-1.5 text-sm leading-6 text-[#6b7280]">
-        Join the Almadel workspace. Administrator accounts are managed directly by system admins.
+        Register as a store owner to set up your store, manage inventory, sales, and employee accounts.
       </p>
 
       <div className="mt-6 flex items-center gap-3 rounded-2xl border border-[#c3e9d7] bg-[#e6f4ed] px-4 py-3">
         <span className="grid size-8 shrink-0 place-items-center rounded-full bg-[#00875A] text-xs font-extrabold text-white">
-          S
+          O
         </span>
         <div>
-          <p className="text-xs font-bold text-[#111827]">Staff Registration</p>
-          <p className="text-[11px] font-medium text-[#006b3f]">Your account will be assigned the staff role.</p>
+          <p className="text-xs font-bold text-[#111827]">Store Owner Account</p>
+          <p className="text-[11px] font-medium text-[#006b3f]">You will be guided to configure your business right after signup.</p>
         </div>
       </div>
 
       <form className="mt-6 space-y-4" onSubmit={submit}>
-        <Field label="Full name" name="name" placeholder="Your full name" autoComplete="name" minLength={2} required />
-        <Field label="Email address" name="email" type="email" placeholder="you@almadel.com" autoComplete="email" required />
+        <Field label="Owner full name" name="name" placeholder="e.g. Muhammad Aslam" autoComplete="name" minLength={2} required />
+        <Field label="Business / Owner email" name="email" type="email" placeholder="owner@almadina.com" autoComplete="email" required />
         <Field
           label="Password"
           name="password"
@@ -85,12 +85,11 @@ export function SignupForm() {
 
         <button
           disabled={busy}
-          className="h-12.5 w-full rounded-full bg-[#00875A] font-extrabold text-white shadow-[0_8px_20px_rgba(0,135,90,.22)] transition-all duration-200 hover:bg-[#006b3f] hover:shadow-[0_10px_24px_rgba(0,135,90,.3)] active:scale-[0.99] disabled:opacity-60 text-sm tracking-wide"
+          className="h-12.5 w-full rounded-full bg-[#00875A] font-extrabold text-white shadow-[0_8px_20px_rgba(0,135,90,.22)] transition-all duration-200 hover:bg-[#006b3f] hover:shadow-[0_10px_24px_rgba(0,135,90,.3)] active:scale-[0.99] disabled:opacity-60 text-sm tracking-wide cursor-pointer"
         >
-          {busy ? "Creating account…" : "Naya Account Banayein"}
+          {busy ? "Creating account..." : "Create Account & Setup Business ➔"}
         </button>
       </form>
     </div>
   );
 }
-

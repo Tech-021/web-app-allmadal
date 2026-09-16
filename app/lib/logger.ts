@@ -109,11 +109,15 @@ export async function logActivity(
     userId: user.id || null,
   };
 
+  const activeBusinessId = localStorage.getItem("almadel_active_business_id");
   const headers: Record<string, string> = {
     "Content-Type": "application/json",
   };
   if (token) {
     headers["Authorization"] = `Bearer ${token}`;
+  }
+  if (activeBusinessId) {
+    headers["x-business-id"] = activeBusinessId;
   }
 
   console.log(
@@ -184,8 +188,10 @@ export async function clearAllLogs(): Promise<void> {
   console.log("%c[Almadel Logger] 🗑️ Requesting DELETE /admin/logs from database...", "color: #e11d48; font-weight: bold");
 
   if (baseUrl) {
+    const activeBusinessId = localStorage.getItem("almadel_active_business_id");
     const headers: Record<string, string> = {};
     if (token) headers["Authorization"] = `Bearer ${token}`;
+    if (activeBusinessId) headers["x-business-id"] = activeBusinessId;
 
     try {
       let res = await fetch(`${baseUrl}/admin/logs`, {

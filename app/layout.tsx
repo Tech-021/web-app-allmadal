@@ -3,6 +3,7 @@ import { Plus_Jakarta_Sans } from "next/font/google";
 import "./globals.css";
 import { AuthProvider } from "@/hooks/useAuth";
 import { ToastProvider } from "@/app/components/toast-context";
+import { BusinessProvider } from "@/app/components/business-context";
 
 const plusJakartaSans = Plus_Jakarta_Sans({
   subsets: ["latin"],
@@ -38,10 +39,11 @@ export default function RootLayout({
     <html lang="en" className={`h-full antialiased ${plusJakartaSans.variable}`}>
       <body className={`${plusJakartaSans.className} min-h-full flex flex-col font-sans`}>
         <AuthProvider>
-          <ToastProvider>{children}</ToastProvider>
+          <ToastProvider>
+            <BusinessProvider>{children}</BusinessProvider>
+          </ToastProvider>
         </AuthProvider>
       </body>
     </html>
   );
 }
-

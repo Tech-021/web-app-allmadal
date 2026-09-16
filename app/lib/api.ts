@@ -3,10 +3,18 @@ const baseUrl = process.env.NEXT_PUBLIC_BACKEND_URL?.replace(/\/$/, "") ?? "";
 export async function api<T>(path: string, options: RequestInit = {}): Promise<T> {
   const token = typeof window !== "undefined" ? localStorage.getItem("almadel_access_token") : null;
   if (!baseUrl || !token) throw new Error("Your session is not available. Please sign in again.");
+  const activeBusinessId = typeof window !== "undefined" ? localStorage.getItem("almadel_active_business_id") : null;
+  const headers: Record<string, string> = {
+    "Content-Type": "application/json",
+    Authorization: `Bearer ${token}`,
+  };
+  if (activeBusinessId) {
+    headers["x-business-id"] = activeBusinessId;
+  }
   const response = await fetch(`${baseUrl}${path}`, {
     ...options,
     cache: "no-store",
-    headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}`, ...options.headers },
+    headers: { ...headers, ...options.headers },
   });
   const payload = await response.json().catch(() => ({}));
   if (!response.ok) {
