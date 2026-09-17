@@ -8,7 +8,29 @@ import { useBusiness } from "@/app/components/business-context";
 import styles from "./workspace-shell.module.css";
 import { logActivity } from "@/app/lib/logger";
 
-const links: Array<{
+const posLinks: Array<{
+  href: string;
+  label: string;
+  icon: string;
+  admin?: boolean;
+  subItems?: Array<{ href: string; label: string }>;
+}> = [
+  { href: "/dashboard", label: "Dashboard", icon: "📊" },
+  {
+    href: "/products",
+    label: "Products",
+    icon: "📦",
+    subItems: [
+      { href: "/products", label: "All Products" },
+      { href: "/categories", label: "Categories" },
+    ],
+  },
+  { href: "/stock", label: "Stock", icon: "📥" },
+  { href: "/staff", label: "Staff", icon: "👥", admin: true },
+  { href: "/logs", label: "Activity Logs", icon: "📋", admin: true },
+];
+
+const financialLinks: Array<{
   href: string;
   label: string;
   icon: string;
@@ -66,12 +88,14 @@ function StoreIcon() {
 
 export function WorkspaceShell({ children }: { children: React.ReactNode }) {
   const { user, isLoading: authLoading, logout } = useAuth();
-  const { activeBusiness, businesses, switchBusiness, isLoading: bizLoading } = useBusiness();
+  const { activeBusiness, businesses, switchBusiness, workspaceMode, setWorkspaceMode, isLoading: bizLoading } = useBusiness();
   const router = useRouter();
   const pathname = usePathname();
 
   const [bizDropdownOpen, setBizDropdownOpen] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
+
+  const links = workspaceMode === "pos" ? posLinks : financialLinks;
 
   useEffect(() => {
     if (!authLoading && !user) router.replace("/login");
@@ -200,6 +224,36 @@ export function WorkspaceShell({ children }: { children: React.ReactNode }) {
               </Link>
             </div>
           )}
+        </div>
+
+        {/* Workspace Mode Switcher Pill */}
+        <div className="px-2 mb-3">
+          <div className="flex items-center p-1 rounded-xl bg-slate-100 border border-slate-200/80">
+            <button
+              type="button"
+              onClick={() => setWorkspaceMode("pos")}
+              className={`flex-1 py-1.5 px-2 rounded-lg text-[11px] font-extrabold transition flex items-center justify-center gap-1 cursor-pointer ${
+                workspaceMode === "pos"
+                  ? "bg-white text-emerald-800 shadow-xs border border-emerald-100"
+                  : "text-slate-500 hover:text-slate-900"
+              }`}
+            >
+              <span>🛒</span>
+              <span>POS</span>
+            </button>
+            <button
+              type="button"
+              onClick={() => setWorkspaceMode("financial")}
+              className={`flex-1 py-1.5 px-2 rounded-lg text-[11px] font-extrabold transition flex items-center justify-center gap-1 cursor-pointer ${
+                workspaceMode === "financial"
+                  ? "bg-[#00875a] text-white shadow-xs"
+                  : "text-slate-500 hover:text-slate-900"
+              }`}
+            >
+              <span>📊</span>
+              <span>Financial</span>
+            </button>
+          </div>
         </div>
 
         <nav>

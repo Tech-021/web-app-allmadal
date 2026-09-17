@@ -40,7 +40,7 @@ function FinancialSetupContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const { isAuthenticated, isLoading: authLoading } = useAuth();
-  const { businesses, reloadBusinesses, switchBusiness } = useBusiness();
+  const { businesses, reloadBusinesses, switchBusiness, setWorkspaceMode } = useBusiness();
   const { showToast } = useToast();
 
   const businessIdParam = searchParams.get("businessId");
@@ -308,6 +308,7 @@ function FinancialSetupContent() {
 
       await reloadBusinesses();
       switchBusiness(targetId);
+      setWorkspaceMode("financial");
       setSetupComplete(true);
       showToast("Financial setup saved successfully!", "success");
     } catch (err) {

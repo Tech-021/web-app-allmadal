@@ -80,7 +80,7 @@ function SalesChart({ sales }: { sales: Sale[] }) {
 
 export default function DashboardPage() {
   const { user, isLoading } = useAuth();
-  const { activeBusiness } = useBusiness();
+  const { activeBusiness, workspaceMode, setWorkspaceMode } = useBusiness();
   const router = useRouter();
   const [data, setData] = useState<AdminPayload>({});
   const [loading, setLoading] = useState(true);
@@ -120,34 +120,91 @@ export default function DashboardPage() {
   const lowStock = products.filter(product => Number(product.stock ?? 0) <= Number(product.lowStockThreshold ?? product.low_stock_threshold ?? 5)).length;
   const breakdown = data.productBreakdown ?? {};
 
+  // Financial Workspace Metrics
+  const cashInHand = Number(activeBusiness?.openingCashBalance || 0);
+  const bankBalance = Number(activeBusiness?.openingBankBalance || 0);
+  const customerReceivable = Number(activeBusiness?.customerReceivable || 0);
+  const supplierPayable = Number(activeBusiness?.supplierPayable || 0);
+  const totalLiquidCash = cashInHand + bankBalance;
+
   return (
     <WorkspaceShell>
       <div className={styles.topbar}>
         <div>
-          <span className={styles.eyebrow}>{user.role}</span>
+          <div className="flex items-center gap-2 mb-1">
+            <span className={styles.eyebrow}>{user.role}</span>
+            <span className="px-2 py-0.5 rounded-md text-[10px] font-extrabold uppercase tracking-wide bg-slate-100 text-slate-700">
+              {workspaceMode === "financial" ? "📊 Financial Workspace" : "🛒 POS Workspace"}
+            </span>
+          </div>
           <h1>Hello, {user.name}</h1>
-          <p>{user.role === "admin" ? "Sales, stock value, products, and low stock signals in one place." : "Your private sales performance for this account."}</p>
+          <p>
+            {workspaceMode === "financial"
+              ? "Comprehensive financial standing, accounts, receivables, and inventory valuation."
+              : user.role === "admin"
+              ? "Sales, stock value, products, and low stock signals in one place."
+              : "Your private sales performance for this account."}
+          </p>
         </div>
-        <button className={styles.refresh} disabled={loading} onClick={() => void fetchDashboard()}>
-          <Icon name="refresh" />{loading ? "Refreshing…" : "Refresh"}
-        </button>
+        <div className="flex items-center gap-2">
+          <button
+            type="button"
+            onClick={() => setWorkspaceMode(workspaceMode === "pos" ? "financial" : "pos")}
+            className="px-3.5 py-2 rounded-xl text-xs font-bold border border-slate-200 bg-white hover:bg-slate-50 text-slate-700 transition cursor-pointer shadow-xs"
+          >
+            Switch to {workspaceMode === "pos" ? "Financial ➔" : "POS ➔"}
+          </button>
+          <button className={styles.refresh} disabled={loading} onClick={() => void fetchDashboard()}>
+            <Icon name="refresh" />{loading ? "Refreshing…" : "Refresh"}
+          </button>
+        </div>
       </div>
 
       {error && <div className={styles.error} role="alert"><span>{error}</span><button onClick={() => void fetchDashboard()}>Try again</button></div>}
 
-      <section className={styles.metricGrid} aria-label="Dashboard metrics">
-        {user.role === "admin" ? <>
-          <MetricCard icon="cash" label="Total sales" tone="green" value={money(totalSales)} />
-          <MetricCard icon="people" label="Staff" tone="blue" value={String(data.staffCount ?? 0)} />
-          <MetricCard icon="cube" label="My products" tone="teal" value={String(breakdown.myProducts ?? 0)} />
-          <MetricCard icon="warning" label="Low stock" tone="red" value={String(lowStock)} />
-        </> : <>
-          <MetricCard icon="cash" label="My sales" tone="green" value={money(totalSales)} />
-          <MetricCard icon="receipt" label="My orders" tone="blue" value={String(sales.length)} />
-          <MetricCard icon="cube" label="Items sold" tone="teal" value={String(totalItems)} />
-          <MetricCard icon="trend" label="Average sale" tone="green" value={money(sales.length ? totalSales / sales.length : 0)} />
-        </>}
-      </section>
+      {/* METRIC GRID: Distinct based on workspaceMode */}
+      {workspaceMode === "financial" ? (
+        <section className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3 mb-6">
+          <article className="p-4 rounded-2xl bg-white border border-slate-200/80 shadow-xs space-y-1">
+            <span className="text-[11px] font-bold text-slate-500 uppercase tracking-wide">Cash in Hand</span>
+            <p className="text-base font-black text-emerald-800">₨ {cashInHand.toLocaleString()}</p>
+          </article>
+          <article className="p-4 rounded-2xl bg-white border border-slate-200/80 shadow-xs space-y-1">
+            <span className="text-[11px] font-bold text-slate-500 uppercase tracking-wide">Bank Accounts</span>
+            <p className="text-base font-black text-blue-700">₨ {bankBalance.toLocaleString()}</p>
+          </article>
+          <article className="p-4 rounded-2xl bg-white border border-slate-200/80 shadow-xs space-y-1">
+            <span className="text-[11px] font-bold text-slate-500 uppercase tracking-wide">Customer Khata</span>
+            <p className="text-base font-black text-teal-700">₨ {customerReceivable.toLocaleString()}</p>
+          </article>
+          <article className="p-4 rounded-2xl bg-white border border-slate-200/80 shadow-xs space-y-1">
+            <span className="text-[11px] font-bold text-slate-500 uppercase tracking-wide">Supplier Payables</span>
+            <p className="text-base font-black text-amber-700">₨ {supplierPayable.toLocaleString()}</p>
+          </article>
+          <article className="p-4 rounded-2xl bg-white border border-slate-200/80 shadow-xs space-y-1">
+            <span className="text-[11px] font-bold text-slate-500 uppercase tracking-wide">Stock Value</span>
+            <p className="text-base font-black text-slate-900">{money(stockValue)}</p>
+          </article>
+          <article className="p-4 rounded-2xl bg-white border border-slate-200/80 shadow-xs space-y-1">
+            <span className="text-[11px] font-bold text-slate-500 uppercase tracking-wide">Recorded Sales</span>
+            <p className="text-base font-black text-[#00875a]">{money(totalSales)}</p>
+          </article>
+        </section>
+      ) : (
+        <section className={styles.metricGrid} aria-label="Dashboard metrics">
+          {user.role === "admin" ? <>
+            <MetricCard icon="cash" label="Total sales" tone="green" value={money(totalSales)} />
+            <MetricCard icon="people" label="Staff" tone="blue" value={String(data.staffCount ?? 0)} />
+            <MetricCard icon="cube" label="My products" tone="teal" value={String(breakdown.myProducts ?? 0)} />
+            <MetricCard icon="warning" label="Low stock" tone="red" value={String(lowStock)} />
+          </> : <>
+            <MetricCard icon="cash" label="My sales" tone="green" value={money(totalSales)} />
+            <MetricCard icon="receipt" label="My orders" tone="blue" value={String(sales.length)} />
+            <MetricCard icon="cube" label="Items sold" tone="teal" value={String(totalItems)} />
+            <MetricCard icon="trend" label="Average sale" tone="green" value={money(sales.length ? totalSales / sales.length : 0)} />
+          </>}
+        </section>
+      )}
 
       <div className={styles.dashboardGrid}>
         <div className={styles.mainColumn}>
