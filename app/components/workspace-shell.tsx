@@ -26,6 +26,7 @@ const posLinks: Array<{
     ],
   },
   { href: "/stock", label: "Stock", icon: "📥" },
+  { href: "/payments", label: "Payments / Billing", icon: "💳" },
   { href: "/staff", label: "Staff", icon: "👥", admin: true },
   { href: "/logs", label: "Activity Logs", icon: "📋", admin: true },
 ];
@@ -55,7 +56,7 @@ const financialLinks: Array<{
     ],
   },
   { href: "/imei", label: "IMEI Management", icon: "📱" },
-  { href: "/payments", label: "Payments", icon: "💳" },
+  { href: "/payments", label: "Payments / Billing", icon: "💳" },
   { href: "/invoices", label: "Invoices / Receipts", icon: "🧾" },
   { href: "/daily-closing", label: "Daily Closing", icon: "🔒" },
   { href: "/reports", label: "Reports", icon: "📈" },
