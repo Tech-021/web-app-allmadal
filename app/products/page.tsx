@@ -4,6 +4,7 @@ import { FormEvent, useCallback, useEffect, useMemo, useState } from "react";
 import { WorkspaceShell } from "@/app/components/workspace-shell";
 import { api, Product } from "@/app/lib/api";
 import { useToast } from "@/app/components/toast-context";
+import { useBusiness } from "@/app/components/business-context";
 import { logActivity } from "@/app/lib/logger";
 import ui from "@/app/components/workspace-ui.module.css";
 
@@ -23,6 +24,7 @@ const money = (n: number) => `Rs ${Number(n).toLocaleString()}`;
 
 export default function ProductsPage() {
   const { showToast, confirmDialog } = useToast();
+  const { activeBusiness } = useBusiness();
   const [products, setProducts] = useState<Product[]>([]);
   const [query, setQuery] = useState("");
   const [statusFilter, setStatusFilter] = useState<"All" | "Healthy" | "Low Stock" | "Out of Stock">("All");
@@ -46,7 +48,7 @@ export default function ProductsPage() {
     } finally {
       setLoading(false);
     }
-  }, [showToast]);
+  }, [showToast, activeBusiness?.id]);
 
   useEffect(() => {
     const t = setTimeout(() => void load(), 0);

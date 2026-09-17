@@ -5,6 +5,8 @@ import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { WorkspaceShell } from "@/app/components/workspace-shell";
 import { ReceiptModal, ReceiptSale } from "@/app/components/receipt-modal";
+import { api } from "@/app/lib/api";
+import { useBusiness } from "@/app/components/business-context";
 import styles from "./dashboard.module.css";
 
 type Sale = { id: number | string; total_amount?: number; total_items?: number; created_at?: string };
@@ -78,6 +80,7 @@ function SalesChart({ sales }: { sales: Sale[] }) {
 
 export default function DashboardPage() {
   const { user, isLoading } = useAuth();
+  const { activeBusiness } = useBusiness();
   const router = useRouter();
   const [data, setData] = useState<AdminPayload>({});
   const [loading, setLoading] = useState(true);
@@ -86,19 +89,23 @@ export default function DashboardPage() {
 
   const fetchDashboard = useCallback(async () => {
     if (!user) return;
-    setLoading(true); setError("");
+    setLoading(true);
+    setError("");
     try {
-      const token = localStorage.getItem("almadel_access_token");
-      if (!backendUrl || !token) throw new Error("Your session is not available. Please sign in again.");
-      const response = await fetch(`${backendUrl}${user.role === "admin" ? "/dashboard" : "/dashboard/me"}`, { headers: { Authorization: `Bearer ${token}` }, cache: "no-store" });
-      const payload = await response.json().catch(() => ({}));
-      if (!response.ok) throw new Error(payload.message || "Dashboard data could not be loaded.");
+      const endpoint = user.role === "admin" ? "/dashboard" : "/dashboard/me";
+      const payload = await api<AdminPayload>(endpoint);
       setData(payload);
-    } catch (reason) { setError(reason instanceof Error ? reason.message : "Dashboard data could not be loaded."); }
-    finally { setLoading(false); }
-  }, [user]);
+    } catch (reason) {
+      setError(reason instanceof Error ? reason.message : "Dashboard data could not be loaded.");
+    } finally {
+      setLoading(false);
+    }
+  }, [user, activeBusiness?.id]);
 
-  useEffect(() => { if (!isLoading && !user) router.replace("/login"); }, [isLoading, user, router]);
+  useEffect(() => {
+    if (!isLoading && !user) router.replace("/login");
+  }, [isLoading, user, router]);
+
   useEffect(() => {
     const timer = window.setTimeout(() => void fetchDashboard(), 0);
     return () => window.clearTimeout(timer);
