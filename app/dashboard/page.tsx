@@ -1,12 +1,13 @@
 "use client";
 
 import { useAuth } from "@/hooks/useAuth";
-import { useRouter } from "next/navigation";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
+import { useCallback, useEffect, useMemo, useState, Suspense } from "react";
 import { WorkspaceShell } from "@/app/components/workspace-shell";
 import { ReceiptModal, ReceiptSale } from "@/app/components/receipt-modal";
 import { api } from "@/app/lib/api";
 import { useBusiness } from "@/app/components/business-context";
+import { useToast } from "@/app/components/toast-context";
 import styles from "./dashboard.module.css";
 
 type Sale = { id: number | string; total_amount?: number; total_items?: number; created_at?: string };
@@ -78,10 +79,13 @@ function SalesChart({ sales }: { sales: Sale[] }) {
   </section>;
 }
 
-export default function DashboardPage() {
+function DashboardContent() {
   const { user, isLoading } = useAuth();
   const { activeBusiness, workspaceMode, setWorkspaceMode } = useBusiness();
   const router = useRouter();
+  const searchParams = useSearchParams();
+  const paymentSuccess = searchParams.get("payment") === "success";
+
   const [data, setData] = useState<AdminPayload>({});
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
@@ -101,6 +105,19 @@ export default function DashboardPage() {
       setLoading(false);
     }
   }, [user, activeBusiness?.id]);
+
+  const sessionId = searchParams.get("session_id");
+
+  useEffect(() => {
+    if (paymentSuccess && sessionId) {
+      api("/billing/verify-session", {
+        method: "POST",
+        body: JSON.stringify({ sessionId }),
+      }).catch((err) => {
+        console.warn("Session auto-verification notice:", err);
+      });
+    }
+  }, [paymentSuccess, sessionId]);
 
   useEffect(() => {
     if (!isLoading && !user) router.replace("/login");
@@ -129,6 +146,26 @@ export default function DashboardPage() {
 
   return (
     <WorkspaceShell>
+      {paymentSuccess && (
+        <div className="mb-6 p-4 rounded-2xl bg-emerald-500/10 border border-emerald-500/30 text-emerald-900 flex items-center justify-between">
+          <div className="flex items-center gap-3">
+            <span className="text-2xl">🎉</span>
+            <div>
+              <p className="font-bold text-sm">Payment Successful! Subscription Activated</p>
+              <p className="text-xs text-emerald-800">
+                Thank you for subscribing to Almadel Pro. All POS and Financial features are fully active.
+              </p>
+            </div>
+          </div>
+          <button
+            onClick={() => router.replace("/dashboard")}
+            className="text-xs font-semibold px-3 py-1.5 rounded-lg bg-emerald-600 text-white hover:bg-emerald-700 transition-colors"
+          >
+            Dismiss
+          </button>
+        </div>
+      )}
+
       <div className={styles.topbar}>
         <div>
           <div className="flex items-center gap-2 mb-1">
@@ -265,5 +302,13 @@ export default function DashboardPage() {
 
       <ReceiptModal sale={activeReceipt} onClose={() => setActiveReceipt(null)} />
     </WorkspaceShell>
+  );
+}
+
+export default function DashboardPage() {
+  return (
+    <Suspense fallback={<main className={styles.loadingPage}><span className={styles.spinner} />Loading Almadel workspace…</main>}>
+      <DashboardContent />
+    </Suspense>
   );
 }
