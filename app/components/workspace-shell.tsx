@@ -16,6 +16,7 @@ const posLinks: Array<{
   subItems?: Array<{ href: string; label: string }>;
 }> = [
   { href: "/dashboard", label: "Dashboard", icon: "📊" },
+  { href: "/sales", label: "Sales", icon: "🛒" },
   {
     href: "/products",
     label: "Products",
@@ -25,8 +26,8 @@ const posLinks: Array<{
       { href: "/categories", label: "Categories" },
     ],
   },
-  { href: "/stock", label: "Stock", icon: "📥" },
-  { href: "/payments", label: "Payments / Billing", icon: "💳" },
+  { href: "/stock", label: "Stock", icon: "📥", admin: true },
+  { href: "/payments", label: "Payments / Billing", icon: "💳", admin: true },
   { href: "/staff", label: "Staff", icon: "👥", admin: true },
   { href: "/logs", label: "Activity Logs", icon: "📋", admin: true },
 ];
@@ -39,11 +40,7 @@ const financialLinks: Array<{
   subItems?: Array<{ href: string; label: string }>;
 }> = [
   { href: "/dashboard", label: "Dashboard", icon: "📊" },
-  { href: "/accounts", label: "Cash / Accounts", icon: "💵" },
-  { href: "/customers", label: "Customers / Khata", icon: "👥" },
-  { href: "/suppliers", label: "Suppliers", icon: "🏢" },
   { href: "/sales", label: "Sales", icon: "🛒" },
-  { href: "/expenses", label: "Expenses", icon: "💸" },
   {
     href: "/products",
     label: "Products / Inventory",
@@ -54,11 +51,16 @@ const financialLinks: Array<{
       { href: "/stock", label: "Stock Levels" },
     ],
   },
-  { href: "/imei", label: "IMEI Management", icon: "📱" },
-  { href: "/payments", label: "Payments / Billing", icon: "💳" },
-  { href: "/invoices", label: "Invoices / Receipts", icon: "🧾" },
-  { href: "/daily-closing", label: "Daily Closing", icon: "🔒" },
-  { href: "/reports", label: "Reports", icon: "📈" },
+  { href: "/accounts", label: "Cash / Accounts", icon: "💵", admin: true },
+  { href: "/customers", label: "Customers / Khata", icon: "👥", admin: true },
+  { href: "/suppliers", label: "Suppliers", icon: "🏢", admin: true },
+  { href: "/purchases", label: "Purchases", icon: "🛍️", admin: true },
+  { href: "/expenses", label: "Expenses", icon: "💸", admin: true },
+  { href: "/imei", label: "IMEI Management", icon: "📱", admin: true },
+  { href: "/payments", label: "Payments / Billing", icon: "💳", admin: true },
+  { href: "/invoices", label: "Invoices / Receipts", icon: "🧾", admin: true },
+  { href: "/daily-closing", label: "Daily Closing", icon: "🔒", admin: true },
+  { href: "/reports", label: "Reports", icon: "📈", admin: true },
   { href: "/staff", label: "Staff & Permissions", icon: "👤", admin: true },
   { href: "/logs", label: "Activity Logs", icon: "📋", admin: true },
   { href: "/settings", label: "Settings", icon: "⚙️", admin: true },

@@ -190,8 +190,8 @@ function DashboardContent() {
 
       {error && <div className={styles.error} role="alert"><span>{error}</span><button onClick={() => void fetchDashboard()}>Try again</button></div>}
 
-      {/* METRIC GRID: Distinct based on workspaceMode */}
-      {workspaceMode === "financial" ? (
+      {/* METRIC GRID: Distinct based on role and workspaceMode */}
+      {user.role === "admin" && workspaceMode === "financial" ? (
         <section className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3 mb-6">
           <article className="p-4 rounded-2xl bg-white border border-slate-200/80 shadow-xs space-y-1">
             <span className="text-[11px] font-bold text-slate-500 uppercase tracking-wide">Cash in Hand</span>
