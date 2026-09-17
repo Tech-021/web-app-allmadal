@@ -52,7 +52,7 @@ function FinancialSetupContent() {
   }, [businessIdParam, businesses]);
 
   const [currentStep, setCurrentStep] = useState<number>(1);
-  const totalSteps = 5;
+  const totalSteps = 6;
 
   // Validation errors state
   const [errors, setErrors] = useState<Record<string, string>>({});
@@ -172,12 +172,7 @@ function FinancialSetupContent() {
     }
 
     if (step === 2) {
-      if (hasCustomerUdhaar) {
-        const custRec = Number(customerReceivable);
-        if (isNaN(custRec) || custRec < 0) {
-          newErrors.customerReceivable = "Customer receivable amount must be 0 or greater.";
-        }
-      }
+      // Step 2: Supplier Udhaar (Payables)
       if (hasSupplierUdhaar) {
         const suppPay = Number(supplierPayable);
         if (isNaN(suppPay) || suppPay < 0) {
@@ -187,6 +182,17 @@ function FinancialSetupContent() {
     }
 
     if (step === 3) {
+      // Step 3: Customer Udhaar (Receivables)
+      if (hasCustomerUdhaar) {
+        const custRec = Number(customerReceivable);
+        if (isNaN(custRec) || custRec < 0) {
+          newErrors.customerReceivable = "Customer receivable amount must be 0 or greater.";
+        }
+      }
+    }
+
+    if (step === 4) {
+      // Step 4: Inventory
       if (manageStock) {
         const stockVal = Number(currentStockValue);
         if (isNaN(stockVal) || stockVal < 0) {
@@ -195,7 +201,8 @@ function FinancialSetupContent() {
       }
     }
 
-    if (step === 4) {
+    if (step === 5) {
+      // Step 5: Tax
       if (taxRegistered === "yes") {
         const cleanNtn = ntn.trim();
         if (!cleanNtn) {
@@ -405,7 +412,7 @@ function FinancialSetupContent() {
 
   // Final Submit Handler
   const handleFinalSubmit = async () => {
-    if (!validateStep(5) || !validateStep(4) || !validateStep(3) || !validateStep(2) || !validateStep(1)) {
+    if (!validateStep(6) || !validateStep(5) || !validateStep(4) || !validateStep(3) || !validateStep(2) || !validateStep(1)) {
       showToast("Please check previous steps for missing or invalid details.", "info");
       return;
     }
@@ -709,7 +716,7 @@ function FinancialSetupContent() {
             </div>
           )}
 
-          {/* ================= STEP 2: SECTION 5 EXISTING UDHAAR ================= */}
+          {/* ================= STEP 2: SECTION 5 SUPPLIER UDHAAR ================= */}
           {currentStep === 2 && (
             <div className="space-y-8 animate-in fade-in duration-200">
               <div>
@@ -717,10 +724,143 @@ function FinancialSetupContent() {
                   Section 5
                 </span>
                 <h2 className="text-2xl font-black text-slate-900 tracking-tight">
-                  Existing Udhaar (Khata)
+                  Supplier Udhaar (Payables)
                 </h2>
                 <p className="text-xs font-medium text-slate-500 mt-1">
-                  Transfer customer receivables and supplier payables to start tracking balances right away.
+                  Record money you currently owe to suppliers to start tracking payables right away.
+                </p>
+              </div>
+
+              {/* Supplier Udhaar (Payables) */}
+              <div className="space-y-4 p-5 rounded-2xl border border-slate-200 bg-slate-50/50">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <strong className="block text-xs font-extrabold text-slate-900">
+                      Do you owe money to suppliers?
+                    </strong>
+                    <span className="text-[11px] font-medium text-slate-500">
+                      Supplier Khata / Payables
+                    </span>
+                  </div>
+                  <div className="flex gap-2">
+                    <button
+                      type="button"
+                      onClick={() => setHasSupplierUdhaar(true)}
+                      className={`px-4 py-1.5 rounded-xl text-xs font-extrabold transition cursor-pointer ${
+                        hasSupplierUdhaar ? "bg-[#00875a] text-white" : "bg-slate-200 text-slate-700 hover:bg-slate-300"
+                      }`}
+                    >
+                      Yes
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setHasSupplierUdhaar(false)}
+                      className={`px-4 py-1.5 rounded-xl text-xs font-extrabold transition cursor-pointer ${
+                        !hasSupplierUdhaar ? "bg-[#00875a] text-white" : "bg-slate-200 text-slate-700 hover:bg-slate-300"
+                      }`}
+                    >
+                      No
+                    </button>
+                  </div>
+                </div>
+
+                {hasSupplierUdhaar && (
+                  <div className="space-y-4 pt-3 border-t border-slate-200">
+                    <div>
+                      <label className="block text-[11px] font-extrabold text-slate-700 mb-1">
+                        Total Amount You Owe Suppliers
+                      </label>
+                      <div className="relative max-w-xs">
+                        <span className="absolute left-3.5 top-1/2 -translate-y-1/2 text-xs font-extrabold text-slate-400">
+                          ₨
+                        </span>
+                        <input
+                          type="number"
+                          min="0"
+                          placeholder="850,000"
+                          value={supplierPayable === "0" ? "" : supplierPayable}
+                          onChange={(e) => {
+                            setSupplierPayable(e.target.value);
+                            if (errors.supplierPayable) setErrors((prev) => ({ ...prev, supplierPayable: "" }));
+                          }}
+                          className={`w-full pl-8 pr-3 py-2.5 rounded-xl border bg-white text-xs font-extrabold text-slate-900 outline-none ${
+                            errors.supplierPayable ? "border-red-500 bg-red-50/50" : "border-slate-200 focus:border-[#00875a]"
+                          }`}
+                        />
+                      </div>
+                      {errors.supplierPayable && (
+                        <p className="text-[11px] font-bold text-red-600 mt-1">{errors.supplierPayable}</p>
+                      )}
+                    </div>
+
+                    {/* Supplier List */}
+                    <div className="space-y-2">
+                      <div className="flex items-center justify-between">
+                        <span className="text-[11px] font-bold text-slate-500">
+                          Individual Suppliers ({suppliers.length})
+                        </span>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setSuppModalError("");
+                            setShowAddSupplierModal(true);
+                          }}
+                          className="text-xs font-extrabold text-[#00875a] hover:underline cursor-pointer"
+                        >
+                          + Add Supplier Now
+                        </button>
+                      </div>
+
+                      {suppliers.length > 0 ? (
+                        <div className="space-y-1.5 max-h-40 overflow-y-auto pr-1">
+                          {suppliers.map((s, i) => (
+                            <div
+                              key={i}
+                              className="flex items-center justify-between p-2.5 bg-white rounded-xl border border-slate-200 text-xs font-semibold"
+                            >
+                              <div>
+                                <span className="font-extrabold text-slate-900">{s.name}</span>
+                                {s.mobile && <span className="text-slate-400 text-[11px] ml-2">({s.mobile})</span>}
+                              </div>
+                              <div className="flex items-center gap-3">
+                                <span className="font-extrabold text-amber-700">
+                                  ₨ {s.openingBalance.toLocaleString()}
+                                </span>
+                                <button
+                                  type="button"
+                                  onClick={() => setSuppliers(suppliers.filter((_, idx) => idx !== i))}
+                                  className="text-red-500 hover:text-red-700 text-xs font-bold cursor-pointer"
+                                >
+                                  ✕
+                                </button>
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      ) : (
+                        <p className="text-[11px] font-medium text-slate-400 italic">
+                          You don&apos;t have to enter every supplier right now. You can skip and add them anytime.
+                        </p>
+                      )}
+                    </div>
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
+
+          {/* ================= STEP 3: SECTION 5 CUSTOMER UDHAAR ================= */}
+          {currentStep === 3 && (
+            <div className="space-y-8 animate-in fade-in duration-200">
+              <div>
+                <span className="inline-block px-3 py-1 rounded-full bg-[#e6f4ed] text-[#00875a] text-[11px] font-extrabold uppercase tracking-wider mb-2">
+                  Section 5
+                </span>
+                <h2 className="text-2xl font-black text-slate-900 tracking-tight">
+                  Customer Udhaar (Receivables)
+                </h2>
+                <p className="text-xs font-medium text-slate-500 mt-1">
+                  Record money customers currently owe you to start tracking customer khata right away.
                 </p>
               </div>
 
@@ -839,127 +979,11 @@ function FinancialSetupContent() {
                   </div>
                 )}
               </div>
-
-              {/* Supplier Udhaar (Payables) */}
-              <div className="space-y-4 p-5 rounded-2xl border border-slate-200 bg-slate-50/50">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <strong className="block text-xs font-extrabold text-slate-900">
-                      Do you owe money to suppliers?
-                    </strong>
-                    <span className="text-[11px] font-medium text-slate-500">
-                      Supplier Khata / Payables
-                    </span>
-                  </div>
-                  <div className="flex gap-2">
-                    <button
-                      type="button"
-                      onClick={() => setHasSupplierUdhaar(true)}
-                      className={`px-4 py-1.5 rounded-xl text-xs font-extrabold transition cursor-pointer ${
-                        hasSupplierUdhaar ? "bg-[#00875a] text-white" : "bg-slate-200 text-slate-700 hover:bg-slate-300"
-                      }`}
-                    >
-                      Yes
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => setHasSupplierUdhaar(false)}
-                      className={`px-4 py-1.5 rounded-xl text-xs font-extrabold transition cursor-pointer ${
-                        !hasSupplierUdhaar ? "bg-[#00875a] text-white" : "bg-slate-200 text-slate-700 hover:bg-slate-300"
-                      }`}
-                    >
-                      No
-                    </button>
-                  </div>
-                </div>
-
-                {hasSupplierUdhaar && (
-                  <div className="space-y-4 pt-3 border-t border-slate-200">
-                    <div>
-                      <label className="block text-[11px] font-extrabold text-slate-700 mb-1">
-                        Total Amount You Owe Suppliers
-                      </label>
-                      <div className="relative max-w-xs">
-                        <span className="absolute left-3.5 top-1/2 -translate-y-1/2 text-xs font-extrabold text-slate-400">
-                          ₨
-                        </span>
-                        <input
-                          type="number"
-                          min="0"
-                          placeholder="850,000"
-                          value={supplierPayable === "0" ? "" : supplierPayable}
-                          onChange={(e) => {
-                            setSupplierPayable(e.target.value);
-                            if (errors.supplierPayable) setErrors((prev) => ({ ...prev, supplierPayable: "" }));
-                          }}
-                          className={`w-full pl-8 pr-3 py-2.5 rounded-xl border bg-white text-xs font-extrabold text-slate-900 outline-none ${
-                            errors.supplierPayable ? "border-red-500 bg-red-50/50" : "border-slate-200 focus:border-[#00875a]"
-                          }`}
-                        />
-                      </div>
-                      {errors.supplierPayable && (
-                        <p className="text-[11px] font-bold text-red-600 mt-1">{errors.supplierPayable}</p>
-                      )}
-                    </div>
-
-                    {/* Supplier List */}
-                    <div className="space-y-2">
-                      <div className="flex items-center justify-between">
-                        <span className="text-[11px] font-bold text-slate-500">
-                          Individual Suppliers ({suppliers.length})
-                        </span>
-                        <button
-                          type="button"
-                          onClick={() => {
-                            setSuppModalError("");
-                            setShowAddSupplierModal(true);
-                          }}
-                          className="text-xs font-extrabold text-[#00875a] hover:underline cursor-pointer"
-                        >
-                          + Add Supplier Now
-                        </button>
-                      </div>
-
-                      {suppliers.length > 0 ? (
-                        <div className="space-y-1.5 max-h-40 overflow-y-auto pr-1">
-                          {suppliers.map((s, i) => (
-                            <div
-                              key={i}
-                              className="flex items-center justify-between p-2.5 bg-white rounded-xl border border-slate-200 text-xs font-semibold"
-                            >
-                              <div>
-                                <span className="font-extrabold text-slate-900">{s.name}</span>
-                                {s.mobile && <span className="text-slate-400 text-[11px] ml-2">({s.mobile})</span>}
-                              </div>
-                              <div className="flex items-center gap-3">
-                                <span className="font-extrabold text-amber-700">
-                                  ₨ {s.openingBalance.toLocaleString()}
-                                </span>
-                                <button
-                                  type="button"
-                                  onClick={() => setSuppliers(suppliers.filter((_, idx) => idx !== i))}
-                                  className="text-red-500 hover:text-red-700 text-xs font-bold cursor-pointer"
-                                >
-                                  ✕
-                                </button>
-                              </div>
-                            </div>
-                          ))}
-                        </div>
-                      ) : (
-                        <p className="text-[11px] font-medium text-slate-400 italic">
-                          You can also add suppliers later as you record purchases.
-                        </p>
-                      )}
-                    </div>
-                  </div>
-                )}
-              </div>
             </div>
           )}
 
-          {/* ================= STEP 3: SECTION 6 INVENTORY ================= */}
-          {currentStep === 3 && (
+          {/* ================= STEP 4: SECTION 6 INVENTORY ================= */}
+          {currentStep === 4 && (
             <div className="space-y-8 animate-in fade-in duration-200">
               <div>
                 <span className="inline-block px-3 py-1 rounded-full bg-[#e6f4ed] text-[#00875a] text-[11px] font-extrabold uppercase tracking-wider mb-2">
@@ -1128,8 +1152,8 @@ function FinancialSetupContent() {
             </div>
           )}
 
-          {/* ================= STEP 4: SECTION 7 TAX INFORMATION ================= */}
-          {currentStep === 4 && (
+          {/* ================= STEP 5: SECTION 7 TAX INFORMATION ================= */}
+          {currentStep === 5 && (
             <div className="space-y-8 animate-in fade-in duration-200">
               <div>
                 <span className="inline-block px-3 py-1 rounded-full bg-[#e6f4ed] text-[#00875a] text-[11px] font-extrabold uppercase tracking-wider mb-2">
@@ -1229,8 +1253,8 @@ function FinancialSetupContent() {
             </div>
           )}
 
-          {/* ================= STEP 5: SECTION 8 BUSINESS LOGO ================= */}
-          {currentStep === 5 && (
+          {/* ================= STEP 6: SECTION 8 BUSINESS LOGO ================= */}
+          {currentStep === 6 && (
             <div className="space-y-8 animate-in fade-in duration-200">
               <div>
                 <span className="inline-block px-3 py-1 rounded-full bg-[#e6f4ed] text-[#00875a] text-[11px] font-extrabold uppercase tracking-wider mb-2">
