@@ -16,18 +16,30 @@ const links: Array<{
   subItems?: Array<{ href: string; label: string }>;
 }> = [
   { href: "/dashboard", label: "Dashboard", icon: "📊" },
+  { href: "/accounts", label: "Cash / Accounts", icon: "💵" },
+  { href: "/customers", label: "Customers / Khata", icon: "👥" },
+  { href: "/suppliers", label: "Suppliers", icon: "🏢" },
+  { href: "/sales", label: "Sales", icon: "🛒" },
+  { href: "/purchases", label: "Purchases", icon: "🛍️" },
+  { href: "/expenses", label: "Expenses", icon: "💸" },
   {
     href: "/products",
-    label: "Products",
+    label: "Products / Inventory",
     icon: "📦",
     subItems: [
       { href: "/products", label: "All Products" },
       { href: "/categories", label: "Categories" },
+      { href: "/stock", label: "Stock Levels" },
     ],
   },
-  { href: "/stock", label: "Stock", icon: "📥" },
-  { href: "/staff", label: "Staff", icon: "👥", admin: true },
+  { href: "/imei", label: "IMEI Management", icon: "📱" },
+  { href: "/payments", label: "Payments", icon: "💳" },
+  { href: "/invoices", label: "Invoices / Receipts", icon: "🧾" },
+  { href: "/daily-closing", label: "Daily Closing", icon: "🔒" },
+  { href: "/reports", label: "Reports", icon: "📈" },
+  { href: "/staff", label: "Staff & Permissions", icon: "👤", admin: true },
   { href: "/logs", label: "Activity Logs", icon: "📋", admin: true },
+  { href: "/settings", label: "Settings", icon: "⚙️", admin: true },
 ];
 
 function ShoppingBagIcon() {
@@ -81,12 +93,25 @@ export function WorkspaceShell({ children }: { children: React.ReactNode }) {
     if (user && pathname) {
       const pageNames: Record<string, string> = {
         "/dashboard": "Dashboard",
+        "/accounts": "Cash / Accounts",
+        "/customers": "Customers / Khata",
+        "/suppliers": "Suppliers",
+        "/sales": "Sales POS",
+        "/purchases": "Purchases",
+        "/expenses": "Expenses",
         "/products": "Products Catalog",
         "/categories": "Categories Manager",
         "/stock": "Stock Management",
-        "/staff": "Staff Management",
+        "/imei": "IMEI Management",
+        "/payments": "Payments",
+        "/invoices": "Invoices & Receipts",
+        "/daily-closing": "Daily Closing",
+        "/reports": "Reports & Analytics",
+        "/staff": "Staff & Permissions",
         "/logs": "Activity Logs",
+        "/settings": "Business Settings",
         "/setup-business": "Business Setup",
+        "/setup-business/financial": "Financial Setup (FPS)",
       };
       const title = pageNames[pathname] || pathname;
       logActivity(

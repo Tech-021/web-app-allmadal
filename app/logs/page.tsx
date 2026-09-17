@@ -4,6 +4,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { WorkspaceShell } from "@/app/components/workspace-shell";
 import { useAuth } from "@/hooks/useAuth";
+import { useBusiness } from "@/app/components/business-context";
 import { useToast } from "@/app/components/toast-context";
 import { ActivityCategory, ActivityLog, clearAllLogs } from "@/app/lib/logger";
 import { api } from "@/app/lib/api";
@@ -54,6 +55,7 @@ function getActionBadgeStyle(action: string, category: ActivityCategory): { bg: 
 
 export default function LogsPage() {
   const { user } = useAuth();
+  const { activeBusiness } = useBusiness();
   const router = useRouter();
   const { showToast, confirmDialog } = useToast();
   const [logs, setLogs] = useState<ActivityLog[]>([]);
@@ -162,7 +164,7 @@ export default function LogsPage() {
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [activeBusiness?.id]);
 
   useEffect(() => {
     if (user && user.role !== "admin") {

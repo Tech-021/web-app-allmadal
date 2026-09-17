@@ -4,6 +4,7 @@ import { FormEvent, useCallback, useEffect, useMemo, useState } from "react";
 import { WorkspaceShell } from "@/app/components/workspace-shell";
 import { api, Product } from "@/app/lib/api";
 import { useToast } from "@/app/components/toast-context";
+import { useBusiness } from "@/app/components/business-context";
 import { logActivity } from "@/app/lib/logger";
 import ui from "@/app/components/workspace-ui.module.css";
 
@@ -33,6 +34,7 @@ function ProductAvatar({ name }: { name: string }) {
 
 export default function StockPage() {
   const { showToast } = useToast();
+  const { activeBusiness } = useBusiness();
   const [products, setProducts] = useState<Product[]>([]);
   const [activeTab, setActiveTab] = useState<"all" | "low" | "out">("all");
   const [query, setQuery] = useState("");
@@ -53,7 +55,7 @@ export default function StockPage() {
       const msg = e instanceof Error ? e.message : "Could not load products.";
       showToast(msg, "error");
     }
-  }, [showToast]);
+  }, [showToast, activeBusiness?.id]);
 
   useEffect(() => {
     const t = setTimeout(() => void load(), 0);
