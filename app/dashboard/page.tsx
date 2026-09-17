@@ -146,18 +146,9 @@ export default function DashboardPage() {
               : "Your private sales performance for this account."}
           </p>
         </div>
-        <div className="flex items-center gap-2">
-          <button
-            type="button"
-            onClick={() => setWorkspaceMode(workspaceMode === "pos" ? "financial" : "pos")}
-            className="px-3.5 py-2 rounded-xl text-xs font-bold border border-slate-200 bg-white hover:bg-slate-50 text-slate-700 transition cursor-pointer shadow-xs"
-          >
-            Switch to {workspaceMode === "pos" ? "Financial ➔" : "POS ➔"}
-          </button>
-          <button className={styles.refresh} disabled={loading} onClick={() => void fetchDashboard()}>
-            <Icon name="refresh" />{loading ? "Refreshing…" : "Refresh"}
-          </button>
-        </div>
+        <button className={styles.refresh} disabled={loading} onClick={() => void fetchDashboard()}>
+          <Icon name="refresh" />{loading ? "Refreshing…" : "Refresh"}
+        </button>
       </div>
 
       {error && <div className={styles.error} role="alert"><span>{error}</span><button onClick={() => void fetchDashboard()}>Try again</button></div>}
