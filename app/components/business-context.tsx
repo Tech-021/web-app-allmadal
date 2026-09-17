@@ -31,6 +31,7 @@ export type Business = {
   strn?: string | null;
   taxBusinessName?: string | null;
   logoUrl?: string | null;
+  workspaceMode?: "pos" | "financial" | string;
   ownerId?: number;
   membershipRole?: "owner" | "admin" | "staff";
 };
@@ -105,6 +106,10 @@ export function BusinessProvider({ children }: { children: React.ReactNode }) {
       setActiveBusiness(target);
       if (target) {
         localStorage.setItem(ACTIVE_BIZ_KEY, String(target.id));
+        const resolvedMode: WorkspaceMode =
+          target.workspaceMode === "financial" ? "financial" : "pos";
+        setWorkspaceModeState(resolvedMode);
+        localStorage.setItem(WORKSPACE_MODE_KEY, resolvedMode);
       } else {
         localStorage.removeItem(ACTIVE_BIZ_KEY);
       }
@@ -129,6 +134,10 @@ export function BusinessProvider({ children }: { children: React.ReactNode }) {
       if (selected) {
         setActiveBusiness(selected);
         localStorage.setItem(ACTIVE_BIZ_KEY, String(selected.id));
+        const resolvedMode: WorkspaceMode =
+          selected.workspaceMode === "financial" ? "financial" : "pos";
+        setWorkspaceModeState(resolvedMode);
+        localStorage.setItem(WORKSPACE_MODE_KEY, resolvedMode);
         window.dispatchEvent(new CustomEvent("almadel_business_switched", { detail: selected }));
       }
     },
