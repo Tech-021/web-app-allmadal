@@ -45,7 +45,7 @@ const PROVINCES = [
 export default function SetupBusinessPage() {
   const router = useRouter();
   const { user, isAuthenticated, isLoading: authLoading } = useAuth();
-  const { reloadBusinesses, switchBusiness } = useBusiness();
+  const { reloadBusinesses, switchBusiness, setWorkspaceMode } = useBusiness();
   const { showToast } = useToast();
 
   const [businessName, setBusinessName] = useState("");
@@ -616,7 +616,10 @@ export default function SetupBusinessPage() {
               {/* POS Navigation Button */}
               <button
                 type="button"
-                onClick={() => router.push("/dashboard")}
+                onClick={() => {
+                  setWorkspaceMode("pos");
+                  router.push("/dashboard");
+                }}
                 className="w-full py-4 px-6 rounded-2xl bg-[#00875a] hover:bg-[#006b3f] active:scale-[0.98] text-white font-extrabold text-sm shadow-lg shadow-[#00875a]/25 transition flex items-center justify-between cursor-pointer"
               >
                 <div className="flex items-center gap-3">
