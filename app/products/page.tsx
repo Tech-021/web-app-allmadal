@@ -2,8 +2,9 @@
 
 import { FormEvent, useCallback, useEffect, useMemo, useState } from "react";
 import { WorkspaceShell } from "@/app/components/workspace-shell";
-import { api, Product } from "@/app/lib/api";
+import { api, Product, uploadProductImage } from "@/app/lib/api";
 import { useToast } from "@/app/components/toast-context";
+import { useBusiness } from "@/app/components/business-context";
 import { logActivity } from "@/app/lib/logger";
 import ui from "@/app/components/workspace-ui.module.css";
 
@@ -23,6 +24,7 @@ const money = (n: number) => `Rs ${Number(n).toLocaleString()}`;
 
 export default function ProductsPage() {
   const { showToast, confirmDialog } = useToast();
+  const { activeBusiness } = useBusiness();
   const [products, setProducts] = useState<Product[]>([]);
   const [query, setQuery] = useState("");
   const [statusFilter, setStatusFilter] = useState<"All" | "Healthy" | "Low Stock" | "Out of Stock">("All");
@@ -34,6 +36,7 @@ export default function ProductsPage() {
   const [saving, setSaving] = useState(false);
   const [selectedIds, setSelectedIds] = useState<number[]>([]);
   const [bulkDeleting, setBulkDeleting] = useState(false);
+  const [mediaFile, setMediaFile] = useState<File | null>(null);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -46,7 +49,7 @@ export default function ProductsPage() {
     } finally {
       setLoading(false);
     }
-  }, [showToast]);
+  }, [showToast, activeBusiness?.id]);
 
   useEffect(() => {
     const t = setTimeout(() => void load(), 0);
@@ -117,21 +120,24 @@ export default function ProductsPage() {
         : blank
     );
     setError("");
+    setMediaFile(null);
   }
 
   async function submit(e: FormEvent) {
     e.preventDefault();
-    if (!draft.name.trim() || !draft.barcode.trim() || draft.sellingPrice === "") {
-      const msg = "Product name, barcode, and selling price are required.";
+    if (!draft.name.trim() || draft.sellingPrice === "") {
+      const msg = "Product name and selling price are required.";
       setError(msg);
       showToast(msg, "error");
       return;
     }
     setSaving(true);
     try {
+      const imageUrl = mediaFile ? (await uploadProductImage(mediaFile)).url : draft.imageUrl;
+      const payload = { ...draft, barcode: editing?.barcode || draft.barcode || `AUTO-${Date.now()}`, imageUrl, qrCode: undefined, price: draft.sellingPrice };
       await api(editing ? `/products/${editing.id}` : "/products", {
         method: editing ? "PATCH" : "POST",
-        body: JSON.stringify({ ...draft, price: draft.sellingPrice }),
+        body: JSON.stringify(payload),
       });
       setEditing(undefined);
       const msg = editing ? "Product updated successfully." : "Product added successfully.";
@@ -527,20 +533,21 @@ export default function ProductsPage() {
               {(
                 [
                   ["name", "Product name"],
-                  ["barcode", "Barcode"],
                   ["sku", "SKU"],
                   ["category", "Category"],
                   ["costPrice", "Cost price (Rs.)"],
                   ["sellingPrice", "Sale price (Rs.)"],
                   ["stock", editing ? "Current stock" : "Opening stock"],
                   ["lowStockThreshold", "Low stock alert threshold"],
-                  ["qrCode", "QR code"],
-                  ["imageUrl", "Image URL"],
+                  ["imageUrl", "Product image"],
                 ] as [keyof Draft, string][]
               ).map(([key, label]) => (
                 <div className={`${ui.field} ${key === "imageUrl" ? ui.span2 : ""}`} key={key}>
                   <label>{label}</label>
-                  <input
+                  {key === "imageUrl" ? <>
+                    <input className={ui.input} type="file" accept="image/png,image/jpeg,image/webp,image/gif" onChange={(e) => setMediaFile(e.target.files?.[0] || null)} />
+                    {(mediaFile?.name || draft.imageUrl) && <span className={ui.muted}>{mediaFile?.name || "Current image selected"}</span>}
+                  </> : <input
                     className={ui.input}
                     type={["costPrice", "sellingPrice", "stock", "lowStockThreshold"].includes(key) ? "number" : "text"}
                     min="0"
@@ -548,7 +555,7 @@ export default function ProductsPage() {
                     required={["name", "barcode", "sellingPrice"].includes(key)}
                     value={draft[key]}
                     onChange={(e) => setDraft({ ...draft, [key]: e.target.value })}
-                  />
+                  />}
                   {key === "category" && (
                     <datalist id="categories-options">
                       {Array.from(

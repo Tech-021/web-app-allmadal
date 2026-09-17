@@ -45,7 +45,7 @@ const PROVINCES = [
 export default function SetupBusinessPage() {
   const router = useRouter();
   const { user, isAuthenticated, isLoading: authLoading } = useAuth();
-  const { reloadBusinesses, switchBusiness } = useBusiness();
+  const { reloadBusinesses, switchBusiness, setWorkspaceMode } = useBusiness();
   const { showToast } = useToast();
 
   const [businessName, setBusinessName] = useState("");
@@ -616,7 +616,10 @@ export default function SetupBusinessPage() {
               {/* POS Navigation Button */}
               <button
                 type="button"
-                onClick={() => router.push("/dashboard")}
+                onClick={() => {
+                  setWorkspaceMode("pos");
+                  router.push("/dashboard");
+                }}
                 className="w-full py-4 px-6 rounded-2xl bg-[#00875a] hover:bg-[#006b3f] active:scale-[0.98] text-white font-extrabold text-sm shadow-lg shadow-[#00875a]/25 transition flex items-center justify-between cursor-pointer"
               >
                 <div className="flex items-center gap-3">
@@ -631,26 +634,25 @@ export default function SetupBusinessPage() {
                 <span className="text-base font-bold">➔</span>
               </button>
 
-              {/* Financial Static Button (Placeholder / Remains as is) */}
+              {/* Financial Starting Point (FPS) Navigation Button */}
               <button
                 type="button"
-                onClick={(e) => {
-                  e.preventDefault();
+                onClick={() => {
+                  const bId = createdBusiness?.id;
+                  router.push(bId ? `/setup-business/financial?businessId=${bId}` : "/setup-business/financial");
                 }}
-                className="w-full py-4 px-6 rounded-2xl bg-gray-50 hover:bg-gray-100/80 border border-gray-200 text-gray-700 font-extrabold text-sm transition flex items-center justify-between cursor-default"
+                className="w-full py-4 px-6 rounded-2xl bg-gradient-to-r from-emerald-600 to-teal-700 hover:from-emerald-700 hover:to-teal-800 active:scale-[0.98] text-white font-extrabold text-sm shadow-lg shadow-emerald-700/20 transition flex items-center justify-between cursor-pointer"
               >
                 <div className="flex items-center gap-3">
-                  <span className="size-8 rounded-xl bg-gray-200/80 grid place-items-center text-base text-gray-600">
+                  <span className="size-8 rounded-xl bg-white/20 grid place-items-center text-base">
                     📊
                   </span>
                   <div className="text-left">
-                    <p className="leading-tight font-extrabold text-sm text-gray-800">Financial Static</p>
-                    <p className="text-[11px] font-medium text-gray-400">Reports, ledger & accounts</p>
+                    <p className="leading-tight font-extrabold text-sm text-white">Financial Starting Point (FPS)</p>
+                    <p className="text-[11px] font-medium text-emerald-100">Setup cash, udhaar, inventory & taxes</p>
                   </div>
                 </div>
-                <span className="text-[10px] uppercase font-extrabold bg-gray-200 text-gray-600 px-2 py-1 rounded-lg">
-                  Static
-                </span>
+                <span className="text-base font-bold text-white">➔</span>
               </button>
             </div>
           </div>

@@ -29,5 +29,16 @@ export async function api<T>(path: string, options: RequestInit = {}): Promise<T
   return payload as T;
 }
 
+export async function uploadProductImage(file: File): Promise<{ url: string }> {
+  const token = typeof window !== "undefined" ? localStorage.getItem("almadel_access_token") : null;
+  const businessId = typeof window !== "undefined" ? localStorage.getItem("almadel_active_business_id") : null;
+  if (!baseUrl || !token) throw new Error("Your session is not available. Please sign in again.");
+  const form = new FormData(); form.append("image", file);
+  const response = await fetch(`${baseUrl}/products/images`, { method: "POST", body: form, headers: { Authorization: `Bearer ${token}`, ...(businessId ? { "x-business-id": businessId } : {}) } });
+  const payload = await response.json().catch(() => ({}));
+  if (!response.ok) throw new Error(payload.message || "Could not upload image.");
+  return payload as { url: string };
+}
+
 export type Product = { id:number; barcode:string; category?:string|null; costPrice:number; imageUrl?:string|null; lowStockThreshold:number; name:string; price:number; qrCode?:string|null; sellingPrice:number; sku?:string|null; stock:number };
 export type StaffItem = { user:{ id:number; email:string; fullName:string|null; role:"staff" }; stats:{ products:number; sales:number; stockLogs:number; totalItemsSold:number; totalSales:number } };

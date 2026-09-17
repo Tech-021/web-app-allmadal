@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { WorkspaceShell } from "@/app/components/workspace-shell";
 import { api, StaffItem } from "@/app/lib/api";
 import { useAuth } from "@/hooks/useAuth";
+import { useBusiness } from "@/app/components/business-context";
 import { useToast } from "@/app/components/toast-context";
 import { logActivity } from "@/app/lib/logger";
 import ui from "@/app/components/workspace-ui.module.css";
@@ -16,6 +17,7 @@ const money = (n: number) => `Rs ${Math.round(n).toLocaleString()}`;
 
 export default function StaffPage() {
   const { user } = useAuth();
+  const { activeBusiness } = useBusiness();
   const router = useRouter();
   const { showToast, confirmDialog } = useToast();
   const [staff, setStaff] = useState<StaffItem[]>([]);
@@ -38,7 +40,7 @@ export default function StaffPage() {
     } finally {
       setLoading(false);
     }
-  }, [showToast]);
+  }, [showToast, activeBusiness?.id]);
 
   useEffect(() => {
     if (user && user.role !== "admin") router.replace("/dashboard");

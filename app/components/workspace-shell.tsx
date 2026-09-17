@@ -8,7 +8,7 @@ import { useBusiness } from "@/app/components/business-context";
 import styles from "./workspace-shell.module.css";
 import { logActivity } from "@/app/lib/logger";
 
-const links: Array<{
+const posLinks: Array<{
   href: string;
   label: string;
   icon: string;
@@ -16,6 +16,7 @@ const links: Array<{
   subItems?: Array<{ href: string; label: string }>;
 }> = [
   { href: "/dashboard", label: "Dashboard", icon: "📊" },
+  { href: "/sales", label: "Sales", icon: "🛒" },
   {
     href: "/products",
     label: "Products",
@@ -25,9 +26,44 @@ const links: Array<{
       { href: "/categories", label: "Categories" },
     ],
   },
-  { href: "/stock", label: "Stock", icon: "📥" },
+  { href: "/stock", label: "Stock", icon: "📥", admin: true },
+  { href: "/payments", label: "Payments / Billing", icon: "💳", admin: true },
   { href: "/staff", label: "Staff", icon: "👥", admin: true },
   { href: "/logs", label: "Activity Logs", icon: "📋", admin: true },
+];
+
+const financialLinks: Array<{
+  href: string;
+  label: string;
+  icon: string;
+  admin?: boolean;
+  subItems?: Array<{ href: string; label: string }>;
+}> = [
+  { href: "/dashboard", label: "Dashboard", icon: "📊" },
+  { href: "/sales", label: "Sales", icon: "🛒" },
+  {
+    href: "/products",
+    label: "Products / Inventory",
+    icon: "📦",
+    subItems: [
+      { href: "/products", label: "All Products" },
+      { href: "/categories", label: "Categories" },
+      { href: "/stock", label: "Stock Levels" },
+    ],
+  },
+  { href: "/accounts", label: "Cash / Accounts", icon: "💵", admin: true },
+  { href: "/customers", label: "Customers / Khata", icon: "👥", admin: true },
+  { href: "/suppliers", label: "Suppliers", icon: "🏢", admin: true },
+  { href: "/purchases", label: "Purchases", icon: "🛍️", admin: true },
+  { href: "/expenses", label: "Expenses", icon: "💸", admin: true },
+  { href: "/imei", label: "IMEI Management", icon: "📱", admin: true },
+  { href: "/payments", label: "Payments / Billing", icon: "💳", admin: true },
+  { href: "/invoices", label: "Invoices / Receipts", icon: "🧾", admin: true },
+  { href: "/daily-closing", label: "Daily Closing", icon: "🔒", admin: true },
+  { href: "/reports", label: "Reports", icon: "📈", admin: true },
+  { href: "/staff", label: "Staff & Permissions", icon: "👤", admin: true },
+  { href: "/logs", label: "Activity Logs", icon: "📋", admin: true },
+  { href: "/settings", label: "Settings", icon: "⚙️", admin: true },
 ];
 
 function ShoppingBagIcon() {
@@ -54,12 +90,14 @@ function StoreIcon() {
 
 export function WorkspaceShell({ children }: { children: React.ReactNode }) {
   const { user, isLoading: authLoading, logout } = useAuth();
-  const { activeBusiness, businesses, switchBusiness, isLoading: bizLoading } = useBusiness();
+  const { activeBusiness, businesses, switchBusiness, workspaceMode, setWorkspaceMode, isLoading: bizLoading } = useBusiness();
   const router = useRouter();
   const pathname = usePathname();
 
   const [bizDropdownOpen, setBizDropdownOpen] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
+
+  const links = workspaceMode === "pos" ? posLinks : financialLinks;
 
   useEffect(() => {
     if (!authLoading && !user) router.replace("/login");
@@ -81,12 +119,25 @@ export function WorkspaceShell({ children }: { children: React.ReactNode }) {
     if (user && pathname) {
       const pageNames: Record<string, string> = {
         "/dashboard": "Dashboard",
+        "/accounts": "Cash / Accounts",
+        "/customers": "Customers / Khata",
+        "/suppliers": "Suppliers",
+        "/sales": "Sales POS",
+        "/purchases": "Purchases",
+        "/expenses": "Expenses",
         "/products": "Products Catalog",
         "/categories": "Categories Manager",
         "/stock": "Stock Management",
-        "/staff": "Staff Management",
+        "/imei": "IMEI Management",
+        "/payments": "Payments",
+        "/invoices": "Invoices & Receipts",
+        "/daily-closing": "Daily Closing",
+        "/reports": "Reports & Analytics",
+        "/staff": "Staff & Permissions",
         "/logs": "Activity Logs",
+        "/settings": "Business Settings",
         "/setup-business": "Business Setup",
+        "/setup-business/financial": "Financial Setup (FPS)",
       };
       const title = pageNames[pathname] || pathname;
       logActivity(

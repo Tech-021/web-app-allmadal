@@ -1,10 +1,13 @@
 "use client";
 
 import { useAuth } from "@/hooks/useAuth";
-import { useRouter } from "next/navigation";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
+import { useCallback, useEffect, useMemo, useState, Suspense } from "react";
 import { WorkspaceShell } from "@/app/components/workspace-shell";
 import { ReceiptModal, ReceiptSale } from "@/app/components/receipt-modal";
+import { api } from "@/app/lib/api";
+import { useBusiness } from "@/app/components/business-context";
+import { useToast } from "@/app/components/toast-context";
 import styles from "./dashboard.module.css";
 
 type Sale = { id: number | string; total_amount?: number; total_items?: number; created_at?: string };
@@ -76,9 +79,13 @@ function SalesChart({ sales }: { sales: Sale[] }) {
   </section>;
 }
 
-export default function DashboardPage() {
+function DashboardContent() {
   const { user, isLoading } = useAuth();
+  const { activeBusiness, workspaceMode, setWorkspaceMode } = useBusiness();
   const router = useRouter();
+  const searchParams = useSearchParams();
+  const paymentSuccess = searchParams.get("payment") === "success";
+
   const [data, setData] = useState<AdminPayload>({});
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
@@ -86,19 +93,36 @@ export default function DashboardPage() {
 
   const fetchDashboard = useCallback(async () => {
     if (!user) return;
-    setLoading(true); setError("");
+    setLoading(true);
+    setError("");
     try {
-      const token = localStorage.getItem("almadel_access_token");
-      if (!backendUrl || !token) throw new Error("Your session is not available. Please sign in again.");
-      const response = await fetch(`${backendUrl}${user.role === "admin" ? "/dashboard" : "/dashboard/me"}`, { headers: { Authorization: `Bearer ${token}` }, cache: "no-store" });
-      const payload = await response.json().catch(() => ({}));
-      if (!response.ok) throw new Error(payload.message || "Dashboard data could not be loaded.");
+      const endpoint = user.role === "admin" ? "/dashboard" : "/dashboard/me";
+      const payload = await api<AdminPayload>(endpoint);
       setData(payload);
-    } catch (reason) { setError(reason instanceof Error ? reason.message : "Dashboard data could not be loaded."); }
-    finally { setLoading(false); }
-  }, [user]);
+    } catch (reason) {
+      setError(reason instanceof Error ? reason.message : "Dashboard data could not be loaded.");
+    } finally {
+      setLoading(false);
+    }
+  }, [user, activeBusiness?.id]);
 
-  useEffect(() => { if (!isLoading && !user) router.replace("/login"); }, [isLoading, user, router]);
+  const sessionId = searchParams.get("session_id");
+
+  useEffect(() => {
+    if (paymentSuccess && sessionId) {
+      api("/billing/verify-session", {
+        method: "POST",
+        body: JSON.stringify({ sessionId }),
+      }).catch((err) => {
+        console.warn("Session auto-verification notice:", err);
+      });
+    }
+  }, [paymentSuccess, sessionId]);
+
+  useEffect(() => {
+    if (!isLoading && !user) router.replace("/login");
+  }, [isLoading, user, router]);
+
   useEffect(() => {
     const timer = window.setTimeout(() => void fetchDashboard(), 0);
     return () => window.clearTimeout(timer);
@@ -113,13 +137,51 @@ export default function DashboardPage() {
   const lowStock = products.filter(product => Number(product.stock ?? 0) <= Number(product.lowStockThreshold ?? product.low_stock_threshold ?? 5)).length;
   const breakdown = data.productBreakdown ?? {};
 
+  // Financial Workspace Metrics
+  const cashInHand = Number(activeBusiness?.openingCashBalance || 0);
+  const bankBalance = Number(activeBusiness?.openingBankBalance || 0);
+  const customerReceivable = Number(activeBusiness?.customerReceivable || 0);
+  const supplierPayable = Number(activeBusiness?.supplierPayable || 0);
+  const totalLiquidCash = cashInHand + bankBalance;
+
   return (
     <WorkspaceShell>
+      {paymentSuccess && (
+        <div className="mb-6 p-4 rounded-2xl bg-emerald-500/10 border border-emerald-500/30 text-emerald-900 flex items-center justify-between">
+          <div className="flex items-center gap-3">
+            <span className="text-2xl">🎉</span>
+            <div>
+              <p className="font-bold text-sm">Payment Successful! Subscription Activated</p>
+              <p className="text-xs text-emerald-800">
+                Thank you for subscribing to Almadel Pro. All POS and Financial features are fully active.
+              </p>
+            </div>
+          </div>
+          <button
+            onClick={() => router.replace("/dashboard")}
+            className="text-xs font-semibold px-3 py-1.5 rounded-lg bg-emerald-600 text-white hover:bg-emerald-700 transition-colors"
+          >
+            Dismiss
+          </button>
+        </div>
+      )}
+
       <div className={styles.topbar}>
         <div>
-          <span className={styles.eyebrow}>{user.role}</span>
+          <div className="flex items-center gap-2 mb-1">
+            <span className={styles.eyebrow}>{user.role}</span>
+            <span className="px-2 py-0.5 rounded-md text-[10px] font-extrabold uppercase tracking-wide bg-slate-100 text-slate-700">
+              {workspaceMode === "financial" ? "📊 Financial Workspace" : "🛒 POS Workspace"}
+            </span>
+          </div>
           <h1>Hello, {user.name}</h1>
-          <p>{user.role === "admin" ? "Sales, stock value, products, and low stock signals in one place." : "Your private sales performance for this account."}</p>
+          <p>
+            {workspaceMode === "financial"
+              ? "Comprehensive financial standing, accounts, receivables, and inventory valuation."
+              : user.role === "admin"
+              ? "Sales, stock value, products, and low stock signals in one place."
+              : "Your private sales performance for this account."}
+          </p>
         </div>
         <button className={styles.refresh} disabled={loading} onClick={() => void fetchDashboard()}>
           <Icon name="refresh" />{loading ? "Refreshing…" : "Refresh"}
@@ -128,19 +190,49 @@ export default function DashboardPage() {
 
       {error && <div className={styles.error} role="alert"><span>{error}</span><button onClick={() => void fetchDashboard()}>Try again</button></div>}
 
-      <section className={styles.metricGrid} aria-label="Dashboard metrics">
-        {user.role === "admin" ? <>
-          <MetricCard icon="cash" label="Total sales" tone="green" value={money(totalSales)} />
-          <MetricCard icon="people" label="Staff" tone="blue" value={String(data.staffCount ?? 0)} />
-          <MetricCard icon="cube" label="My products" tone="teal" value={String(breakdown.myProducts ?? 0)} />
-          <MetricCard icon="warning" label="Low stock" tone="red" value={String(lowStock)} />
-        </> : <>
-          <MetricCard icon="cash" label="My sales" tone="green" value={money(totalSales)} />
-          <MetricCard icon="receipt" label="My orders" tone="blue" value={String(sales.length)} />
-          <MetricCard icon="cube" label="Items sold" tone="teal" value={String(totalItems)} />
-          <MetricCard icon="trend" label="Average sale" tone="green" value={money(sales.length ? totalSales / sales.length : 0)} />
-        </>}
-      </section>
+      {/* METRIC GRID: Distinct based on role and workspaceMode */}
+      {user.role === "admin" && workspaceMode === "financial" ? (
+        <section className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3 mb-6">
+          <article className="p-4 rounded-2xl bg-white border border-slate-200/80 shadow-xs space-y-1">
+            <span className="text-[11px] font-bold text-slate-500 uppercase tracking-wide">Cash in Hand</span>
+            <p className="text-base font-black text-emerald-800">₨ {cashInHand.toLocaleString()}</p>
+          </article>
+          <article className="p-4 rounded-2xl bg-white border border-slate-200/80 shadow-xs space-y-1">
+            <span className="text-[11px] font-bold text-slate-500 uppercase tracking-wide">Bank Accounts</span>
+            <p className="text-base font-black text-blue-700">₨ {bankBalance.toLocaleString()}</p>
+          </article>
+          <article className="p-4 rounded-2xl bg-white border border-slate-200/80 shadow-xs space-y-1">
+            <span className="text-[11px] font-bold text-slate-500 uppercase tracking-wide">Customer Khata</span>
+            <p className="text-base font-black text-teal-700">₨ {customerReceivable.toLocaleString()}</p>
+          </article>
+          <article className="p-4 rounded-2xl bg-white border border-slate-200/80 shadow-xs space-y-1">
+            <span className="text-[11px] font-bold text-slate-500 uppercase tracking-wide">Supplier Payables</span>
+            <p className="text-base font-black text-amber-700">₨ {supplierPayable.toLocaleString()}</p>
+          </article>
+          <article className="p-4 rounded-2xl bg-white border border-slate-200/80 shadow-xs space-y-1">
+            <span className="text-[11px] font-bold text-slate-500 uppercase tracking-wide">Stock Value</span>
+            <p className="text-base font-black text-slate-900">{money(stockValue)}</p>
+          </article>
+          <article className="p-4 rounded-2xl bg-white border border-slate-200/80 shadow-xs space-y-1">
+            <span className="text-[11px] font-bold text-slate-500 uppercase tracking-wide">Recorded Sales</span>
+            <p className="text-base font-black text-[#00875a]">{money(totalSales)}</p>
+          </article>
+        </section>
+      ) : (
+        <section className={styles.metricGrid} aria-label="Dashboard metrics">
+          {user.role === "admin" ? <>
+            <MetricCard icon="cash" label="Total sales" tone="green" value={money(totalSales)} />
+            <MetricCard icon="people" label="Staff" tone="blue" value={String(data.staffCount ?? 0)} />
+            <MetricCard icon="cube" label="My products" tone="teal" value={String(breakdown.myProducts ?? 0)} />
+            <MetricCard icon="warning" label="Low stock" tone="red" value={String(lowStock)} />
+          </> : <>
+            <MetricCard icon="cash" label="My sales" tone="green" value={money(totalSales)} />
+            <MetricCard icon="receipt" label="My orders" tone="blue" value={String(sales.length)} />
+            <MetricCard icon="cube" label="Items sold" tone="teal" value={String(totalItems)} />
+            <MetricCard icon="trend" label="Average sale" tone="green" value={money(sales.length ? totalSales / sales.length : 0)} />
+          </>}
+        </section>
+      )}
 
       <div className={styles.dashboardGrid}>
         <div className={styles.mainColumn}>
@@ -210,5 +302,13 @@ export default function DashboardPage() {
 
       <ReceiptModal sale={activeReceipt} onClose={() => setActiveReceipt(null)} />
     </WorkspaceShell>
+  );
+}
+
+export default function DashboardPage() {
+  return (
+    <Suspense fallback={<main className={styles.loadingPage}><span className={styles.spinner} />Loading Almadel workspace…</main>}>
+      <DashboardContent />
+    </Suspense>
   );
 }

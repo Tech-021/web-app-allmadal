@@ -4,6 +4,7 @@ import { FormEvent, useCallback, useEffect, useMemo, useState } from "react";
 import { WorkspaceShell } from "@/app/components/workspace-shell";
 import { api, Product } from "@/app/lib/api";
 import { useToast } from "@/app/components/toast-context";
+import { useBusiness } from "@/app/components/business-context";
 import { logActivity } from "@/app/lib/logger";
 import ui from "@/app/components/workspace-ui.module.css";
 
@@ -16,27 +17,32 @@ export type Category = {
   totalValue?: number;
 };
 
-const CATEGORIES_STORAGE_KEY = "almadel_custom_categories";
+function getStorageKey(businessId?: number | string | null): string {
+  return businessId ? `almadel_custom_categories_${businessId}` : "almadel_custom_categories";
+}
 
-function getStoredCategories(): Category[] {
+function getStoredCategories(businessId?: number | string | null): Category[] {
   if (typeof window === "undefined") return [];
   try {
-    const data = localStorage.getItem(CATEGORIES_STORAGE_KEY);
+    const key = getStorageKey(businessId);
+    const data = localStorage.getItem(key);
     return data ? JSON.parse(data) : [];
   } catch {
     return [];
   }
 }
 
-function saveStoredCategories(categories: Category[]) {
+function saveStoredCategories(categories: Category[], businessId?: number | string | null) {
   if (typeof window === "undefined") return;
-  localStorage.setItem(CATEGORIES_STORAGE_KEY, JSON.stringify(categories));
+  const key = getStorageKey(businessId);
+  localStorage.setItem(key, JSON.stringify(categories));
 }
 
 const money = (n: number) => `Rs ${Math.round(n).toLocaleString()}`;
 
 export default function CategoriesPage() {
   const { showToast, confirmDialog } = useToast();
+  const { activeBusiness } = useBusiness();
   const [products, setProducts] = useState<Product[]>([]);
   const [customCategories, setCustomCategories] = useState<Category[]>([]);
   const [serverCategories, setServerCategories] = useState<Category[]>([]);
@@ -65,8 +71,8 @@ export default function CategoriesPage() {
         // Backend may not have dedicated /categories table, fallback to stored + product derived
       }
 
-      // 3. Load locally saved categories
-      setCustomCategories(getStoredCategories());
+      // 3. Load locally saved categories scoped to active business
+      setCustomCategories(getStoredCategories(activeBusiness?.id));
     } catch (e) {
       const msg = e instanceof Error ? e.message : "Could not load categories.";
       setError(msg);
@@ -74,7 +80,7 @@ export default function CategoriesPage() {
     } finally {
       setLoading(false);
     }
-  }, [showToast]);
+  }, [showToast, activeBusiness?.id]);
 
   useEffect(() => {
     const t = setTimeout(() => void load(), 0);
@@ -232,7 +238,7 @@ export default function CategoriesPage() {
             : c
         );
         setCustomCategories(nextCustom);
-        saveStoredCategories(nextCustom);
+        saveStoredCategories(nextCustom, activeBusiness?.id);
 
         showToast(`Category "${cleanName}" updated successfully.`, "success");
         setNotice(`Category "${cleanName}" updated.`);
@@ -261,7 +267,7 @@ export default function CategoriesPage() {
           newCat,
         ];
         setCustomCategories(nextCustom);
-        saveStoredCategories(nextCustom);
+        saveStoredCategories(nextCustom, activeBusiness?.id);
 
         showToast(`Category "${cleanName}" added successfully.`, "success");
         setNotice(`Category "${cleanName}" added.`);
@@ -329,7 +335,7 @@ export default function CategoriesPage() {
         (c) => String(c.id) !== String(cat.id) && c.name.toLowerCase() !== cat.name.toLowerCase()
       );
       setCustomCategories(nextCustom);
-      saveStoredCategories(nextCustom);
+      saveStoredCategories(nextCustom, activeBusiness?.id);
 
       showToast(`Category "${cat.name}" deleted.`, "success");
       setNotice(`Category "${cat.name}" deleted.`);

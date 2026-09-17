@@ -19,13 +19,30 @@ export type Business = {
   province?: string | null;
   accountingStartDate?: string | null;
   openingCashBalance?: number;
+  openingBankBalance?: number;
+  hasCustomerUdhaar?: boolean;
+  customerReceivable?: number;
+  hasSupplierUdhaar?: boolean;
+  supplierPayable?: number;
+  manageStock?: boolean;
+  currentStockValue?: number;
+  taxRegistered?: string;
+  ntn?: string | null;
+  strn?: string | null;
+  taxBusinessName?: string | null;
+  logoUrl?: string | null;
+  workspaceMode?: "pos" | "financial" | string;
   ownerId?: number;
   membershipRole?: "owner" | "admin" | "staff";
 };
 
+export type WorkspaceMode = "pos" | "financial";
+
 interface BusinessContextValue {
   businesses: Business[];
   activeBusiness: Business | null;
+  workspaceMode: WorkspaceMode;
+  setWorkspaceMode: (mode: WorkspaceMode) => void;
   isLoading: boolean;
   switchBusiness: (businessId: number) => void;
   reloadBusinesses: () => Promise<Business[]>;
@@ -33,6 +50,7 @@ interface BusinessContextValue {
 
 const BusinessContext = createContext<BusinessContextValue | null>(null);
 const ACTIVE_BIZ_KEY = "almadel_active_business_id";
+const WORKSPACE_MODE_KEY = "almadel_workspace_mode";
 
 export function BusinessProvider({ children }: { children: React.ReactNode }) {
   const { user, isAuthenticated, isLoading: authLoading } = useAuth();
@@ -41,7 +59,26 @@ export function BusinessProvider({ children }: { children: React.ReactNode }) {
 
   const [businesses, setBusinesses] = useState<Business[]>([]);
   const [activeBusiness, setActiveBusiness] = useState<Business | null>(null);
+  const [workspaceMode, setWorkspaceModeState] = useState<WorkspaceMode>("financial");
   const [isLoading, setIsLoading] = useState(true);
+
+  // Initialize workspace mode from localStorage
+  useEffect(() => {
+    if (typeof window !== "undefined") {
+      const savedMode = localStorage.getItem(WORKSPACE_MODE_KEY) as WorkspaceMode | null;
+      if (savedMode === "pos" || savedMode === "financial") {
+        setWorkspaceModeState(savedMode);
+      }
+    }
+  }, []);
+
+  const setWorkspaceMode = useCallback((mode: WorkspaceMode) => {
+    setWorkspaceModeState(mode);
+    if (typeof window !== "undefined") {
+      localStorage.setItem(WORKSPACE_MODE_KEY, mode);
+      window.dispatchEvent(new CustomEvent("almadel_mode_switched", { detail: mode }));
+    }
+  }, []);
 
   const reloadBusinesses = useCallback(async (): Promise<Business[]> => {
     if (!isAuthenticated) {
@@ -69,6 +106,10 @@ export function BusinessProvider({ children }: { children: React.ReactNode }) {
       setActiveBusiness(target);
       if (target) {
         localStorage.setItem(ACTIVE_BIZ_KEY, String(target.id));
+        const resolvedMode: WorkspaceMode =
+          target.workspaceMode === "financial" ? "financial" : "pos";
+        setWorkspaceModeState(resolvedMode);
+        localStorage.setItem(WORKSPACE_MODE_KEY, resolvedMode);
       } else {
         localStorage.removeItem(ACTIVE_BIZ_KEY);
       }
@@ -87,14 +128,16 @@ export function BusinessProvider({ children }: { children: React.ReactNode }) {
     }
   }, [authLoading, reloadBusinesses]);
 
-
-
   const switchBusiness = useCallback(
     (businessId: number) => {
       const selected = businesses.find((b) => b.id === businessId);
       if (selected) {
         setActiveBusiness(selected);
         localStorage.setItem(ACTIVE_BIZ_KEY, String(selected.id));
+        const resolvedMode: WorkspaceMode =
+          selected.workspaceMode === "financial" ? "financial" : "pos";
+        setWorkspaceModeState(resolvedMode);
+        localStorage.setItem(WORKSPACE_MODE_KEY, resolvedMode);
         window.dispatchEvent(new CustomEvent("almadel_business_switched", { detail: selected }));
       }
     },
@@ -105,11 +148,13 @@ export function BusinessProvider({ children }: { children: React.ReactNode }) {
     () => ({
       businesses,
       activeBusiness,
+      workspaceMode,
+      setWorkspaceMode,
       isLoading,
       switchBusiness,
       reloadBusinesses,
     }),
-    [businesses, activeBusiness, isLoading, switchBusiness, reloadBusinesses]
+    [businesses, activeBusiness, workspaceMode, setWorkspaceMode, isLoading, switchBusiness, reloadBusinesses]
   );
 
   return <BusinessContext.Provider value={value}>{children}</BusinessContext.Provider>;
