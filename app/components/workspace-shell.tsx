@@ -42,7 +42,6 @@ const financialLinks: Array<{
   { href: "/customers", label: "Customers / Khata", icon: "👥" },
   { href: "/suppliers", label: "Suppliers", icon: "🏢" },
   { href: "/sales", label: "Sales", icon: "🛒" },
-  { href: "/purchases", label: "Purchases", icon: "🛍️" },
   { href: "/expenses", label: "Expenses", icon: "💸" },
   {
     href: "/products",

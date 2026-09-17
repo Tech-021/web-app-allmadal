@@ -1,0 +1,6 @@
+"use client";
+import { useEffect, useState } from "react";
+import { WorkspaceShell } from "@/app/components/workspace-shell";
+import { api } from "@/app/lib/api";
+import ui from "@/app/components/workspace-ui.module.css";
+export default function InvoicesPage() { const [rows, setRows] = useState<any[]>([]); useEffect(() => { void api<{ sales: any[] }>("/sales?limit=50").then(x => setRows(x.sales || [])); }, []); return <WorkspaceShell><div className={ui.head}><div><label>Documents</label><h1>Invoices / Receipts</h1><p>Sales documents generated for this business.</p></div></div><section className={ui.panel}><div className={ui.tableWrap}><table className={ui.table}><thead><tr><th>Invoice</th><th>Date</th><th>Customer</th><th>Total</th><th>Payment</th><th>Action</th></tr></thead><tbody>{rows.length ? rows.map(x => <tr key={x.id}><td>{x.invoiceNumber}</td><td>{x.createdAt}</td><td>{x.customer?.name || x.customerName || "Walk-in"}</td><td className="font-bold text-[#00875a]">Rs {Number(x.totalAmount || 0).toLocaleString()}</td><td>{x.paymentMethod}</td><td><a className={ui.secondary} href={`/sales/${x.id}`}>View</a></td></tr>) : <tr><td colSpan={6} className={ui.empty}>No invoices found.</td></tr>}</tbody></table></div></section></WorkspaceShell>; }

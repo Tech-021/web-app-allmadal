@@ -11,6 +11,7 @@ type AuthContextValue = {
   login: (data: Credentials) => Promise<AuthUser>;
   signup: (data: SignupData) => Promise<AuthUser>;
   logout: () => Promise<void>; refreshUser: () => Promise<void>;
+  updateUser: (user: AuthUser) => void;
 };
 
 const AuthContext = createContext<AuthContextValue | null>(null);
@@ -143,7 +144,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     localStorage.removeItem("almadel_active_business_id");
     setUser(null);
   }, []);
-  const value = useMemo(() => ({ user, isLoading, isAuthenticated: Boolean(user), login, signup, logout, refreshUser }), [user, isLoading, login, signup, logout, refreshUser]);
+  const updateUser = useCallback((nextUser: AuthUser) => { storeUser(nextUser); setUser(nextUser); }, []);
+  const value = useMemo(() => ({ user, isLoading, isAuthenticated: Boolean(user), login, signup, logout, refreshUser, updateUser }), [user, isLoading, login, signup, logout, refreshUser, updateUser]);
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 }
 
