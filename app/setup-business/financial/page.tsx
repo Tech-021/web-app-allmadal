@@ -54,6 +54,10 @@ function FinancialSetupContent() {
   const [currentStep, setCurrentStep] = useState<number>(1);
   const totalSteps = 5;
 
+  // Validation errors state
+  const [errors, setErrors] = useState<Record<string, string>>({});
+  const [touched, setTouched] = useState<Record<string, boolean>>({});
+
   // --- SECTION 4: FINANCIAL STARTING POINT ---
   const [dateOption, setDateOption] = useState<"today" | "month_start" | "custom">("today");
   const [customDate, setCustomDate] = useState<string>(() => new Date().toISOString().slice(0, 10));
@@ -69,12 +73,14 @@ function FinancialSetupContent() {
   const [customers, setCustomers] = useState<CustomerItem[]>([]);
   const [showAddCustomerModal, setShowAddCustomerModal] = useState<boolean>(false);
   const [custDraft, setCustDraft] = useState({ name: "", mobile: "", balance: "" });
+  const [custModalError, setCustModalError] = useState("");
 
   const [hasSupplierUdhaar, setHasSupplierUdhaar] = useState<boolean>(false);
   const [supplierPayable, setSupplierPayable] = useState<string>("0");
   const [suppliers, setSuppliers] = useState<SupplierItem[]>([]);
   const [showAddSupplierModal, setShowAddSupplierModal] = useState<boolean>(false);
   const [suppDraft, setSuppDraft] = useState({ name: "", mobile: "", email: "", balance: "" });
+  const [suppModalError, setSuppModalError] = useState("");
 
   // --- SECTION 6: INVENTORY ---
   const [manageStock, setManageStock] = useState<boolean>(true);
@@ -90,6 +96,7 @@ function FinancialSetupContent() {
     sellingPrice: "",
     stock: "1",
   });
+  const [prodModalError, setProdModalError] = useState("");
 
   // --- SECTION 7: TAX INFORMATION ---
   const [taxRegistered, setTaxRegistered] = useState<"yes" | "no" | "not_sure">("no");
@@ -138,35 +145,136 @@ function FinancialSetupContent() {
     return bankAccounts.reduce((acc, curr) => acc + (Number(curr.balance) || 0), 0);
   }, [hasBank, bankAccounts]);
 
-  // Customer Udhaar Quick Add
+  // Step-Level Validation Guard
+  const validateStep = (step: number): boolean => {
+    const newErrors: Record<string, string> = {};
+
+    if (step === 1) {
+      if (dateOption === "custom") {
+        if (!customDate || isNaN(new Date(customDate).getTime())) {
+          newErrors.customDate = "Please select a valid accounting start date.";
+        }
+      }
+      const cash = Number(openingCash);
+      if (isNaN(cash) || cash < 0) {
+        newErrors.openingCash = "Cash balance must be a non-negative number.";
+      }
+      if (hasBank) {
+        bankAccounts.forEach((acc, idx) => {
+          if (!acc.bankName.trim()) {
+            newErrors[`bankName_${idx}`] = "Bank name is required.";
+          }
+          if (isNaN(Number(acc.balance)) || Number(acc.balance) < 0) {
+            newErrors[`bankBal_${idx}`] = "Balance must be 0 or greater.";
+          }
+        });
+      }
+    }
+
+    if (step === 2) {
+      if (hasCustomerUdhaar) {
+        const custRec = Number(customerReceivable);
+        if (isNaN(custRec) || custRec < 0) {
+          newErrors.customerReceivable = "Customer receivable amount must be 0 or greater.";
+        }
+      }
+      if (hasSupplierUdhaar) {
+        const suppPay = Number(supplierPayable);
+        if (isNaN(suppPay) || suppPay < 0) {
+          newErrors.supplierPayable = "Supplier payable amount must be 0 or greater.";
+        }
+      }
+    }
+
+    if (step === 3) {
+      if (manageStock) {
+        const stockVal = Number(currentStockValue);
+        if (isNaN(stockVal) || stockVal < 0) {
+          newErrors.currentStockValue = "Stock value must be 0 or greater.";
+        }
+      }
+    }
+
+    if (step === 4) {
+      if (taxRegistered === "yes") {
+        const cleanNtn = ntn.trim();
+        if (!cleanNtn) {
+          newErrors.ntn = "National Tax Number (NTN) is required for tax-registered businesses.";
+        } else if (cleanNtn.length < 5) {
+          newErrors.ntn = "Please enter a valid NTN (e.g., 1234567-8).";
+        }
+      }
+    }
+
+    setErrors(newErrors);
+    return Object.keys(newErrors).length === 0;
+  };
+
+  const handleNextStep = () => {
+    if (validateStep(currentStep)) {
+      setCurrentStep((prev) => Math.min(totalSteps, prev + 1));
+    } else {
+      showToast("Please review and fix highlighted fields before continuing.", "info");
+    }
+  };
+
+  // Customer Udhaar Quick Add with Validation
   const handleAddCustomer = (e: FormEvent) => {
     e.preventDefault();
-    if (!custDraft.name.trim() || !custDraft.mobile.trim()) {
-      showToast("Please provide customer name and mobile.", "info");
+    setCustModalError("");
+    const name = custDraft.name.trim();
+    const mobile = custDraft.mobile.trim().replace(/[^0-9]/g, "");
+    const bal = Number(custDraft.balance);
+
+    if (!name || name.length < 2) {
+      setCustModalError("Customer name must be at least 2 characters.");
       return;
     }
-    const bal = Number(custDraft.balance) || 0;
-    setCustomers([...customers, { name: custDraft.name.trim(), mobile: custDraft.mobile.trim(), openingBalance: bal }]);
+    if (!mobile || mobile.length < 10 || mobile.length > 15) {
+      setCustModalError("Please enter a valid mobile number (10-15 digits).");
+      return;
+    }
+    if (isNaN(bal) || bal < 0) {
+      setCustModalError("Amount owed must be 0 or greater.");
+      return;
+    }
+
+    setCustomers([...customers, { name, mobile: custDraft.mobile.trim(), openingBalance: bal || 0 }]);
     setCustDraft({ name: "", mobile: "", balance: "" });
     setShowAddCustomerModal(false);
     showToast("Customer added to khata list.", "success");
   };
 
-  // Supplier Udhaar Quick Add
+  // Supplier Udhaar Quick Add with Validation
   const handleAddSupplier = (e: FormEvent) => {
     e.preventDefault();
-    if (!suppDraft.name.trim()) {
-      showToast("Please provide supplier name.", "info");
+    setSuppModalError("");
+    const name = suppDraft.name.trim();
+    const bal = Number(suppDraft.balance);
+
+    if (!name || name.length < 2) {
+      setSuppModalError("Supplier name must be at least 2 characters.");
       return;
     }
-    const bal = Number(suppDraft.balance) || 0;
+    if (isNaN(bal) || bal < 0) {
+      setSuppModalError("Amount owed must be 0 or greater.");
+      return;
+    }
+    if (suppDraft.email.trim()) {
+      const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+      if (!emailRegex.test(suppDraft.email.trim())) {
+        setSuppModalError("Please enter a valid email address.");
+        return;
+      }
+    }
+
     setSuppliers([
       ...suppliers,
       {
-        name: suppDraft.name.trim(),
+        name,
         mobile: suppDraft.mobile.trim(),
         email: suppDraft.email.trim(),
-        openingBalance: bal,
+        openingBalance: bal || 0,
       },
     ]);
     setSuppDraft({ name: "", mobile: "", email: "", balance: "" });
@@ -174,26 +282,41 @@ function FinancialSetupContent() {
     showToast("Supplier added to khata list.", "success");
   };
 
-  // Manual Product Quick Add
+  // Manual Product Quick Add with Validation
   const handleAddProduct = (e: FormEvent) => {
     e.preventDefault();
-    if (!prodDraft.name.trim() || !prodDraft.sellingPrice) {
-      showToast("Product name and selling price are required.", "info");
+    setProdModalError("");
+    const name = prodDraft.name.trim();
+    const sPrice = Number(prodDraft.sellingPrice);
+    const cPrice = Number(prodDraft.costPrice);
+    const qty = parseInt(prodDraft.stock, 10);
+
+    if (!name || name.length < 2) {
+      setProdModalError("Product name must be at least 2 characters.");
       return;
     }
-    const sPrice = Number(prodDraft.sellingPrice) || 0;
-    const cPrice = Number(prodDraft.costPrice) || 0;
-    const qty = Math.max(0, parseInt(prodDraft.stock, 10) || 0);
+    if (isNaN(sPrice) || sPrice <= 0) {
+      setProdModalError("Selling price must be greater than 0.");
+      return;
+    }
+    if (isNaN(cPrice) || cPrice < 0) {
+      setProdModalError("Cost price must be 0 or greater.");
+      return;
+    }
+    if (isNaN(qty) || qty < 0) {
+      setProdModalError("Stock quantity must be 0 or greater.");
+      return;
+    }
 
     setProducts([
       ...products,
       {
-        name: prodDraft.name.trim(),
+        name,
         barcode: prodDraft.barcode.trim() || `PRD-${Date.now().toString().slice(-6)}`,
         category: prodDraft.category.trim() || "General",
-        costPrice: cPrice,
+        costPrice: cPrice || 0,
         sellingPrice: sPrice,
-        stock: qty,
+        stock: qty || 0,
         lowStockThreshold: 5,
       },
     ]);
@@ -229,15 +352,18 @@ function FinancialSetupContent() {
       for (let i = 1; i < lines.length; i++) {
         const row = lines[i].split(",").map((c) => c.trim().replace(/^["']|["']$/g, ""));
         if (row.length >= 2 && row[0]) {
-          parsed.push({
-            name: row[0],
-            barcode: row[1] || `CSV-${Date.now().toString().slice(-4)}-${i}`,
-            category: row[2] || "Imported",
-            costPrice: Number(row[3]) || 0,
-            sellingPrice: Number(row[4]) || Number(row[3]) || 0,
-            stock: Number(row[5]) || 1,
-            lowStockThreshold: 5,
-          });
+          const sPrice = Number(row[4]) || Number(row[3]) || 0;
+          if (row[0].length >= 1 && sPrice >= 0) {
+            parsed.push({
+              name: row[0],
+              barcode: row[1] || `CSV-${Date.now().toString().slice(-4)}-${i}`,
+              category: row[2] || "Imported",
+              costPrice: Math.max(0, Number(row[3]) || 0),
+              sellingPrice: Math.max(0, sPrice),
+              stock: Math.max(0, Number(row[5]) || 1),
+              lowStockThreshold: 5,
+            });
+          }
         }
       }
 
@@ -251,10 +377,17 @@ function FinancialSetupContent() {
     reader.readAsText(file);
   };
 
-  // Logo Upload & Base64 Handler
+  // Logo Upload & Size Validation
   const handleLogoUpload = (e: ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
+
+    const validTypes = ["image/jpeg", "image/png", "image/webp", "image/gif"];
+    if (!validTypes.includes(file.type)) {
+      showToast("Please select a valid image file (PNG, JPG, WEBP).", "info");
+      return;
+    }
+
     if (file.size > 2 * 1024 * 1024) {
       showToast("Logo file size must be less than 2MB.", "info");
       return;
@@ -272,6 +405,11 @@ function FinancialSetupContent() {
 
   // Final Submit Handler
   const handleFinalSubmit = async () => {
+    if (!validateStep(5) || !validateStep(4) || !validateStep(3) || !validateStep(2) || !validateStep(1)) {
+      showToast("Please check previous steps for missing or invalid details.", "info");
+      return;
+    }
+
     const targetId = targetBusiness?.id || (businessIdParam ? Number(businessIdParam) : null);
     if (!targetId) {
       showToast("No active business found to attach financial setup to.", "error");
@@ -282,22 +420,22 @@ function FinancialSetupContent() {
     try {
       const payload = {
         accountingStartDate: effectiveStartDate,
-        openingCashBalance: Number(openingCash) || 0,
-        openingBankBalance: totalBankBalance,
+        openingCashBalance: Math.max(0, Number(openingCash) || 0),
+        openingBankBalance: Math.max(0, totalBankBalance),
         bankAccounts: hasBank ? bankAccounts : [],
         hasCustomerUdhaar,
-        customerReceivable: Number(customerReceivable) || 0,
+        customerReceivable: Math.max(0, Number(customerReceivable) || 0),
         customers: hasCustomerUdhaar ? customers : [],
         hasSupplierUdhaar,
-        supplierPayable: Number(supplierPayable) || 0,
+        supplierPayable: Math.max(0, Number(supplierPayable) || 0),
         suppliers: hasSupplierUdhaar ? suppliers : [],
         manageStock,
-        currentStockValue: Number(currentStockValue) || 0,
+        currentStockValue: Math.max(0, Number(currentStockValue) || 0),
         products: manageStock ? products : [],
         taxRegistered,
-        ntn: taxRegistered === "yes" ? ntn : null,
-        strn: taxRegistered === "yes" ? strn : null,
-        taxBusinessName: taxRegistered === "yes" ? taxBusinessName : null,
+        ntn: taxRegistered === "yes" ? ntn.trim() : null,
+        strn: taxRegistered === "yes" ? strn.trim() : null,
+        taxBusinessName: taxRegistered === "yes" ? taxBusinessName.trim() : null,
         logoUrl: logoUrl || null,
       };
 
@@ -429,9 +567,17 @@ function FinancialSetupContent() {
                     <input
                       type="date"
                       value={customDate}
-                      onChange={(e) => setCustomDate(e.target.value)}
-                      className="w-full px-4 py-2.5 rounded-xl border border-slate-200 text-xs font-bold text-slate-900 outline-none focus:border-[#00875a]"
+                      onChange={(e) => {
+                        setCustomDate(e.target.value);
+                        if (errors.customDate) setErrors((prev) => ({ ...prev, customDate: "" }));
+                      }}
+                      className={`w-full px-4 py-2.5 rounded-xl border text-xs font-bold text-slate-900 outline-none transition ${
+                        errors.customDate ? "border-red-500 bg-red-50/50" : "border-slate-200 focus:border-[#00875a]"
+                      }`}
                     />
+                    {errors.customDate && (
+                      <p className="text-[11px] font-bold text-red-600 mt-1">{errors.customDate}</p>
+                    )}
                   </div>
                 )}
               </div>
@@ -453,10 +599,18 @@ function FinancialSetupContent() {
                     min="0"
                     placeholder="500,000"
                     value={openingCash === "0" ? "" : openingCash}
-                    onChange={(e) => setOpeningCash(e.target.value)}
-                    className="w-full pl-9 pr-4 py-3 rounded-xl border border-slate-200 text-sm font-extrabold text-slate-900 outline-none focus:border-[#00875a] transition"
+                    onChange={(e) => {
+                      setOpeningCash(e.target.value);
+                      if (errors.openingCash) setErrors((prev) => ({ ...prev, openingCash: "" }));
+                    }}
+                    className={`w-full pl-9 pr-4 py-3 rounded-xl border text-sm font-extrabold text-slate-900 outline-none transition ${
+                      errors.openingCash ? "border-red-500 bg-red-50/50" : "border-slate-200 focus:border-[#00875a]"
+                    }`}
                   />
                 </div>
+                {errors.openingCash && (
+                  <p className="text-[11px] font-bold text-red-600">{errors.openingCash}</p>
+                )}
               </div>
 
               {/* 3. Opening Bank Balance */}
@@ -495,42 +649,49 @@ function FinancialSetupContent() {
                 {hasBank && (
                   <div className="space-y-3 p-4 rounded-2xl bg-slate-50 border border-slate-200">
                     {bankAccounts.map((account, idx) => (
-                      <div key={idx} className="flex flex-col sm:flex-row items-center gap-2">
-                        <input
-                          type="text"
-                          placeholder="Bank Name (e.g. Meezan, HBL)"
-                          value={account.bankName}
-                          onChange={(e) => updateBankAccount(idx, "bankName", e.target.value)}
-                          className="w-full sm:flex-1 px-3 py-2 rounded-xl border border-slate-200 bg-white text-xs font-bold text-slate-900 outline-none focus:border-[#00875a]"
-                        />
-                        <input
-                          type="text"
-                          placeholder="Account Number (Optional)"
-                          value={account.accountNumber}
-                          onChange={(e) => updateBankAccount(idx, "accountNumber", e.target.value)}
-                          className="w-full sm:flex-1 px-3 py-2 rounded-xl border border-slate-200 bg-white text-xs font-bold text-slate-900 outline-none focus:border-[#00875a]"
-                        />
-                        <div className="relative w-full sm:w-36">
-                          <span className="absolute left-3 top-1/2 -translate-y-1/2 text-[11px] font-bold text-slate-400">
-                            ₨
-                          </span>
+                      <div key={idx} className="space-y-1">
+                        <div className="flex flex-col sm:flex-row items-center gap-2">
                           <input
-                            type="number"
-                            min="0"
-                            placeholder="Balance"
-                            value={account.balance || ""}
-                            onChange={(e) => updateBankAccount(idx, "balance", Number(e.target.value))}
-                            className="w-full pl-7 pr-3 py-2 rounded-xl border border-slate-200 bg-white text-xs font-bold text-slate-900 outline-none focus:border-[#00875a]"
+                            type="text"
+                            placeholder="Bank Name (e.g. Meezan, HBL) *"
+                            value={account.bankName}
+                            onChange={(e) => updateBankAccount(idx, "bankName", e.target.value)}
+                            className={`w-full sm:flex-1 px-3 py-2 rounded-xl border bg-white text-xs font-bold text-slate-900 outline-none ${
+                              errors[`bankName_${idx}`] ? "border-red-500 bg-red-50/50" : "border-slate-200 focus:border-[#00875a]"
+                            }`}
                           />
+                          <input
+                            type="text"
+                            placeholder="Account Number (Optional)"
+                            value={account.accountNumber}
+                            onChange={(e) => updateBankAccount(idx, "accountNumber", e.target.value)}
+                            className="w-full sm:flex-1 px-3 py-2 rounded-xl border border-slate-200 bg-white text-xs font-bold text-slate-900 outline-none focus:border-[#00875a]"
+                          />
+                          <div className="relative w-full sm:w-36">
+                            <span className="absolute left-3 top-1/2 -translate-y-1/2 text-[11px] font-bold text-slate-400">
+                              ₨
+                            </span>
+                            <input
+                              type="number"
+                              min="0"
+                              placeholder="Balance"
+                              value={account.balance || ""}
+                              onChange={(e) => updateBankAccount(idx, "balance", Number(e.target.value))}
+                              className="w-full pl-7 pr-3 py-2 rounded-xl border border-slate-200 bg-white text-xs font-bold text-slate-900 outline-none focus:border-[#00875a]"
+                            />
+                          </div>
+                          {bankAccounts.length > 1 && (
+                            <button
+                              type="button"
+                              onClick={() => removeBankAccount(idx)}
+                              className="text-red-500 hover:text-red-700 text-xs font-bold px-2 py-1 cursor-pointer"
+                            >
+                              ✕
+                            </button>
+                          )}
                         </div>
-                        {bankAccounts.length > 1 && (
-                          <button
-                            type="button"
-                            onClick={() => removeBankAccount(idx)}
-                            className="text-red-500 hover:text-red-700 text-xs font-bold px-2 py-1 cursor-pointer"
-                          >
-                            ✕
-                          </button>
+                        {errors[`bankName_${idx}`] && (
+                          <p className="text-[10px] font-bold text-red-600 pl-1">{errors[`bankName_${idx}`]}</p>
                         )}
                       </div>
                     ))}
@@ -611,10 +772,18 @@ function FinancialSetupContent() {
                           min="0"
                           placeholder="1,250,000"
                           value={customerReceivable === "0" ? "" : customerReceivable}
-                          onChange={(e) => setCustomerReceivable(e.target.value)}
-                          className="w-full pl-8 pr-3 py-2.5 rounded-xl border border-slate-200 bg-white text-xs font-extrabold text-slate-900 outline-none focus:border-[#00875a]"
+                          onChange={(e) => {
+                            setCustomerReceivable(e.target.value);
+                            if (errors.customerReceivable) setErrors((prev) => ({ ...prev, customerReceivable: "" }));
+                          }}
+                          className={`w-full pl-8 pr-3 py-2.5 rounded-xl border bg-white text-xs font-extrabold text-slate-900 outline-none ${
+                            errors.customerReceivable ? "border-red-500 bg-red-50/50" : "border-slate-200 focus:border-[#00875a]"
+                          }`}
                         />
                       </div>
+                      {errors.customerReceivable && (
+                        <p className="text-[11px] font-bold text-red-600 mt-1">{errors.customerReceivable}</p>
+                      )}
                     </div>
 
                     {/* Customer List */}
@@ -625,7 +794,10 @@ function FinancialSetupContent() {
                         </span>
                         <button
                           type="button"
-                          onClick={() => setShowAddCustomerModal(true)}
+                          onClick={() => {
+                            setCustModalError("");
+                            setShowAddCustomerModal(true);
+                          }}
                           className="text-xs font-extrabold text-[#00875a] hover:underline cursor-pointer"
                         >
                           + Add Customer Now
@@ -716,10 +888,18 @@ function FinancialSetupContent() {
                           min="0"
                           placeholder="850,000"
                           value={supplierPayable === "0" ? "" : supplierPayable}
-                          onChange={(e) => setSupplierPayable(e.target.value)}
-                          className="w-full pl-8 pr-3 py-2.5 rounded-xl border border-slate-200 bg-white text-xs font-extrabold text-slate-900 outline-none focus:border-[#00875a]"
+                          onChange={(e) => {
+                            setSupplierPayable(e.target.value);
+                            if (errors.supplierPayable) setErrors((prev) => ({ ...prev, supplierPayable: "" }));
+                          }}
+                          className={`w-full pl-8 pr-3 py-2.5 rounded-xl border bg-white text-xs font-extrabold text-slate-900 outline-none ${
+                            errors.supplierPayable ? "border-red-500 bg-red-50/50" : "border-slate-200 focus:border-[#00875a]"
+                          }`}
                         />
                       </div>
+                      {errors.supplierPayable && (
+                        <p className="text-[11px] font-bold text-red-600 mt-1">{errors.supplierPayable}</p>
+                      )}
                     </div>
 
                     {/* Supplier List */}
@@ -730,7 +910,10 @@ function FinancialSetupContent() {
                         </span>
                         <button
                           type="button"
-                          onClick={() => setShowAddSupplierModal(true)}
+                          onClick={() => {
+                            setSuppModalError("");
+                            setShowAddSupplierModal(true);
+                          }}
                           className="text-xs font-extrabold text-[#00875a] hover:underline cursor-pointer"
                         >
                           + Add Supplier Now
@@ -841,10 +1024,18 @@ function FinancialSetupContent() {
                         min="0"
                         placeholder="5,500,000"
                         value={currentStockValue === "0" ? "" : currentStockValue}
-                        onChange={(e) => setCurrentStockValue(e.target.value)}
-                        className="w-full pl-8 pr-3 py-2.5 rounded-xl border border-slate-200 text-xs font-extrabold text-slate-900 outline-none focus:border-[#00875a]"
+                        onChange={(e) => {
+                          setCurrentStockValue(e.target.value);
+                          if (errors.currentStockValue) setErrors((prev) => ({ ...prev, currentStockValue: "" }));
+                        }}
+                        className={`w-full pl-8 pr-3 py-2.5 rounded-xl border text-xs font-extrabold text-slate-900 outline-none ${
+                          errors.currentStockValue ? "border-red-500 bg-red-50/50" : "border-slate-200 focus:border-[#00875a]"
+                        }`}
                       />
                     </div>
+                    {errors.currentStockValue && (
+                      <p className="text-[11px] font-bold text-red-600 mt-1">{errors.currentStockValue}</p>
+                    )}
                   </div>
 
                   {/* Add Existing Stock Now Options */}
@@ -884,7 +1075,10 @@ function FinancialSetupContent() {
                           {/* Manual Add Button */}
                           <button
                             type="button"
-                            onClick={() => setShowProductModal(true)}
+                            onClick={() => {
+                              setProdModalError("");
+                              setShowProductModal(true);
+                            }}
                             className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-[#e6f4ed] hover:bg-[#d5eedf] text-[#00875a] text-xs font-extrabold cursor-pointer transition"
                           >
                             <span>+ Manual Item Entry</span>
@@ -963,7 +1157,10 @@ function FinancialSetupContent() {
                     <button
                       key={opt.id}
                       type="button"
-                      onClick={() => setTaxRegistered(opt.id as typeof taxRegistered)}
+                      onClick={() => {
+                        setTaxRegistered(opt.id as typeof taxRegistered);
+                        if (errors.ntn) setErrors((prev) => ({ ...prev, ntn: "" }));
+                      }}
                       className={`p-4 rounded-2xl border text-left transition cursor-pointer ${
                         taxRegistered === opt.id
                           ? "border-[#00875a] bg-[#e6f4ed]/50 ring-2 ring-[#00875a]/20"
@@ -983,15 +1180,23 @@ function FinancialSetupContent() {
                 <div className="space-y-4 p-5 rounded-2xl bg-slate-50 border border-slate-200 animate-in fade-in">
                   <div>
                     <label className="block text-[11px] font-extrabold text-slate-700 mb-1">
-                      National Tax Number (NTN)
+                      National Tax Number (NTN) *
                     </label>
                     <input
                       type="text"
                       placeholder="e.g. 1234567-8"
                       value={ntn}
-                      onChange={(e) => setNtn(e.target.value)}
-                      className="w-full px-3.5 py-2.5 rounded-xl border border-slate-200 bg-white text-xs font-bold text-slate-900 outline-none focus:border-[#00875a]"
+                      onChange={(e) => {
+                        setNtn(e.target.value);
+                        if (errors.ntn) setErrors((prev) => ({ ...prev, ntn: "" }));
+                      }}
+                      className={`w-full px-3.5 py-2.5 rounded-xl border bg-white text-xs font-bold text-slate-900 outline-none ${
+                        errors.ntn ? "border-red-500 bg-red-50/50" : "border-slate-200 focus:border-[#00875a]"
+                      }`}
                     />
+                    {errors.ntn && (
+                      <p className="text-[11px] font-bold text-red-600 mt-1">{errors.ntn}</p>
+                    )}
                   </div>
 
                   <div>
@@ -1072,7 +1277,7 @@ function FinancialSetupContent() {
                         Choose File
                         <input
                           type="file"
-                          accept="image/*"
+                          accept="image/png,image/jpeg,image/webp,image/gif"
                           onChange={handleLogoUpload}
                           className="hidden"
                         />
@@ -1127,7 +1332,7 @@ function FinancialSetupContent() {
               {currentStep < totalSteps ? (
                 <button
                   type="button"
-                  onClick={() => setCurrentStep((prev) => Math.min(totalSteps, prev + 1))}
+                  onClick={handleNextStep}
                   className="px-6 py-3 rounded-2xl bg-[#00875a] hover:bg-[#006b3f] text-white text-xs font-extrabold shadow-lg shadow-[#00875a]/20 transition cursor-pointer"
                 >
                   Save & Next ➔
@@ -1155,6 +1360,11 @@ function FinancialSetupContent() {
             className="bg-white rounded-3xl p-6 max-w-sm w-full shadow-2xl border border-slate-100 space-y-4"
           >
             <h3 className="text-base font-extrabold text-slate-900">Add Customer Khata</h3>
+            {custModalError && (
+              <div className="p-2.5 rounded-xl bg-red-50 text-red-700 text-xs font-bold border border-red-200">
+                {custModalError}
+              </div>
+            )}
             <div>
               <label className="block text-[11px] font-bold text-slate-600 mb-1">Customer Name *</label>
               <input
@@ -1209,12 +1419,17 @@ function FinancialSetupContent() {
 
       {/* Quick Add Supplier Modal */}
       {showAddSupplierModal && (
-        <form
-          onSubmit={handleAddSupplier}
-          className="fixed inset-0 z-50 bg-black/50 backdrop-blur-xs flex items-center justify-center p-4"
-        >
-          <div className="bg-white rounded-3xl p-6 max-w-sm w-full shadow-2xl border border-slate-100 space-y-4">
+        <div className="fixed inset-0 z-50 bg-black/50 backdrop-blur-xs flex items-center justify-center p-4">
+          <form
+            onSubmit={handleAddSupplier}
+            className="bg-white rounded-3xl p-6 max-w-sm w-full shadow-2xl border border-slate-100 space-y-4"
+          >
             <h3 className="text-base font-extrabold text-slate-900">Add Supplier Khata</h3>
+            {suppModalError && (
+              <div className="p-2.5 rounded-xl bg-red-50 text-red-700 text-xs font-bold border border-red-200">
+                {suppModalError}
+              </div>
+            )}
             <div>
               <label className="block text-[11px] font-bold text-slate-600 mb-1">Supplier / Vendor Name *</label>
               <input
@@ -1262,18 +1477,23 @@ function FinancialSetupContent() {
                 Save Supplier
               </button>
             </div>
-          </div>
-        </form>
+          </form>
+        </div>
       )}
 
       {/* Manual Product Add Modal */}
       {showProductModal && (
-        <form
-          onSubmit={handleAddProduct}
-          className="fixed inset-0 z-50 bg-black/50 backdrop-blur-xs flex items-center justify-center p-4"
-        >
-          <div className="bg-white rounded-3xl p-6 max-w-sm w-full shadow-2xl border border-slate-100 space-y-4">
+        <div className="fixed inset-0 z-50 bg-black/50 backdrop-blur-xs flex items-center justify-center p-4">
+          <form
+            onSubmit={handleAddProduct}
+            className="bg-white rounded-3xl p-6 max-w-sm w-full shadow-2xl border border-slate-100 space-y-4"
+          >
             <h3 className="text-base font-extrabold text-slate-900">Add Stock Item</h3>
+            {prodModalError && (
+              <div className="p-2.5 rounded-xl bg-red-50 text-red-700 text-xs font-bold border border-red-200">
+                {prodModalError}
+              </div>
+            )}
             <div>
               <label className="block text-[11px] font-bold text-slate-600 mb-1">Product Name *</label>
               <input
@@ -1347,8 +1567,8 @@ function FinancialSetupContent() {
                 Add Item
               </button>
             </div>
-          </div>
-        </form>
+          </form>
+        </div>
       )}
 
       {/* Completion Success Modal */}
@@ -1370,7 +1590,7 @@ function FinancialSetupContent() {
                 onClick={() => router.push("/dashboard")}
                 className="w-full py-4 rounded-2xl bg-[#00875a] hover:bg-[#006b3f] text-white text-xs font-extrabold shadow-lg shadow-[#00875a]/25 transition cursor-pointer"
               >
-                Go to POS & Store Dashboard ➔
+                Go to Store Dashboard ➔
               </button>
             </div>
           </div>
