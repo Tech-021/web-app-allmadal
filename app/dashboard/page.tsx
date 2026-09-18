@@ -124,25 +124,51 @@ function DashboardContent() {
   }, [isLoading, user, router]);
 
   useEffect(() => {
-    const timer = window.setTimeout(() => void fetchDashboard(), 0);
-    return () => window.clearTimeout(timer);
-  }, [fetchDashboard]);
+    if (user) {
+      void fetchDashboard();
+    }
+  }, [fetchDashboard, user]);
 
-  if (isLoading || !user) return <main className={styles.loadingPage}><span className={styles.spinner} />Loading Almadel workspace…</main>;
+  const products = data.products ?? [];
+  const sales = data.sales ?? [];
 
-  const products = data.products ?? [], sales = data.sales ?? [];
-  const totalSales = sales.reduce((sum, sale) => sum + Number(sale.total_amount || 0), 0);
-  const totalItems = sales.reduce((sum, sale) => sum + Number(sale.total_items || 0), 0);
-  const stockValue = products.reduce((sum, product) => sum + Number(product.sellingPrice ?? product.selling_price ?? product.price ?? 0) * Number(product.stock ?? 0), 0);
-  const lowStock = products.filter(product => Number(product.stock ?? 0) <= Number(product.lowStockThreshold ?? product.low_stock_threshold ?? 5)).length;
-  const breakdown = data.productBreakdown ?? {};
+  const { totalSales, totalItems, stockValue, lowStock } = useMemo(() => {
+    const sTotal = sales.reduce((sum, sale) => sum + Number(sale.total_amount || 0), 0);
+    const iTotal = sales.reduce((sum, sale) => sum + Number(sale.total_items || 0), 0);
+    const sValue = products.reduce(
+      (sum, product) =>
+        sum +
+        Number(product.sellingPrice ?? product.selling_price ?? product.price ?? 0) *
+          Number(product.stock ?? 0),
+      0
+    );
+    const lStock = products.filter(
+      (product) =>
+        Number(product.stock ?? 0) <=
+        Number(product.lowStockThreshold ?? product.low_stock_threshold ?? 5)
+    ).length;
+
+    return { totalSales: sTotal, totalItems: iTotal, stockValue: sValue, lowStock: lStock };
+  }, [sales, products]);
+
+  const breakdown = useMemo(() => data.productBreakdown ?? {}, [data.productBreakdown]);
 
   // Financial Workspace Metrics
-  const cashInHand = Number(activeBusiness?.openingCashBalance || 0);
-  const bankBalance = Number(activeBusiness?.openingBankBalance || 0);
-  const customerReceivable = Number(activeBusiness?.customerReceivable || 0);
-  const supplierPayable = Number(activeBusiness?.supplierPayable || 0);
-  const totalLiquidCash = cashInHand + bankBalance;
+  const { cashInHand, bankBalance, customerReceivable, supplierPayable } = useMemo(() => ({
+    cashInHand: Number(activeBusiness?.openingCashBalance || 0),
+    bankBalance: Number(activeBusiness?.openingBankBalance || 0),
+    customerReceivable: Number(activeBusiness?.customerReceivable || 0),
+    supplierPayable: Number(activeBusiness?.supplierPayable || 0),
+  }), [activeBusiness]);
+
+  if (isLoading || !user) {
+    return (
+      <main className={styles.loadingPage}>
+        <span className={styles.spinner} />
+        Loading Almadel workspace…
+      </main>
+    );
+  }
 
   return (
     <WorkspaceShell>

@@ -220,7 +220,7 @@ function PaymentContent() {
               <span className="text-emerald-600 font-bold">✓</span> Customer Udhaar / Khata System
             </div>
             <div className="flex items-center gap-2.5">
-              <span className="text-emerald-600 font-bold">✓</span> Supplier Khata & Purchases
+              <span className="text-emerald-600 font-bold">✓</span> Supplier Khata & Payables
             </div>
             <div className="flex items-center gap-2.5">
               <span className="text-emerald-600 font-bold">✓</span> Inventory & Stock Alerts

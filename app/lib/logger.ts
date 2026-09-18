@@ -57,7 +57,7 @@ function getCurrentUser(): { id?: number | null; name: string; email: string; ro
         role: parsed.role === "admin" ? "admin" : "staff",
       };
     }
-  } catch {}
+  } catch { }
   return { name: "Store Admin", email: "admin@almadel.com", role: "admin" };
 }
 
