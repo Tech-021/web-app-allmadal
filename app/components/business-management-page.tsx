@@ -6,6 +6,7 @@ import { api } from "@/app/lib/api";
 import { useToast } from "./toast-context";
 import { useBusiness } from "./business-context";
 import { useDebounce } from "@/hooks/useDebounce";
+import { logActivity } from "@/app/lib/logger";
 import ui from "./workspace-ui.module.css";
 
 type Mode = "customers" | "suppliers" | "expenses" | "accounts" | "sales";
@@ -180,6 +181,31 @@ export function BusinessManagementPage({ mode }: { mode: Mode }) {
         `${c.add.replace("Add", "")} ${editing ? "updated" : "completed"}.`,
         "success"
       );
+
+      // Log activity to DB
+      const actionType = (
+        mode === "customers" ? (editing ? "CUSTOMER_UPDATE" : "CUSTOMER_CREATE") :
+        mode === "suppliers" ? (editing ? "SUPPLIER_UPDATE" : "SUPPLIER_CREATE") :
+        mode === "expenses" ? (editing ? "EXPENSE_UPDATE" : "EXPENSE_CREATE") :
+        mode === "accounts" ? (editing ? "ACCOUNT_UPDATE" : "ACCOUNT_CREATE") : "SALE_CREATE"
+      ) as any;
+
+      const categoryType = (
+        mode === "customers" ? "Customer" :
+        mode === "suppliers" ? "Supplier" :
+        mode === "expenses" ? "Expense" :
+        mode === "accounts" ? "Account" : "Sales"
+      ) as any;
+
+      const targetName = draft.name || draft.description || draft.category || `Item #${editing?.id || "new"}`;
+      logActivity(
+        actionType,
+        categoryType,
+        `${editing ? "Updated" : "Created"} ${mode.slice(0, -1)} '${targetName}'`,
+        targetName,
+        { ...draft, id: editing?.id }
+      );
+
       setOpen(false);
       await load();
     } catch (e) {
@@ -210,6 +236,28 @@ export function BusinessManagementPage({ mode }: { mode: Mode }) {
     try {
       await api(`${c.endpoint}/${row.id}`, { method: "DELETE" });
       showToast("Deleted successfully.", "success");
+
+      const actionType = (
+        mode === "customers" ? "CUSTOMER_DELETE" :
+        mode === "suppliers" ? "SUPPLIER_DELETE" :
+        mode === "expenses" ? "EXPENSE_DELETE" : "ACCOUNT_DELETE"
+      ) as any;
+
+      const categoryType = (
+        mode === "customers" ? "Customer" :
+        mode === "suppliers" ? "Supplier" :
+        mode === "expenses" ? "Expense" : "Account"
+      ) as any;
+
+      const targetName = String(row.name || row.description || `ID #${row.id}`);
+      logActivity(
+        actionType,
+        categoryType,
+        `Deleted ${entityName} '${targetName}'`,
+        targetName,
+        { id: row.id }
+      );
+
       await load();
     } catch (e) {
       showToast(

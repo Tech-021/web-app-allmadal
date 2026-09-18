@@ -5,6 +5,7 @@ import { WorkspaceShell } from "@/app/components/workspace-shell";
 import { api } from "@/app/lib/api";
 import { useToast } from "@/app/components/toast-context";
 import { useBusiness } from "@/app/components/business-context";
+import { logActivity } from "@/app/lib/logger";
 import ui from "@/app/components/workspace-ui.module.css";
 
 interface ClosingSummary {
@@ -78,6 +79,13 @@ export default function DailyClosingPage() {
         }),
       });
       showToast("Daily closing recorded successfully.", "success");
+      logActivity(
+        "DAILY_CLOSING_RECORD",
+        "Finance",
+        `Completed daily cash closing for ${date}: Counted Rs. ${Number(counted || 0).toLocaleString()}`,
+        date,
+        { date, countedCash: Number(counted || 0), note }
+      );
       await loadClosing();
     } catch (e) {
       showToast(e instanceof Error ? e.message : "Could not close day.", "error");

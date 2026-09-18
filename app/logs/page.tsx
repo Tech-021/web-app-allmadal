@@ -61,7 +61,9 @@ export default function LogsPage() {
   const [logs, setLogs] = useState<ActivityLog[]>([]);
   const [loading, setLoading] = useState(true);
   const [query, setQuery] = useState("");
-  const [activeTab, setActiveTab] = useState<"All" | "Product & Stock" | "Categories" | "Staff" | "Auth & Sessions" | "Page Visits">("All");
+  const [activeTab, setActiveTab] = useState<
+    "All" | "Product & Stock" | "Customers & Suppliers" | "Finance & Accounts" | "Staff" | "Auth & Sessions" | "Page Visits"
+  >("All");
   const [selectedLog, setSelectedLog] = useState<ActivityLog | null>(null);
   const [serverNotice, setServerNotice] = useState("");
 
@@ -201,9 +203,19 @@ export default function LogsPage() {
     return logs.filter((log) => {
       // Category filter
       if (activeTab === "Product & Stock") {
-        if (log.category !== "Product" && log.category !== "Stock") return false;
-      } else if (activeTab === "Categories") {
-        if (log.category !== "Category") return false;
+        if (log.category !== "Product" && log.category !== "Stock" && log.category !== "Category") return false;
+      } else if (activeTab === "Customers & Suppliers") {
+        if (log.category !== "Customer" && log.category !== "Supplier") return false;
+      } else if (activeTab === "Finance & Accounts") {
+        if (
+          log.category !== "Finance" &&
+          log.category !== "Expense" &&
+          log.category !== "Account" &&
+          log.category !== "Billing" &&
+          log.category !== "Settings" &&
+          log.category !== "Sales"
+        )
+          return false;
       } else if (activeTab === "Staff") {
         if (log.category !== "Staff") return false;
       } else if (activeTab === "Auth & Sessions") {
@@ -272,11 +284,24 @@ export default function LogsPage() {
 
       {/* Category Tabs */}
       <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginBottom: 18 }}>
-        {(["All", "Product & Stock", "Categories", "Staff", "Auth & Sessions", "Page Visits"] as const).map((tab) => (
+        {(
+          [
+            "All",
+            "Product & Stock",
+            "Customers & Suppliers",
+            "Finance & Accounts",
+            "Staff",
+            "Auth & Sessions",
+            "Page Visits",
+          ] as const
+        ).map((tab) => (
           <button
             key={tab}
             className={activeTab === tab ? ui.tabActive : ui.tab}
-            onClick={() => setActiveTab(tab)}
+            onClick={() => {
+              setActiveTab(tab);
+              setCurrentPage(1);
+            }}
           >
             {tab}
           </button>
