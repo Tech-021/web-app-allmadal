@@ -5,6 +5,7 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { useAuth } from "@/hooks/useAuth";
 import { useBusiness } from "@/app/components/business-context";
 import { useToast } from "@/app/components/toast-context";
+import { logActivity } from "@/app/lib/logger";
 import { api } from "@/app/lib/api";
 
 type BankAccount = {
@@ -456,6 +457,14 @@ function FinancialSetupContent() {
       setWorkspaceMode("financial");
       setSetupComplete(true);
       showToast("Financial setup saved successfully!", "success");
+
+      logActivity(
+        "FINANCIAL_SETUP_COMPLETE",
+        "Finance",
+        `Completed 6-step Financial Setup for '${targetBusiness?.name || `Store #${targetId}`}'`,
+        targetBusiness?.name || `Store #${targetId}`,
+        { targetId, openingCash, totalBankBalance, hasCustomerUdhaar, hasSupplierUdhaar }
+      );
     } catch (err) {
       const msg = err instanceof Error ? err.message : "Failed to save financial setup.";
       showToast(msg, "error");

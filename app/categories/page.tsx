@@ -83,8 +83,7 @@ export default function CategoriesPage() {
   }, [showToast, activeBusiness?.id]);
 
   useEffect(() => {
-    const t = setTimeout(() => void load(), 0);
-    return () => clearTimeout(t);
+    void load();
   }, [load]);
 
   // Merge server categories, custom stored categories, and categories currently used by products

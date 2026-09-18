@@ -7,6 +7,24 @@ export type ActivityAction =
   | "CATEGORY_CREATE"
   | "CATEGORY_UPDATE"
   | "CATEGORY_DELETE"
+  | "CUSTOMER_CREATE"
+  | "CUSTOMER_UPDATE"
+  | "CUSTOMER_DELETE"
+  | "SUPPLIER_CREATE"
+  | "SUPPLIER_UPDATE"
+  | "SUPPLIER_DELETE"
+  | "EXPENSE_CREATE"
+  | "EXPENSE_UPDATE"
+  | "EXPENSE_DELETE"
+  | "ACCOUNT_CREATE"
+  | "ACCOUNT_UPDATE"
+  | "ACCOUNT_DELETE"
+  | "SALE_CREATE"
+  | "DAILY_CLOSING_RECORD"
+  | "SETTINGS_UPDATE"
+  | "PAYMENT_CHECKOUT_INITIATED"
+  | "BUSINESS_CREATE"
+  | "FINANCIAL_SETUP_COMPLETE"
   | "STAFF_CREATE"
   | "STAFF_UPDATE"
   | "STAFF_DELETE"
@@ -19,6 +37,14 @@ export type ActivityCategory =
   | "Product"
   | "Stock"
   | "Category"
+  | "Customer"
+  | "Supplier"
+  | "Expense"
+  | "Account"
+  | "Finance"
+  | "Sales"
+  | "Settings"
+  | "Billing"
   | "Staff"
   | "Auth"
   | "Visit";
@@ -57,7 +83,7 @@ function getCurrentUser(): { id?: number | null; name: string; email: string; ro
         role: parsed.role === "admin" ? "admin" : "staff",
       };
     }
-  } catch {}
+  } catch { }
   return { name: "Store Admin", email: "admin@almadel.com", role: "admin" };
 }
 

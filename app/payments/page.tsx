@@ -5,6 +5,7 @@ import { useSearchParams, useRouter } from "next/navigation";
 import { WorkspaceShell } from "@/app/components/workspace-shell";
 import { useBusiness } from "@/app/components/business-context";
 import { useToast } from "@/app/components/toast-context";
+import { logActivity } from "@/app/lib/logger";
 import { api } from "@/app/lib/api";
 
 type BillingStatus = {
@@ -82,6 +83,13 @@ function PaymentContent() {
       });
 
       if (response.url) {
+        logActivity(
+          "PAYMENT_CHECKOUT_INITIATED",
+          "Billing",
+          `Initiated Stripe subscription checkout for business '${activeBusiness.name}'`,
+          activeBusiness.name,
+          { businessId: activeBusiness.id }
+        );
         // Redirect directly to Stripe Hosted Checkout
         window.location.href = response.url;
       } else {
@@ -220,7 +228,7 @@ function PaymentContent() {
               <span className="text-emerald-600 font-bold">✓</span> Customer Udhaar / Khata System
             </div>
             <div className="flex items-center gap-2.5">
-              <span className="text-emerald-600 font-bold">✓</span> Supplier Khata & Purchases
+              <span className="text-emerald-600 font-bold">✓</span> Supplier Khata & Payables
             </div>
             <div className="flex items-center gap-2.5">
               <span className="text-emerald-600 font-bold">✓</span> Inventory & Stock Alerts

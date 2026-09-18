@@ -47,8 +47,7 @@ export default function StaffPage() {
   }, [user, router]);
 
   useEffect(() => {
-    const t = setTimeout(() => void load(), 0);
-    return () => clearTimeout(t);
+    void load();
   }, [load]);
 
   const totals = useMemo(

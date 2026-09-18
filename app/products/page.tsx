@@ -6,6 +6,7 @@ import { api, Product, uploadProductImage } from "@/app/lib/api";
 import { useToast } from "@/app/components/toast-context";
 import { useBusiness } from "@/app/components/business-context";
 import { logActivity } from "@/app/lib/logger";
+import { useDebounce } from "@/hooks/useDebounce";
 import ui from "@/app/components/workspace-ui.module.css";
 
 type Draft = {
@@ -27,6 +28,7 @@ export default function ProductsPage() {
   const { activeBusiness } = useBusiness();
   const [products, setProducts] = useState<Product[]>([]);
   const [query, setQuery] = useState("");
+  const debouncedQuery = useDebounce(query, 250);
   const [statusFilter, setStatusFilter] = useState<"All" | "Healthy" | "Low Stock" | "Out of Stock">("All");
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
@@ -52,9 +54,19 @@ export default function ProductsPage() {
   }, [showToast, activeBusiness?.id]);
 
   useEffect(() => {
-    const t = setTimeout(() => void load(), 0);
-    return () => clearTimeout(t);
+    void load();
   }, [load]);
+
+  // Modal ESC key listener
+  useEffect(() => {
+    function handleKeyDown(e: KeyboardEvent) {
+      if (e.key === "Escape" && editing !== undefined) {
+        setEditing(undefined);
+      }
+    }
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [editing]);
 
   const shown = useMemo(() => {
     let result = products;
@@ -66,7 +78,7 @@ export default function ProductsPage() {
       result = result.filter((p) => Number(p.stock ?? 0) === 0);
     }
 
-    const q = query.toLowerCase().trim();
+    const q = debouncedQuery.toLowerCase().trim();
     if (q) {
       result = result.filter((p) =>
         [p.name, p.barcode, p.sku, p.category].some((v) =>
@@ -75,7 +87,7 @@ export default function ProductsPage() {
       );
     }
     return result;
-  }, [products, query, statusFilter]);
+  }, [products, debouncedQuery, statusFilter]);
 
   const allShownSelected = useMemo(() => {
     return shown.length > 0 && shown.every((p) => selectedIds.includes(p.id));

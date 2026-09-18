@@ -270,37 +270,147 @@
     position: fixed;
     display: flex;
     justify-content: space-around;
+    align-items: center;
     inset: auto 0 0;
     background: rgba(255, 255, 255, 0.98);
     backdrop-filter: blur(16px);
     border-top: 1px solid #eaeaeb;
-    padding: 8px 8px max(10px, env(safe-area-inset-bottom));
+    padding: 8px 12px max(10px, env(safe-area-inset-bottom));
     z-index: 90;
     box-shadow: 0 -4px 20px rgba(0, 0, 0, 0.06);
   }
 
-  .bottom a {
+  .bottom a, .bottomMoreBtn {
     display: flex;
     flex-direction: column;
     align-items: center;
+    justify-content: center;
     gap: 3px;
     color: #6b7280;
     text-decoration: none;
-    font-size: 10px;
+    font-size: 10.5px;
     font-weight: 700;
-    min-width: 55px;
-    padding: 4px 0;
-    border-radius: 8px;
+    min-width: 60px;
+    padding: 5px 0;
+    border-radius: 12px;
+    background: transparent;
+    border: none;
+    cursor: pointer;
+    transition: all 0.15s ease;
   }
 
-  .bottom i {
-    font-size: 18px;
+  .bottom a i, .bottomMoreBtn i {
+    font-size: 19px;
     font-style: normal;
+    line-height: 1;
   }
 
   .bottom .active {
     color: #00875a;
     font-weight: 800;
   }
+
+  /* Slide-up Mobile Drawer Sheet */
+  .drawerBackdrop {
+    position: fixed;
+    inset: 0;
+    background: rgba(17, 24, 39, 0.55);
+    backdrop-filter: blur(6px);
+    z-index: 100;
+    display: flex;
+    align-items: flex-end;
+    justify-content: center;
+    animation: fadeIn 0.2s ease-out;
+  }
+
+  .drawerSheet {
+    background: #ffffff;
+    width: 100%;
+    max-height: 85vh;
+    border-radius: 28px 28px 0 0;
+    padding: 16px 20px max(24px, env(safe-area-inset-bottom));
+    overflow-y: auto;
+    box-shadow: 0 -10px 40px rgba(0, 0, 0, 0.15);
+    animation: slideUp 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+  }
+
+  .drawerHandle {
+    width: 36px;
+    height: 4px;
+    border-radius: 99px;
+    background: #d1d5db;
+    margin: 0 auto 16px;
+  }
+
+  .drawerHead {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 18px;
+    padding-bottom: 12px;
+    border-bottom: 1px solid #f3f4f6;
+  }
+
+  .drawerGrid {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 10px;
+  }
+
+  .drawerCard {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    padding: 14px 8px;
+    border-radius: 16px;
+    background: #f9fafb;
+    border: 1px solid #f3f4f6;
+    text-decoration: none;
+    color: #374151;
+    text-align: center;
+    transition: all 0.15s ease;
+  }
+
+  .drawerCard:hover, .drawerCard:active {
+    background: #e6f4ed;
+    border-color: #c3e9d7;
+    color: #006b3f;
+    transform: scale(0.98);
+  }
+
+  .drawerCardActive {
+    background: #e6f4ed;
+    border-color: #00875a;
+    color: #00875a;
+    font-weight: 800;
+  }
+
+  .drawerCardIcon {
+    font-size: 22px;
+    line-height: 1;
+  }
+
+  .drawerCardLabel {
+    font-size: 11px;
+    font-weight: 700;
+    line-height: 1.2;
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+  }
 }
+
+@keyframes fadeIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+@keyframes slideUp {
+  from { transform: translateY(100%); }
+  to { transform: translateY(0); }
+}
+
 

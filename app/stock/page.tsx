@@ -58,8 +58,7 @@ export default function StockPage() {
   }, [showToast, activeBusiness?.id]);
 
   useEffect(() => {
-    const t = setTimeout(() => void load(), 0);
-    return () => clearTimeout(t);
+    void load();
   }, [load]);
 
   // Compute stat totals

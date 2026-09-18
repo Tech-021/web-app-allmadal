@@ -366,6 +366,9 @@
   padding: 13px 14px;
   background: #f7f9f8;
   border-bottom: 1px solid #eaeaeb;
+  position: sticky;
+  top: 0;
+  z-index: 2;
 }
 
 .table td {

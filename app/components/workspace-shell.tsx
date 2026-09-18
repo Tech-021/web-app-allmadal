@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import { useEffect, useState, useRef } from "react";
+import { useEffect, useState, useRef, useMemo } from "react";
 import { useAuth } from "@/hooks/useAuth";
 import { useBusiness } from "@/app/components/business-context";
 import styles from "./workspace-shell.module.css";
@@ -54,7 +54,6 @@ const financialLinks: Array<{
   { href: "/accounts", label: "Cash / Accounts", icon: "💵", admin: true },
   { href: "/customers", label: "Customers / Khata", icon: "👥", admin: true },
   { href: "/suppliers", label: "Suppliers", icon: "🏢", admin: true },
-  { href: "/purchases", label: "Purchases", icon: "🛍️", admin: true },
   { href: "/expenses", label: "Expenses", icon: "💸", admin: true },
   { href: "/imei", label: "IMEI Management", icon: "📱", admin: true },
   { href: "/payments", label: "Payments / Billing", icon: "💳", admin: true },
@@ -90,18 +89,53 @@ function StoreIcon() {
 
 export function WorkspaceShell({ children }: { children: React.ReactNode }) {
   const { user, isLoading: authLoading, logout } = useAuth();
-  const { activeBusiness, businesses, switchBusiness, workspaceMode, setWorkspaceMode, isLoading: bizLoading } = useBusiness();
+  const { activeBusiness, businesses, switchBusiness, workspaceMode } = useBusiness();
   const router = useRouter();
   const pathname = usePathname();
 
   const [bizDropdownOpen, setBizDropdownOpen] = useState(false);
+  const [mobileDrawerOpen, setMobileDrawerOpen] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
 
-  const links = workspaceMode === "pos" ? posLinks : financialLinks;
+  const allLinks = workspaceMode === "pos" ? posLinks : financialLinks;
+  
+  // Filter links by user role
+  const accessibleLinks = useMemo(() => {
+    if (!user) return [];
+    if (user.role === "staff") {
+      return allLinks.filter((x) => !x.admin);
+    }
+    return allLinks;
+  }, [allLinks, user]);
+
+  // Primary mobile navigation bar links (max 3-4 items)
+  const mobilePrimaryLinks = useMemo(() => {
+    if (user?.role === "staff") return accessibleLinks;
+    return accessibleLinks.slice(0, 3); // Dashboard, Sales, Products
+  }, [accessibleLinks, user?.role]);
+
+  // Secondary links for mobile "More" drawer
+  const mobileDrawerLinks = useMemo(() => {
+    if (user?.role === "staff") return [];
+    return accessibleLinks.slice(3); // All financial / admin links
+  }, [accessibleLinks, user?.role]);
+
+  // Check if current route belongs to the "More" drawer
+  const isDrawerRouteActive = useMemo(() => {
+    return mobileDrawerLinks.some(
+      (x) => pathname === x.href || (x.subItems && x.subItems.some((sub) => pathname === sub.href))
+    );
+  }, [mobileDrawerLinks, pathname]);
 
   useEffect(() => {
     if (!authLoading && !user) router.replace("/login");
   }, [authLoading, user, router]);
+
+  // Close dropdown / drawer on navigation
+  useEffect(() => {
+    setMobileDrawerOpen(false);
+    setBizDropdownOpen(false);
+  }, [pathname]);
 
   // Close dropdown on outside click
   useEffect(() => {
@@ -114,6 +148,18 @@ export function WorkspaceShell({ children }: { children: React.ReactNode }) {
     return () => document.removeEventListener("mousedown", handleClickOutside);
   }, []);
 
+  // Close drawer on ESC
+  useEffect(() => {
+    function handleKeyDown(e: KeyboardEvent) {
+      if (e.key === "Escape") {
+        setMobileDrawerOpen(false);
+        setBizDropdownOpen(false);
+      }
+    }
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, []);
+
   // Track page visits
   useEffect(() => {
     if (user && pathname) {
@@ -123,7 +169,6 @@ export function WorkspaceShell({ children }: { children: React.ReactNode }) {
         "/customers": "Customers / Khata",
         "/suppliers": "Suppliers",
         "/sales": "Sales POS",
-        "/purchases": "Purchases",
         "/expenses": "Expenses",
         "/products": "Products Catalog",
         "/categories": "Categories Manager",
@@ -157,6 +202,7 @@ export function WorkspaceShell({ children }: { children: React.ReactNode }) {
 
   return (
     <div className={styles.page}>
+      {/* Desktop Sidebar */}
       <aside className={styles.sidebar}>
         <Link className={styles.brand} href="/dashboard">
           <span><ShoppingBagIcon /></span>
@@ -173,8 +219,9 @@ export function WorkspaceShell({ children }: { children: React.ReactNode }) {
               <button
                 type="button"
                 onClick={() => setBizDropdownOpen(!bizDropdownOpen)}
-                className="w-full flex items-center justify-between gap-2 p-2.5 rounded-2xl bg-white border border-gray-200/80 hover:border-[#00875a] shadow-sm transition text-left group cursor-pointer"
+                className="w-full flex items-center justify-between gap-2 p-2.5 rounded-2xl bg-white border border-gray-200/80 hover:border-[#00875a] shadow-xs transition text-left group cursor-pointer"
                 title="Click to switch or manage businesses"
+                aria-expanded={bizDropdownOpen}
               >
                 <div className="flex items-center gap-2.5 overflow-hidden">
                   <span className="size-8 rounded-xl bg-[#e6f4ed] text-[#00875a] grid place-items-center shrink-0">
@@ -184,7 +231,7 @@ export function WorkspaceShell({ children }: { children: React.ReactNode }) {
                     <strong className="block text-xs font-extrabold text-gray-900 truncate leading-tight group-hover:text-[#00875a] transition">
                       {activeBusiness.name}
                     </strong>
-                    <span className="inline-block text-[10px] font-bold text-gray-400 capitalize">
+                    <span className="inline-block text-[10px] font-bold text-gray-500 capitalize">
                       {activeBusiness.businessType}
                     </span>
                   </div>
@@ -229,42 +276,40 @@ export function WorkspaceShell({ children }: { children: React.ReactNode }) {
         </div>
 
         <nav>
-          {links
-            .filter((x) => !x.admin || user.role === "admin")
-            .map((x) => {
-              const isSectionActive =
-                pathname === x.href ||
-                (x.subItems && x.subItems.some((sub) => pathname === sub.href));
+          {accessibleLinks.map((x) => {
+            const isSectionActive =
+              pathname === x.href ||
+              (x.subItems && x.subItems.some((sub) => pathname === sub.href));
 
-              return (
-                <div key={x.href} className={styles.menuGroup}>
-                  <Link
-                    href={x.href}
-                    className={isSectionActive ? styles.active : ""}
-                  >
-                    <i>{x.icon}</i>
-                    <span>{x.label}</span>
-                  </Link>
+            return (
+              <div key={x.href} className={styles.menuGroup}>
+                <Link
+                  href={x.href}
+                  className={isSectionActive ? styles.active : ""}
+                >
+                  <i>{x.icon}</i>
+                  <span>{x.label}</span>
+                </Link>
 
-                  {x.subItems && isSectionActive && (
-                    <div className={styles.subNav}>
-                      {x.subItems.map((sub) => (
-                        <Link
-                          key={sub.href}
-                          href={sub.href}
-                          className={`${styles.subLink} ${
-                            pathname === sub.href ? styles.subLinkActive : ""
-                          }`}
-                        >
-                          <span style={{ fontSize: 10, opacity: 0.7 }}>↳</span>
-                          <span>{sub.label}</span>
-                        </Link>
-                      ))}
-                    </div>
-                  )}
-                </div>
-              );
-            })}
+                {x.subItems && isSectionActive && (
+                  <div className={styles.subNav}>
+                    {x.subItems.map((sub) => (
+                      <Link
+                        key={sub.href}
+                        href={sub.href}
+                        className={`${styles.subLink} ${
+                          pathname === sub.href ? styles.subLinkActive : ""
+                        }`}
+                      >
+                        <span style={{ fontSize: 10, opacity: 0.7 }}>↳</span>
+                        <span>{sub.label}</span>
+                      </Link>
+                    ))}
+                  </div>
+                )}
+              </div>
+            );
+          })}
         </nav>
 
         <div className={styles.user}>
@@ -279,6 +324,7 @@ export function WorkspaceShell({ children }: { children: React.ReactNode }) {
         </div>
       </aside>
 
+      {/* Mobile Top Header */}
       <header className={styles.mobile}>
         <Link className={styles.brand} href="/dashboard">
           <span><ShoppingBagIcon /></span>
@@ -289,27 +335,105 @@ export function WorkspaceShell({ children }: { children: React.ReactNode }) {
         </button>
       </header>
 
+      {/* Main Page Content */}
       <section className={styles.content}>{children}</section>
 
-      <nav className={styles.bottom}>
-        {links
-          .filter((x) => !x.admin || user.role === "admin")
-          .map((x) => {
-            const isSectionActive =
-              pathname === x.href ||
-              (x.subItems && x.subItems.some((sub) => pathname === sub.href));
-            return (
-              <Link
-                key={x.href}
-                href={x.href}
-                className={isSectionActive ? styles.active : ""}
-              >
-                <i>{x.icon}</i>
-                <span>{x.label}</span>
-              </Link>
-            );
-          })}
+      {/* Modern Responsive Mobile Bottom Bar */}
+      <nav className={styles.bottom} aria-label="Mobile Navigation">
+        {mobilePrimaryLinks.map((x) => {
+          const isSectionActive =
+            pathname === x.href ||
+            (x.subItems && x.subItems.some((sub) => pathname === sub.href));
+          return (
+            <Link
+              key={x.href}
+              href={x.href}
+              className={isSectionActive ? styles.active : ""}
+            >
+              <i>{x.icon}</i>
+              <span>{x.label.split(" ")[0]}</span>
+            </Link>
+          );
+        })}
+
+        {/* Mobile "More" Drawer Button (Admin Only) */}
+        {user.role === "admin" && mobileDrawerLinks.length > 0 && (
+          <button
+            type="button"
+            onClick={() => setMobileDrawerOpen(true)}
+            className={`${styles.bottomMoreBtn} ${isDrawerRouteActive ? styles.active : ""}`}
+            aria-label="Open full workspace navigation menu"
+          >
+            <i>☰</i>
+            <span>More</span>
+          </button>
+        )}
       </nav>
+
+      {/* Mobile "More" Full Drawer / Bottom Sheet */}
+      {mobileDrawerOpen && (
+        <div
+          className={styles.drawerBackdrop}
+          onClick={() => setMobileDrawerOpen(false)}
+          role="dialog"
+          aria-modal="true"
+        >
+          <div
+            className={styles.drawerSheet}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className={styles.drawerHandle} />
+            <div className={styles.drawerHead}>
+              <div>
+                <strong className="block text-base font-extrabold text-gray-900">
+                  {activeBusiness?.name || "Workspace Tools"}
+                </strong>
+                <span className="text-xs text-gray-500 font-semibold">
+                  Financial Management & Settings
+                </span>
+              </div>
+              <button
+                type="button"
+                className="size-8 rounded-full bg-gray-100 text-gray-600 font-bold grid place-items-center"
+                onClick={() => setMobileDrawerOpen(false)}
+              >
+                ✕
+              </button>
+            </div>
+
+            <div className={styles.drawerGrid}>
+              {mobileDrawerLinks.map((x) => {
+                const isActive = pathname === x.href;
+                return (
+                  <Link
+                    key={x.href}
+                    href={x.href}
+                    onClick={() => setMobileDrawerOpen(false)}
+                    className={`${styles.drawerCard} ${isActive ? styles.drawerCardActive : ""}`}
+                  >
+                    <span className={styles.drawerCardIcon}>{x.icon}</span>
+                    <span className={styles.drawerCardLabel}>{x.label}</span>
+                  </Link>
+                );
+              })}
+            </div>
+
+            <div className="mt-5 pt-4 border-t border-gray-100 flex items-center justify-between text-xs text-gray-500">
+              <span>Signed in as <strong className="text-gray-900">{user.name}</strong></span>
+              <button
+                onClick={async () => {
+                  setMobileDrawerOpen(false);
+                  await logout();
+                  router.push("/login");
+                }}
+                className="font-bold text-red-600 hover:underline"
+              >
+                Sign out
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
