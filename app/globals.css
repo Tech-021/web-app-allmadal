@@ -12,8 +12,9 @@
   --tint-purple: #f4f0fd;
 }
 
-* {
+*, *::before, *::after {
   box-sizing: border-box;
+  font-family: inherit;
 }
 
 html {
@@ -31,8 +32,8 @@ body {
   -moz-osx-font-smoothing: grayscale;
 }
 
-button, input, select, textarea {
-  font-family: var(--font-sans), 'Plus Jakarta Sans', system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+button, input, select, textarea, optgroup, option {
+  font-family: inherit;
 }
 
 button, a, [role="button"] {
@@ -101,5 +102,3 @@ button:disabled, input:disabled, select:disabled {
     min-height: 44px;
   }
 }
-
-
