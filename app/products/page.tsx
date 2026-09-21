@@ -57,6 +57,19 @@ export default function ProductsPage() {
     void load();
   }, [load]);
 
+  // Socket.IO delivers the change; refresh this page's server-backed list.
+  // The socket is a notification channel, not a replacement for the API read.
+  useEffect(() => {
+    const onRealtimeEvent = (event: Event) => {
+      const detail = (event as CustomEvent<{ event?: string }>).detail;
+      if (detail?.event === "product.created" || detail?.event === "product.updated" || detail?.event === "product.deleted") {
+        void load();
+      }
+    };
+    window.addEventListener("almadel_realtime_event", onRealtimeEvent);
+    return () => window.removeEventListener("almadel_realtime_event", onRealtimeEvent);
+  }, [load]);
+
   // Modal ESC key listener
   useEffect(() => {
     function handleKeyDown(e: KeyboardEvent) {
@@ -292,11 +305,11 @@ export default function ProductsPage() {
                 boxShadow: "0 2px 8px rgba(220, 38, 38, 0.15)",
               }}
             >
-              {bulkDeleting ? "Deleting…" : `🗑️ Delete Selected (${selectedIds.length})`}
+              {bulkDeleting ? "Deleting..." : `🗑️ Delete Selected (${selectedIds.length})`}
             </button>
           )}
           <button className={ui.primary} onClick={() => open()}>
-            ＋ Add product
+            + Add product
           </button>
         </div>
       </div>
@@ -307,7 +320,7 @@ export default function ProductsPage() {
       <div className={ui.toolbar}>
         <input
           className={`${ui.input} ${ui.search}`}
-          placeholder="Search name, barcode, SKU, or category…"
+          placeholder="Search name, barcode, SKU, or category..."
           value={query}
           onChange={(e) => setQuery(e.target.value)}
         />
@@ -407,7 +420,7 @@ export default function ProductsPage() {
                 transition: "all 0.15s ease",
               }}
             >
-              {bulkDeleting ? "Deleting…" : `Delete Selected (${selectedIds.length})`}
+              {bulkDeleting ? "Deleting..." : `Delete Selected (${selectedIds.length})`}
             </button>
           </div>
         </div>
@@ -589,7 +602,7 @@ export default function ProductsPage() {
                 Cancel
               </button>
               <button className={ui.primary} disabled={saving}>
-                {saving ? "Saving…" : editing ? "Save changes" : "Save Product"}
+                {saving ? "Saving..." : editing ? "Save changes" : "Save Product"}
               </button>
             </div>
           </form>
@@ -598,3 +611,4 @@ export default function ProductsPage() {
     </WorkspaceShell>
   );
 }
+
