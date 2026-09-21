@@ -1,4 +1,4 @@
-﻿import type { Metadata, Viewport } from "next";
+import type { Metadata, Viewport } from "next";
 import { Plus_Jakarta_Sans } from "next/font/google";
 import "./globals.css";
 import { AuthProvider } from "@/hooks/useAuth";
@@ -43,7 +43,13 @@ export default function RootLayout({
       className={`h-full antialiased ${plusJakartaSans.variable}`}
     >
       <body className={`min-h-full flex flex-col ${plusJakartaSans.className}`}>
-        <AuthProvider>\r\n          <RealtimeProvider>\r\n            <ToastProvider>\r\n              <BusinessProvider>{children}</BusinessProvider>\r\n            </ToastProvider>\r\n          </RealtimeProvider>\r\n        </AuthProvider>
+        <AuthProvider>
+          <RealtimeProvider>
+            <ToastProvider>
+              <BusinessProvider>{children}</BusinessProvider>
+            </ToastProvider>
+          </RealtimeProvider>
+        </AuthProvider>
       </body>
     </html>
   );
