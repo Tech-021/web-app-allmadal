@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import { FormEvent, useCallback, useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
@@ -48,6 +48,17 @@ export default function StaffPage() {
 
   useEffect(() => {
     void load();
+  }, [load]);
+
+  useEffect(() => {
+    const onRealtimeEvent = (event: Event) => {
+      const detail = (event as CustomEvent<{ event?: string }>).detail;
+      if (detail?.event === "staff.created" || detail?.event === "staff.updated" || detail?.event === "staff.deleted") {
+        void load();
+      }
+    };
+    window.addEventListener("almadel_realtime_event", onRealtimeEvent);
+    return () => window.removeEventListener("almadel_realtime_event", onRealtimeEvent);
   }, [load]);
 
   const totals = useMemo(
@@ -181,7 +192,7 @@ export default function StaffPage() {
           <p>Every staff account with its own products, sales, and stock activity.</p>
         </div>
         <button className={ui.primary} onClick={() => open()}>
-          ＋ Add staff
+          ï¼‹ Add staff
         </button>
       </div>
 
@@ -206,7 +217,7 @@ export default function StaffPage() {
       <div className={ui.toolbar}>
         <input
           className={`${ui.input} ${ui.search}`}
-          placeholder="Search staff by name or email…"
+          placeholder="Search staff by name or emailâ€¦"
           value={query}
           onChange={(e) => setQuery(e.target.value)}
         />
@@ -306,7 +317,7 @@ export default function StaffPage() {
               {loading && !staff.length && (
                 <tr>
                   <td colSpan={7} className={ui.empty}>
-                    Loading staff accounts…
+                    Loading staff accountsâ€¦
                   </td>
                 </tr>
               )}
@@ -367,7 +378,7 @@ export default function StaffPage() {
                 Cancel
               </button>
               <button className={ui.primary} disabled={saving}>
-                {saving ? "Saving…" : modal.item ? "Save changes" : "Add staff"}
+                {saving ? "Savingâ€¦" : modal.item ? "Save changes" : "Add staff"}
               </button>
             </div>
           </form>
@@ -385,3 +396,4 @@ function Field({ label, children }: { label: string; children: React.ReactNode }
     </div>
   );
 }
+
