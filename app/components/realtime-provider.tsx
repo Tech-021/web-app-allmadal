@@ -29,6 +29,11 @@ export function RealtimeProvider({ children }: { children: React.ReactNode }) {
     const socket = io(backendUrl, {
       autoConnect: false,
       transports: ["websocket", "polling"],
+      reconnection: true,
+      reconnectionAttempts: Infinity,
+      reconnectionDelay: 1000,
+      reconnectionDelayMax: 10000,
+      timeout: 10000,
       auth: {
         token,
         businessId: localStorage.getItem(businessKey),
@@ -69,4 +74,6 @@ export function RealtimeProvider({ children }: { children: React.ReactNode }) {
 export function useRealtime() {
   return useContext(RealtimeContext);
 }
+
+
 
