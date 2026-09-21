@@ -39,10 +39,11 @@ export default function RootLayout({
   return (
     <html
       lang="en"
+      suppressHydrationWarning
       data-scroll-behavior="smooth"
       className={`h-full antialiased ${plusJakartaSans.variable}`}
     >
-      <body className={`min-h-full flex flex-col ${plusJakartaSans.className}`}>
+      <body suppressHydrationWarning className={`min-h-full flex flex-col ${plusJakartaSans.className}`}>
         <AuthProvider>
           <RealtimeProvider>
             <ToastProvider>

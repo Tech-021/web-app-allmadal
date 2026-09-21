@@ -1,4 +1,4 @@
-﻿"use client";
+"use client";
 
 import { createContext, useContext, useEffect, useMemo, useRef, useState } from "react";
 import { io, type Socket } from "socket.io-client";
@@ -30,10 +30,10 @@ export function RealtimeProvider({ children }: { children: React.ReactNode }) {
       autoConnect: false,
       transports: ["websocket", "polling"],
       reconnection: true,
-      reconnectionAttempts: Infinity,
-      reconnectionDelay: 1000,
+      reconnectionAttempts: 3,
+      reconnectionDelay: 3000,
       reconnectionDelayMax: 10000,
-      timeout: 10000,
+      timeout: 5000,
       auth: {
         token,
         businessId: localStorage.getItem(businessKey),
@@ -47,7 +47,9 @@ export function RealtimeProvider({ children }: { children: React.ReactNode }) {
     };
     events.forEach((event) => socket.on(event, (payload) => emitBrowserEvent(event, payload)));
     socket.on("realtime.error", (payload) => emitBrowserEvent("realtime.error", payload));
-    socket.on("connect_error", (error) => console.warn("Realtime connection error:", error.message));
+    socket.on("connect_error", () => {
+      // Backend websocket is optional or offline; silence repetitive spam
+    });
 
     const joinSelectedBusiness = () => {
       const businessId = localStorage.getItem(businessKey);

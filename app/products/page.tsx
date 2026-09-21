@@ -1,4 +1,4 @@
-﻿"use client";
+"use client";
 
 import { FormEvent, useCallback, useEffect, useMemo, useState } from "react";
 import { WorkspaceShell } from "@/app/components/workspace-shell";
@@ -305,11 +305,11 @@ export default function ProductsPage() {
                 boxShadow: "0 2px 8px rgba(220, 38, 38, 0.15)",
               }}
             >
-              {bulkDeleting ? "Deletingâ€¦" : `ðŸ—‘ï¸ Delete Selected (${selectedIds.length})`}
+              {bulkDeleting ? "Deleting..." : `🗑️ Delete Selected (${selectedIds.length})`}
             </button>
           )}
           <button className={ui.primary} onClick={() => open()}>
-            ï¼‹ Add product
+            + Add product
           </button>
         </div>
       </div>
@@ -320,7 +320,7 @@ export default function ProductsPage() {
       <div className={ui.toolbar}>
         <input
           className={`${ui.input} ${ui.search}`}
-          placeholder="Search name, barcode, SKU, or categoryâ€¦"
+          placeholder="Search name, barcode, SKU, or category..."
           value={query}
           onChange={(e) => setQuery(e.target.value)}
         />
@@ -381,7 +381,7 @@ export default function ProductsPage() {
                 fontWeight: 900,
               }}
             >
-              âœ“
+              ✓
             </span>
             <span style={{ fontSize: 13, fontWeight: 700 }}>
               <strong>{selectedIds.length}</strong> product{selectedIds.length > 1 ? "s" : ""} selected
@@ -420,7 +420,7 @@ export default function ProductsPage() {
                 transition: "all 0.15s ease",
               }}
             >
-              {bulkDeleting ? "Deletingâ€¦" : `Delete Selected (${selectedIds.length})`}
+              {bulkDeleting ? "Deleting..." : `Delete Selected (${selectedIds.length})`}
             </button>
           </div>
         </div>
@@ -497,7 +497,7 @@ export default function ProductsPage() {
                       {p.category ? (
                         <span className={ui.badge}>{p.category}</span>
                       ) : (
-                        "â€”"
+                        "—"
                       )}
                     </td>
                     <td>{money(p.costPrice)}</td>
@@ -508,11 +508,11 @@ export default function ProductsPage() {
                     </td>
                     <td>
                       {Number(p.stock) === 0 ? (
-                        <span className={ui.outOfStock}>â— Out of Stock ({p.stock})</span>
+                        <span className={ui.outOfStock}>● Out of Stock ({p.stock})</span>
                       ) : Number(p.stock) <= Number(p.lowStockThreshold ?? 5) ? (
-                        <span className={ui.lowStock}>â— Low Stock ({p.stock})</span>
+                        <span className={ui.lowStock}>● Low Stock ({p.stock})</span>
                       ) : (
-                        <span className={ui.healthy}>â— Healthy ({p.stock})</span>
+                        <span className={ui.healthy}>● Healthy ({p.stock})</span>
                       )}
                     </td>
                     <td>
@@ -602,7 +602,7 @@ export default function ProductsPage() {
                 Cancel
               </button>
               <button className={ui.primary} disabled={saving}>
-                {saving ? "Savingâ€¦" : editing ? "Save changes" : "Save Product"}
+                {saving ? "Saving..." : editing ? "Save changes" : "Save Product"}
               </button>
             </div>
           </form>
