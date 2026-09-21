@@ -1,9 +1,10 @@
-import type { Metadata, Viewport } from "next";
+﻿import type { Metadata, Viewport } from "next";
 import { Plus_Jakarta_Sans } from "next/font/google";
 import "./globals.css";
 import { AuthProvider } from "@/hooks/useAuth";
 import { ToastProvider } from "@/app/components/toast-context";
 import { BusinessProvider } from "@/app/components/business-context";
+import { RealtimeProvider } from "@/app/components/realtime-provider";
 
 const plusJakartaSans = Plus_Jakarta_Sans({
   subsets: ["latin"],
@@ -42,12 +43,12 @@ export default function RootLayout({
       className={`h-full antialiased ${plusJakartaSans.variable}`}
     >
       <body className={`min-h-full flex flex-col ${plusJakartaSans.className}`}>
-        <AuthProvider>
-          <ToastProvider>
-            <BusinessProvider>{children}</BusinessProvider>
-          </ToastProvider>
-        </AuthProvider>
+        <AuthProvider>\r\n          <RealtimeProvider>\r\n            <ToastProvider>\r\n              <BusinessProvider>{children}</BusinessProvider>\r\n            </ToastProvider>\r\n          </RealtimeProvider>\r\n        </AuthProvider>
       </body>
     </html>
   );
 }
+
+
+
+
