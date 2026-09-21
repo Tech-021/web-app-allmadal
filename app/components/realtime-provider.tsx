@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import { createContext, useContext, useEffect, useMemo, useRef, useState } from "react";
 import { io, type Socket } from "socket.io-client";
@@ -9,6 +9,7 @@ const tokenKey = "almadel_access_token";
 const businessKey = "almadel_active_business_id";
 const events = [
   "product.created", "product.updated", "product.deleted",
+  "staff.created", "staff.updated", "staff.deleted",
   "stock.updated", "sale.created", "customer.updated",
   "activity-log.created", "dashboard.updated",
 ];
@@ -76,6 +77,8 @@ export function RealtimeProvider({ children }: { children: React.ReactNode }) {
 export function useRealtime() {
   return useContext(RealtimeContext);
 }
+
+
 
 
 
