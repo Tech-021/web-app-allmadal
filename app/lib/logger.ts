@@ -23,6 +23,8 @@ export type ActivityAction =
   | "DAILY_CLOSING_RECORD"
   | "SETTINGS_UPDATE"
   | "PAYMENT_CHECKOUT_INITIATED"
+  | "PAYMENT_TRIAL_EXPIRED_CHECKOUT"
+  | "STRIPE_TRIAL_CHECKOUT_INITIATED"
   | "BUSINESS_CREATE"
   | "FINANCIAL_SETUP_COMPLETE"
   | "STAFF_CREATE"
@@ -58,7 +60,7 @@ export type ActivityLog = {
     id?: number | null;
     name: string;
     email: string;
-    role: "admin" | "staff" | "system";
+    role: "admin" | "staff" | "accountant" | "system";
   };
   details: string;
   target?: string;

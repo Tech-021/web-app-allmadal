@@ -7,6 +7,7 @@ import { useToast } from "@/app/components/toast-context";
 import { useBusiness } from "@/app/components/business-context";
 import { logActivity } from "@/app/lib/logger";
 import { useDebounce } from "@/hooks/useDebounce";
+import { validateText, validateNumber } from "@/app/lib/validators";
 import ui from "@/app/components/workspace-ui.module.css";
 
 type Draft = {
@@ -35,6 +36,7 @@ export default function ProductsPage() {
   const [notice, setNotice] = useState("");
   const [editing, setEditing] = useState<Product | null | undefined>(undefined);
   const [draft, setDraft] = useState(blank);
+  const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
   const [saving, setSaving] = useState(false);
   const [selectedIds, setSelectedIds] = useState<number[]>([]);
   const [bulkDeleting, setBulkDeleting] = useState(false);
@@ -128,6 +130,7 @@ export default function ProductsPage() {
 
   function open(p?: Product) {
     setEditing(p ?? null);
+    setFieldErrors({});
     setDraft(
       p
         ? {
@@ -150,12 +153,31 @@ export default function ProductsPage() {
 
   async function submit(e: FormEvent) {
     e.preventDefault();
-    if (!draft.name.trim() || draft.sellingPrice === "") {
-      const msg = "Product name and selling price are required.";
-      setError(msg);
-      showToast(msg, "error");
+    const errs: Record<string, string> = {};
+
+    const nameVal = validateText(draft.name, { minLength: 2, maxLength: 100, fieldName: "Product name" });
+    if (!nameVal.valid) errs.name = nameVal.error || "Product name is required.";
+
+    const priceVal = validateNumber(draft.sellingPrice, { min: 1, fieldName: "Sale price" });
+    if (!priceVal.valid) errs.sellingPrice = priceVal.error || "Sale price must be greater than 0.";
+
+    const costVal = validateNumber(draft.costPrice || "0", { min: 0, fieldName: "Cost price" });
+    if (!costVal.valid) errs.costPrice = costVal.error || "Cost price must be 0 or greater.";
+
+    const stockVal = validateNumber(draft.stock || "0", { min: 0, integerOnly: true, fieldName: "Stock quantity" });
+    if (!stockVal.valid) errs.stock = stockVal.error || "Stock must be a non-negative whole number.";
+
+    const lowStockVal = validateNumber(draft.lowStockThreshold || "5", { min: 0, integerOnly: true, fieldName: "Low stock alert" });
+    if (!lowStockVal.valid) errs.lowStockThreshold = lowStockVal.error || "Threshold must be 0 or greater.";
+
+    setFieldErrors(errs);
+    if (Object.keys(errs).length > 0) {
+      const firstErr = Object.values(errs)[0];
+      setError(firstErr);
+      showToast(firstErr, "error");
       return;
     }
+
     setSaving(true);
     try {
       const imageUrl = mediaFile ? (await uploadProductImage(mediaFile)).url : draft.imageUrl;
@@ -557,11 +579,11 @@ export default function ProductsPage() {
             <div className={ui.formGrid}>
               {(
                 [
-                  ["name", "Product name"],
+                  ["name", "Product name *"],
                   ["sku", "SKU"],
                   ["category", "Category"],
                   ["costPrice", "Cost price (Rs.)"],
-                  ["sellingPrice", "Sale price (Rs.)"],
+                  ["sellingPrice", "Sale price (Rs.) *"],
                   ["stock", editing ? "Current stock" : "Opening stock"],
                   ["lowStockThreshold", "Low stock alert threshold"],
                   ["imageUrl", "Product image"],
@@ -569,18 +591,37 @@ export default function ProductsPage() {
               ).map(([key, label]) => (
                 <div className={`${ui.field} ${key === "imageUrl" ? ui.span2 : ""}`} key={key}>
                   <label>{label}</label>
-                  {key === "imageUrl" ? <>
-                    <input className={ui.input} type="file" accept="image/png,image/jpeg,image/webp,image/gif" onChange={(e) => setMediaFile(e.target.files?.[0] || null)} />
-                    {(mediaFile?.name || draft.imageUrl) && <span className={ui.muted}>{mediaFile?.name || "Current image selected"}</span>}
-                  </> : <input
-                    className={ui.input}
-                    type={["costPrice", "sellingPrice", "stock", "lowStockThreshold"].includes(key) ? "number" : "text"}
-                    min="0"
-                    list={key === "category" ? "categories-options" : undefined}
-                    required={["name", "barcode", "sellingPrice"].includes(key)}
-                    value={draft[key]}
-                    onChange={(e) => setDraft({ ...draft, [key]: e.target.value })}
-                  />}
+                  {key === "imageUrl" ? (
+                    <>
+                      <input
+                        className={ui.input}
+                        type="file"
+                        accept="image/png,image/jpeg,image/webp,image/gif"
+                        onChange={(e) => setMediaFile(e.target.files?.[0] || null)}
+                      />
+                      {(mediaFile?.name || draft.imageUrl) && (
+                        <span className={ui.muted}>{mediaFile?.name || "Current image selected"}</span>
+                      )}
+                    </>
+                  ) : (
+                    <input
+                      className={`${ui.input} ${fieldErrors[key] ? "border-red-500 bg-red-50/40" : ""}`}
+                      type={["costPrice", "sellingPrice", "stock", "lowStockThreshold"].includes(key) ? "number" : "text"}
+                      min="0"
+                      list={key === "category" ? "categories-options" : undefined}
+                      required={["name", "sellingPrice"].includes(key)}
+                      value={draft[key]}
+                      onChange={(e) => {
+                        setDraft({ ...draft, [key]: e.target.value });
+                        if (fieldErrors[key]) setFieldErrors((prev) => ({ ...prev, [key]: "" }));
+                      }}
+                    />
+                  )}
+                  {fieldErrors[key] && (
+                    <span className="text-[11px] font-bold text-red-600 mt-1 block">
+                      {fieldErrors[key]}
+                    </span>
+                  )}
                   {key === "category" && (
                     <datalist id="categories-options">
                       {Array.from(

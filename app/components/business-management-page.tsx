@@ -7,6 +7,7 @@ import { useToast } from "./toast-context";
 import { useBusiness } from "./business-context";
 import { useDebounce } from "@/hooks/useDebounce";
 import { logActivity } from "@/app/lib/logger";
+import { validatePhone, validateEmail, validateText, validateNumber, sanitizePhoneInput } from "@/app/lib/validators";
 import ui from "./workspace-ui.module.css";
 
 type Mode = "customers" | "suppliers" | "expenses" | "accounts" | "sales";
@@ -44,7 +45,7 @@ const config: Record<
     add: "Add Supplier",
     fields: [
       { key: "name", label: "Name", required: true },
-      { key: "mobile", label: "Mobile" },
+      { key: "mobile", label: "Mobile", required: true },
       { key: "email", label: "Email", type: "email" },
     ],
     columns: ["name", "mobile", "currentBalance"],
@@ -100,6 +101,7 @@ export function BusinessManagementPage({ mode }: { mode: Mode }) {
   const [editing, setEditing] = useState<Row | null>(null);
   const [saving, setSaving] = useState(false);
   const [draft, setDraft] = useState<Record<string, string>>({});
+  const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
   const [query, setQuery] = useState("");
   const debouncedQuery = useDebounce(query, 300);
   const [page, setPage] = useState(1);
@@ -158,6 +160,7 @@ export function BusinessManagementPage({ mode }: { mode: Mode }) {
 
   function begin(row?: Row) {
     setEditing(row || null);
+    setFieldErrors({});
     setDraft(
       Object.fromEntries(
         c.fields.map((field) => [
@@ -169,8 +172,61 @@ export function BusinessManagementPage({ mode }: { mode: Mode }) {
     setOpen(true);
   }
 
+  function validateForm(): boolean {
+    const errs: Record<string, string> = {};
+
+    if (mode === "customers") {
+      const nameVal = validateText(draft.name, { minLength: 2, maxLength: 60, fieldName: "Customer name" });
+      if (!nameVal.valid) errs.name = nameVal.error || "Name is required.";
+
+      const phoneVal = validatePhone(draft.mobile, { required: true, fieldName: "Mobile number" });
+      if (!phoneVal.valid) errs.mobile = phoneVal.error || "Valid mobile number is required.";
+
+      if (draft.email) {
+        const emailVal = validateEmail(draft.email, { required: false });
+        if (!emailVal.valid) errs.email = emailVal.error || "Invalid email.";
+      }
+    } else if (mode === "suppliers") {
+      const nameVal = validateText(draft.name, { minLength: 2, maxLength: 60, fieldName: "Supplier name" });
+      if (!nameVal.valid) errs.name = nameVal.error || "Name is required.";
+
+      const phoneVal = validatePhone(draft.mobile, { required: true, fieldName: "Mobile number" });
+      if (!phoneVal.valid) errs.mobile = phoneVal.error || "Valid mobile number is required.";
+      if (draft.email) {
+        const emailVal = validateEmail(draft.email, { required: false });
+        if (!emailVal.valid) errs.email = emailVal.error || "Invalid email.";
+      }
+    } else if (mode === "expenses") {
+      const amtVal = validateNumber(draft.amount, { min: 1, fieldName: "Expense amount" });
+      if (!amtVal.valid) errs.amount = amtVal.error || "Valid amount greater than 0 is required.";
+
+      const catVal = validateText(draft.category, { minLength: 2, fieldName: "Category" });
+      if (!catVal.valid) errs.category = catVal.error || "Category is required.";
+
+      if (!draft.accountId) {
+        errs.accountId = "Please select a payment account.";
+      }
+    } else if (mode === "accounts") {
+      const nameVal = validateText(draft.name, { minLength: 2, maxLength: 50, fieldName: "Account name" });
+      if (!nameVal.valid) errs.name = nameVal.error || "Account name is required.";
+
+      if (draft.openingBalance) {
+        const balVal = validateNumber(draft.openingBalance, { min: 0, fieldName: "Opening balance" });
+        if (!balVal.valid) errs.openingBalance = balVal.error || "Opening balance must be 0 or greater.";
+      }
+    }
+
+    setFieldErrors(errs);
+    return Object.keys(errs).length === 0;
+  }
+
   async function submit(e: FormEvent) {
     e.preventDefault();
+    if (!validateForm()) {
+      showToast("Please fix highlighted errors before saving.", "error");
+      return;
+    }
+
     setSaving(true);
     try {
       await api(editing ? `${c.endpoint}/${editing.id}` : c.endpoint, {
@@ -427,14 +483,17 @@ export function BusinessManagementPage({ mode }: { mode: Mode }) {
             <div className={ui.formGrid}>
               {c.fields.map((field) => (
                 <div className={ui.field} key={field.key}>
-                  <label>{field.label}</label>
+                  <label>
+                    {field.label} {field.required && <span className="text-red-500">*</span>}
+                  </label>
                   {field.type === "select" ? (
                     <select
                       className={ui.input}
                       value={draft[field.key] || "cash"}
-                      onChange={(e) =>
-                        setDraft({ ...draft, [field.key]: e.target.value })
-                      }
+                      onChange={(e) => {
+                        setDraft({ ...draft, [field.key]: e.target.value });
+                        if (fieldErrors[field.key]) setFieldErrors((p) => ({ ...p, [field.key]: "" }));
+                      }}
                     >
                       <option value="cash">Cash</option>
                       <option value="bank">Bank</option>
@@ -443,12 +502,13 @@ export function BusinessManagementPage({ mode }: { mode: Mode }) {
                     </select>
                   ) : field.type === "account" ? (
                     <select
-                      className={ui.input}
+                      className={`${ui.input} ${fieldErrors[field.key] ? "border-red-500 bg-red-50/40" : ""}`}
                       required
                       value={draft[field.key] || ""}
-                      onChange={(e) =>
-                        setDraft({ ...draft, [field.key]: e.target.value })
-                      }
+                      onChange={(e) => {
+                        setDraft({ ...draft, [field.key]: e.target.value });
+                        if (fieldErrors[field.key]) setFieldErrors((p) => ({ ...p, [field.key]: "" }));
+                      }}
                     >
                       <option value="">Select Account</option>
                       {accounts
@@ -459,16 +519,39 @@ export function BusinessManagementPage({ mode }: { mode: Mode }) {
                           </option>
                         ))}
                     </select>
+                  ) : field.key === "mobile" ? (
+                    <input
+                      className={`${ui.input} ${fieldErrors[field.key] ? "border-red-500 bg-red-50/40" : ""}`}
+                      required={field.required}
+                      type="tel"
+                      maxLength={15}
+                      placeholder="03001234567"
+                      value={draft[field.key] || ""}
+                      onChange={(e) => {
+                        const clean = sanitizePhoneInput(e.target.value);
+                        setDraft({ ...draft, [field.key]: clean });
+                        if (fieldErrors[field.key]) setFieldErrors((p) => ({ ...p, [field.key]: "" }));
+                      }}
+                    />
                   ) : (
                     <input
-                      className={ui.input}
+                      className={`${ui.input} ${fieldErrors[field.key] ? "border-red-500 bg-red-50/40" : ""}`}
                       required={field.required}
                       type={field.type || "text"}
+                      min={field.type === "number" ? "0" : undefined}
+                      maxLength={field.type === "email" ? 100 : 200}
+                      placeholder={field.type === "email" ? "name@example.com" : undefined}
                       value={draft[field.key] || ""}
-                      onChange={(e) =>
-                        setDraft({ ...draft, [field.key]: e.target.value })
-                      }
+                      onChange={(e) => {
+                        setDraft({ ...draft, [field.key]: e.target.value });
+                        if (fieldErrors[field.key]) setFieldErrors((p) => ({ ...p, [field.key]: "" }));
+                      }}
                     />
+                  )}
+                  {fieldErrors[field.key] && (
+                    <span className="text-[11px] font-bold text-red-600 mt-1 block">
+                      {fieldErrors[field.key]}
+                    </span>
                   )}
                 </div>
               ))}

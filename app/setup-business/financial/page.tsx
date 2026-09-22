@@ -5,8 +5,9 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { useAuth } from "@/hooks/useAuth";
 import { useBusiness } from "@/app/components/business-context";
 import { useToast } from "@/app/components/toast-context";
-import { logActivity } from "@/app/lib/logger";
 import { api } from "@/app/lib/api";
+import { logActivity } from "@/app/lib/logger";
+import { validatePhone, validateEmail, validateText, validateNumber, sanitizePhoneInput, formatCurrencyInput, parseCurrencyInput } from "@/app/lib/validators";
 
 type BankAccount = {
   bankName: string;
@@ -230,24 +231,23 @@ function FinancialSetupContent() {
   const handleAddCustomer = (e: FormEvent) => {
     e.preventDefault();
     setCustModalError("");
-    const name = custDraft.name.trim();
-    const mobile = custDraft.mobile.trim().replace(/[^0-9]/g, "");
-    const bal = Number(custDraft.balance);
+    const nameVal = validateText(custDraft.name, { minLength: 2, maxLength: 60, fieldName: "Customer name" });
+    if (!nameVal.valid) {
+      setCustModalError(nameVal.error || "Customer name must be at least 2 characters.");
+      return;
+    }
+    const phoneVal = validatePhone(custDraft.mobile, { required: true, fieldName: "Mobile number" });
+    if (!phoneVal.valid) {
+      setCustModalError(phoneVal.error || "Please enter a valid mobile number (10-15 digits).");
+      return;
+    }
+    const balVal = validateNumber(custDraft.balance || "0", { min: 0, fieldName: "Opening balance" });
+    if (!balVal.valid) {
+      setCustModalError(balVal.error || "Amount owed must be 0 or greater.");
+      return;
+    }
 
-    if (!name || name.length < 2) {
-      setCustModalError("Customer name must be at least 2 characters.");
-      return;
-    }
-    if (!mobile || mobile.length < 10 || mobile.length > 15) {
-      setCustModalError("Please enter a valid mobile number (10-15 digits).");
-      return;
-    }
-    if (isNaN(bal) || bal < 0) {
-      setCustModalError("Amount owed must be 0 or greater.");
-      return;
-    }
-
-    setCustomers([...customers, { name, mobile: custDraft.mobile.trim(), openingBalance: bal || 0 }]);
+    setCustomers([...customers, { name: custDraft.name.trim(), mobile: custDraft.mobile.trim(), openingBalance: Number(custDraft.balance) || 0 }]);
     setCustDraft({ name: "", mobile: "", balance: "" });
     setShowAddCustomerModal(false);
     showToast("Customer added to khata list.", "success");
@@ -257,32 +257,36 @@ function FinancialSetupContent() {
   const handleAddSupplier = (e: FormEvent) => {
     e.preventDefault();
     setSuppModalError("");
-    const name = suppDraft.name.trim();
-    const bal = Number(suppDraft.balance);
-
-    if (!name || name.length < 2) {
-      setSuppModalError("Supplier name must be at least 2 characters.");
+    const nameVal = validateText(suppDraft.name, { minLength: 2, maxLength: 60, fieldName: "Supplier name" });
+    if (!nameVal.valid) {
+      setSuppModalError(nameVal.error || "Supplier name must be at least 2 characters.");
       return;
     }
-    if (isNaN(bal) || bal < 0) {
-      setSuppModalError("Amount owed must be 0 or greater.");
+    const phoneVal = validatePhone(suppDraft.mobile, { required: true, fieldName: "Supplier mobile / WhatsApp" });
+    if (!phoneVal.valid) {
+      setSuppModalError(phoneVal.error || "Please enter a valid mobile number (10-15 digits).");
       return;
     }
     if (suppDraft.email.trim()) {
-      const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-      if (!emailRegex.test(suppDraft.email.trim())) {
-        setSuppModalError("Please enter a valid email address.");
+      const emailVal = validateEmail(suppDraft.email, { required: false });
+      if (!emailVal.valid) {
+        setSuppModalError(emailVal.error || "Please enter a valid email address.");
         return;
       }
+    }
+    const balVal = validateNumber(suppDraft.balance || "0", { min: 0, fieldName: "Opening balance" });
+    if (!balVal.valid) {
+      setSuppModalError(balVal.error || "Amount owed must be 0 or greater.");
+      return;
     }
 
     setSuppliers([
       ...suppliers,
       {
-        name,
+        name: suppDraft.name.trim(),
         mobile: suppDraft.mobile.trim(),
         email: suppDraft.email.trim(),
-        openingBalance: bal || 0,
+        openingBalance: Number(suppDraft.balance) || 0,
       },
     ]);
     setSuppDraft({ name: "", mobile: "", email: "", balance: "" });
@@ -473,6 +477,53 @@ function FinancialSetupContent() {
     }
   };
 
+  const [activatingStripe, setActivatingStripe] = useState<boolean>(false);
+
+  const handleActivateStripeTrial = async () => {
+    const targetId = targetBusiness?.id || (businessIdParam ? Number(businessIdParam) : null);
+    if (!targetId) {
+      router.push("/dashboard");
+      return;
+    }
+
+    try {
+      setActivatingStripe(true);
+      const successUrl = `${window.location.origin}/dashboard?payment=success`;
+      const cancelUrl = `${window.location.origin}/dashboard?payment=trial_started`;
+
+      const response = await api<{ success: boolean; url: string }>(
+        "/billing/create-checkout-session",
+        {
+          method: "POST",
+          body: JSON.stringify({
+            businessId: targetId,
+            successUrl,
+            cancelUrl,
+          }),
+        }
+      );
+
+      if (response.url) {
+        logActivity(
+          "STRIPE_TRIAL_CHECKOUT_INITIATED",
+          "Billing",
+          `Initiated Stripe 30-day trial subscription for store '${targetBusiness?.name || `#${targetId}`}'`,
+          targetBusiness?.name || `Store #${targetId}`,
+          { targetId }
+        );
+        window.location.href = response.url;
+      } else {
+        router.push("/dashboard");
+      }
+    } catch (err: any) {
+      console.error("Stripe trial checkout error:", err);
+      showToast(err.message || "Redirecting to dashboard...", "info");
+      router.push("/dashboard");
+    } finally {
+      setActivatingStripe(false);
+    }
+  };
+
   if (authLoading) {
     return (
       <div className="min-h-screen bg-slate-50 flex items-center justify-center p-4">
@@ -611,12 +662,13 @@ function FinancialSetupContent() {
                     ₨
                   </span>
                   <input
-                    type="number"
-                    min="0"
+                    type="text"
+                    inputMode="numeric"
                     placeholder="500,000"
-                    value={openingCash === "0" ? "" : openingCash}
+                    value={formatCurrencyInput(openingCash === "0" ? "" : openingCash)}
                     onChange={(e) => {
-                      setOpeningCash(e.target.value);
+                      const raw = parseCurrencyInput(e.target.value);
+                      setOpeningCash(raw || "0");
                       if (errors.openingCash) setErrors((prev) => ({ ...prev, openingCash: "" }));
                     }}
                     className={`w-full pl-9 pr-4 py-3 rounded-xl border text-sm font-extrabold text-slate-900 outline-none transition ${
@@ -688,11 +740,14 @@ function FinancialSetupContent() {
                               ₨
                             </span>
                             <input
-                              type="number"
-                              min="0"
+                              type="text"
+                              inputMode="numeric"
                               placeholder="Balance"
-                              value={account.balance || ""}
-                              onChange={(e) => updateBankAccount(idx, "balance", Number(e.target.value))}
+                              value={formatCurrencyInput(account.balance || "")}
+                              onChange={(e) => {
+                                const raw = parseCurrencyInput(e.target.value);
+                                updateBankAccount(idx, "balance", Number(raw) || 0);
+                              }}
                               className="w-full pl-7 pr-3 py-2 rounded-xl border border-slate-200 bg-white text-xs font-bold text-slate-900 outline-none focus:border-[#00875a]"
                             />
                           </div>
@@ -784,12 +839,13 @@ function FinancialSetupContent() {
                           ₨
                         </span>
                         <input
-                          type="number"
-                          min="0"
+                          type="text"
+                          inputMode="numeric"
                           placeholder="850,000"
-                          value={supplierPayable === "0" ? "" : supplierPayable}
+                          value={formatCurrencyInput(supplierPayable === "0" ? "" : supplierPayable)}
                           onChange={(e) => {
-                            setSupplierPayable(e.target.value);
+                            const raw = parseCurrencyInput(e.target.value);
+                            setSupplierPayable(raw || "0");
                             if (errors.supplierPayable) setErrors((prev) => ({ ...prev, supplierPayable: "" }));
                           }}
                           className={`w-full pl-8 pr-3 py-2.5 rounded-xl border bg-white text-xs font-extrabold text-slate-900 outline-none ${
@@ -917,12 +973,13 @@ function FinancialSetupContent() {
                           ₨
                         </span>
                         <input
-                          type="number"
-                          min="0"
+                          type="text"
+                          inputMode="numeric"
                           placeholder="1,250,000"
-                          value={customerReceivable === "0" ? "" : customerReceivable}
+                          value={formatCurrencyInput(customerReceivable === "0" ? "" : customerReceivable)}
                           onChange={(e) => {
-                            setCustomerReceivable(e.target.value);
+                            const raw = parseCurrencyInput(e.target.value);
+                            setCustomerReceivable(raw || "0");
                             if (errors.customerReceivable) setErrors((prev) => ({ ...prev, customerReceivable: "" }));
                           }}
                           className={`w-full pl-8 pr-3 py-2.5 rounded-xl border bg-white text-xs font-extrabold text-slate-900 outline-none ${
@@ -1053,12 +1110,13 @@ function FinancialSetupContent() {
                         ₨
                       </span>
                       <input
-                        type="number"
-                        min="0"
+                        type="text"
+                        inputMode="numeric"
                         placeholder="5,500,000"
-                        value={currentStockValue === "0" ? "" : currentStockValue}
+                        value={formatCurrencyInput(currentStockValue === "0" ? "" : currentStockValue)}
                         onChange={(e) => {
-                          setCurrentStockValue(e.target.value);
+                          const raw = parseCurrencyInput(e.target.value);
+                          setCurrentStockValue(raw || "0");
                           if (errors.currentStockValue) setErrors((prev) => ({ ...prev, currentStockValue: "" }));
                         }}
                         className={`w-full pl-8 pr-3 py-2.5 rounded-xl border text-xs font-extrabold text-slate-900 outline-none ${
@@ -1414,20 +1472,21 @@ function FinancialSetupContent() {
               <input
                 type="tel"
                 required
-                placeholder="0300-1234567"
+                maxLength={15}
+                placeholder="03001234567"
                 value={custDraft.mobile}
-                onChange={(e) => setCustDraft({ ...custDraft, mobile: e.target.value })}
+                onChange={(e) => setCustDraft({ ...custDraft, mobile: sanitizePhoneInput(e.target.value) })}
                 className="w-full px-3 py-2 rounded-xl border border-slate-200 text-xs font-bold text-slate-900 outline-none focus:border-[#00875a]"
               />
             </div>
             <div>
               <label className="block text-[11px] font-bold text-slate-600 mb-1">Opening Amount Owed (₨)</label>
               <input
-                type="number"
-                min="0"
+                type="text"
+                inputMode="numeric"
                 placeholder="25,000"
-                value={custDraft.balance}
-                onChange={(e) => setCustDraft({ ...custDraft, balance: e.target.value })}
+                value={formatCurrencyInput(custDraft.balance)}
+                onChange={(e) => setCustDraft({ ...custDraft, balance: parseCurrencyInput(e.target.value) })}
                 className="w-full px-3 py-2 rounded-xl border border-slate-200 text-xs font-bold text-slate-900 outline-none focus:border-[#00875a]"
               />
             </div>
@@ -1475,23 +1534,25 @@ function FinancialSetupContent() {
               />
             </div>
             <div>
-              <label className="block text-[11px] font-bold text-slate-600 mb-1">Mobile / WhatsApp</label>
+              <label className="block text-[11px] font-bold text-slate-600 mb-1">Mobile / WhatsApp *</label>
               <input
                 type="tel"
-                placeholder="0321-9876543"
+                required
+                maxLength={15}
+                placeholder="03219876543"
                 value={suppDraft.mobile}
-                onChange={(e) => setSuppDraft({ ...suppDraft, mobile: e.target.value })}
+                onChange={(e) => setSuppDraft({ ...suppDraft, mobile: sanitizePhoneInput(e.target.value) })}
                 className="w-full px-3 py-2 rounded-xl border border-slate-200 text-xs font-bold text-slate-900 outline-none focus:border-[#00875a]"
               />
             </div>
             <div>
               <label className="block text-[11px] font-bold text-slate-600 mb-1">Amount You Owe (₨)</label>
               <input
-                type="number"
-                min="0"
+                type="text"
+                inputMode="numeric"
                 placeholder="150,000"
-                value={suppDraft.balance}
-                onChange={(e) => setSuppDraft({ ...suppDraft, balance: e.target.value })}
+                value={formatCurrencyInput(suppDraft.balance)}
+                onChange={(e) => setSuppDraft({ ...suppDraft, balance: parseCurrencyInput(e.target.value) })}
                 className="w-full px-3 py-2 rounded-xl border border-slate-200 text-xs font-bold text-slate-900 outline-none focus:border-[#00875a]"
               />
             </div>
@@ -1542,23 +1603,23 @@ function FinancialSetupContent() {
               <div>
                 <label className="block text-[11px] font-bold text-slate-600 mb-1">Cost Price (₨)</label>
                 <input
-                  type="number"
-                  min="0"
+                  type="text"
+                  inputMode="numeric"
                   placeholder="45,000"
-                  value={prodDraft.costPrice}
-                  onChange={(e) => setProdDraft({ ...prodDraft, costPrice: e.target.value })}
+                  value={formatCurrencyInput(prodDraft.costPrice)}
+                  onChange={(e) => setProdDraft({ ...prodDraft, costPrice: parseCurrencyInput(e.target.value) })}
                   className="w-full px-3 py-2 rounded-xl border border-slate-200 text-xs font-bold text-slate-900 outline-none focus:border-[#00875a]"
                 />
               </div>
               <div>
                 <label className="block text-[11px] font-bold text-slate-600 mb-1">Selling Price (₨) *</label>
                 <input
-                  type="number"
+                  type="text"
+                  inputMode="numeric"
                   required
-                  min="0"
                   placeholder="52,000"
-                  value={prodDraft.sellingPrice}
-                  onChange={(e) => setProdDraft({ ...prodDraft, sellingPrice: e.target.value })}
+                  value={formatCurrencyInput(prodDraft.sellingPrice)}
+                  onChange={(e) => setProdDraft({ ...prodDraft, sellingPrice: parseCurrencyInput(e.target.value) })}
                   className="w-full px-3 py-2 rounded-xl border border-slate-200 text-xs font-bold text-slate-900 outline-none focus:border-[#00875a]"
                 />
               </div>
@@ -1607,25 +1668,41 @@ function FinancialSetupContent() {
       {/* Completion Success Modal */}
       {setupComplete && (
         <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4">
-          <div className="bg-white rounded-3xl p-8 max-w-md w-full shadow-2xl border border-slate-100 text-center space-y-4 animate-in zoom-in-95">
+          <div className="bg-white rounded-3xl p-6 sm:p-8 max-w-md w-full shadow-2xl border border-slate-100 text-center space-y-4 animate-in zoom-in-95">
             <div className="size-16 rounded-3xl bg-[#e6f4ed] text-[#00875a] mx-auto flex items-center justify-center text-3xl shadow-md shadow-[#00875a]/10">
-              🚀
+              🎉
             </div>
-            <h3 className="text-xl font-extrabold text-slate-900">
+
+            <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-[11px] font-extrabold uppercase tracking-wider bg-emerald-100 text-emerald-800">
+              ✨ 30-Day Free Trial Activated
+            </span>
+
+            <h3 className="text-xl sm:text-2xl font-black text-slate-900 tracking-tight">
               Financial Baseline Ready!
             </h3>
-            <p className="text-xs font-medium text-slate-500">
-              All accounts, udhaar balances, inventory valuation, and brand settings have been synchronized.
+
+            <p className="text-xs sm:text-sm font-medium text-slate-600 leading-relaxed">
+              Your business is all set up. You can enjoy full access to all features during your <strong className="text-slate-900">30-day free trial</strong>.
             </p>
-            <div className="pt-4">
+
+            <div className="pt-2">
               <button
                 type="button"
-                onClick={() => router.push("/dashboard")}
-                className="w-full py-4 rounded-2xl bg-[#00875a] hover:bg-[#006b3f] text-white text-xs font-extrabold shadow-lg shadow-[#00875a]/25 transition cursor-pointer"
+                onClick={handleActivateStripeTrial}
+                disabled={activatingStripe}
+                className="w-full py-4 px-6 rounded-2xl bg-gradient-to-r from-[#00875a] to-[#006644] hover:from-[#00744e] hover:to-[#005236] text-white text-sm font-extrabold shadow-lg shadow-[#00875a]/25 transition flex items-center justify-center gap-2 cursor-pointer disabled:opacity-60"
               >
-                Go to Store Dashboard ➔
+                {activatingStripe ? (
+                  <span>Opening Stripe Gateway...</span>
+                ) : (
+                  <>
+                    <span>Activate via Stripe (30-Day Trial)</span>
+                    <span>💳 ➔</span>
+                  </>
+                )}
               </button>
             </div>
+
           </div>
         </div>
       )}

@@ -68,14 +68,20 @@ export default function DailyClosingPage() {
 
   async function handleCloseDay(e: FormEvent) {
     e.preventDefault();
+    const countVal = Number(counted);
+    if (isNaN(countVal) || countVal < 0) {
+      showToast("Please enter a valid non-negative counted cash amount.", "error");
+      return;
+    }
+
     setSaving(true);
     try {
       await api("/finance/daily-closings/close", {
         method: "POST",
         body: JSON.stringify({
           date,
-          countedCash: Number(counted || 0),
-          note,
+          countedCash: countVal,
+          note: note.trim(),
         }),
       });
       showToast("Daily closing recorded successfully.", "success");

@@ -27,26 +27,35 @@ type BillingStatus = {
 function PaymentContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const { activeBusiness } = useBusiness();
+  const { activeBusiness, reloadBusinesses } = useBusiness();
   const { showToast } = useToast();
 
   const [loading, setLoading] = useState<boolean>(true);
+  const [syncing, setSyncing] = useState<boolean>(false);
   const [checkoutLoading, setCheckoutLoading] = useState<boolean>(false);
   const [portalLoading, setPortalLoading] = useState<boolean>(false);
   const [billingData, setBillingData] = useState<BillingStatus | null>(null);
 
   const canceled = searchParams.get("payment") === "canceled";
+  const paymentSuccess = searchParams.get("payment") === "success";
 
-  const fetchStatus = async () => {
+  const fetchStatus = async (showSyncNotice = false) => {
     if (!activeBusiness?.id) return;
     try {
-      setLoading(true);
+      if (showSyncNotice) setSyncing(true);
+      else setLoading(true);
+
       const res = await api<BillingStatus>(`/billing/status?businessId=${activeBusiness.id}`);
       setBillingData(res);
+      await reloadBusinesses();
+      if (showSyncNotice) {
+        showToast("Subscription status updated from Stripe!", "success");
+      }
     } catch (err: any) {
       console.error("Failed to load billing status:", err);
     } finally {
       setLoading(false);
+      setSyncing(false);
     }
   };
 
@@ -57,10 +66,14 @@ function PaymentContent() {
   }, [activeBusiness?.id]);
 
   useEffect(() => {
-    if (canceled) {
+    if (paymentSuccess) {
+      showToast("Payment verified! Your Almadel Pro plan is now active.", "success");
+      fetchStatus(false);
+    } else if (canceled) {
       showToast("Payment checkout was canceled. You can try again anytime.", "info");
     }
-  }, [canceled]);
+  }, [paymentSuccess, canceled]);
+
 
   const handleProceedToCheckout = async () => {
     if (!activeBusiness?.id) {
@@ -146,16 +159,31 @@ function PaymentContent() {
           </p>
         </div>
 
-        {isSubscribed && (
+        <div className="flex items-center gap-2">
           <button
-            onClick={handleOpenPortal}
-            disabled={portalLoading}
-            className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-semibold text-slate-700 bg-white border border-slate-300 hover:bg-slate-50 transition-colors shadow-xs"
+            type="button"
+            onClick={() => fetchStatus(true)}
+            disabled={syncing || loading}
+            className="inline-flex items-center gap-2 px-3.5 py-2.5 rounded-xl text-xs font-bold text-slate-700 bg-white border border-slate-200 hover:bg-slate-50 transition-colors shadow-xs cursor-pointer disabled:opacity-50"
+            title="Check and refresh live subscription status from Stripe"
           >
-            <span>📄</span> {portalLoading ? "Opening Portal..." : "Manage Invoices & Cards"}
+            <span>{syncing ? "🔄" : "⚡"}</span>
+            <span>{syncing ? "Syncing..." : "Sync Stripe Status"}</span>
           </button>
-        )}
+
+          {isSubscribed && (
+            <button
+              type="button"
+              onClick={handleOpenPortal}
+              disabled={portalLoading}
+              className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs sm:text-sm font-bold text-slate-700 bg-white border border-slate-300 hover:bg-slate-50 transition-colors shadow-xs cursor-pointer"
+            >
+              <span>📄</span> {portalLoading ? "Opening Portal..." : "Manage Invoices & Cards"}
+            </button>
+          )}
+        </div>
       </div>
+
 
       {/* Trial / Subscription Status Card */}
       <div className="p-6 rounded-2xl bg-gradient-to-r from-emerald-900 to-teal-900 text-white shadow-md relative overflow-hidden">

@@ -41,4 +41,4 @@ export async function uploadProductImage(file: File): Promise<{ url: string }> {
 }
 
 export type Product = { id:number; barcode:string; category?:string|null; costPrice:number; imageUrl?:string|null; lowStockThreshold:number; name:string; price:number; qrCode?:string|null; sellingPrice:number; sku?:string|null; stock:number };
-export type StaffItem = { user:{ id:number; email:string; fullName:string|null; role:"staff" }; stats:{ products:number; sales:number; stockLogs:number; totalItemsSold:number; totalSales:number } };
+export type StaffItem = { user:{ id:number; email:string; fullName:string|null; role:"staff" | "accountant" | "admin" }; stats:{ products:number; sales:number; stockLogs:number; totalItemsSold:number; totalSales:number } };
