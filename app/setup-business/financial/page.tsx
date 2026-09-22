@@ -5,9 +5,9 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { useAuth } from "@/hooks/useAuth";
 import { useBusiness } from "@/app/components/business-context";
 import { useToast } from "@/app/components/toast-context";
-import { logActivity } from "@/app/lib/logger";
 import { api } from "@/app/lib/api";
-import { validatePhone, validateEmail, validateText, validateNumber, sanitizePhoneInput } from "@/app/lib/validators";
+import { logActivity } from "@/app/lib/logger";
+import { validatePhone, validateEmail, validateText, validateNumber, sanitizePhoneInput, formatCurrencyInput, parseCurrencyInput } from "@/app/lib/validators";
 
 type BankAccount = {
   bankName: string;
@@ -617,12 +617,13 @@ function FinancialSetupContent() {
                     ₨
                   </span>
                   <input
-                    type="number"
-                    min="0"
+                    type="text"
+                    inputMode="numeric"
                     placeholder="500,000"
-                    value={openingCash === "0" ? "" : openingCash}
+                    value={formatCurrencyInput(openingCash === "0" ? "" : openingCash)}
                     onChange={(e) => {
-                      setOpeningCash(e.target.value);
+                      const raw = parseCurrencyInput(e.target.value);
+                      setOpeningCash(raw || "0");
                       if (errors.openingCash) setErrors((prev) => ({ ...prev, openingCash: "" }));
                     }}
                     className={`w-full pl-9 pr-4 py-3 rounded-xl border text-sm font-extrabold text-slate-900 outline-none transition ${
@@ -694,11 +695,14 @@ function FinancialSetupContent() {
                               ₨
                             </span>
                             <input
-                              type="number"
-                              min="0"
+                              type="text"
+                              inputMode="numeric"
                               placeholder="Balance"
-                              value={account.balance || ""}
-                              onChange={(e) => updateBankAccount(idx, "balance", Number(e.target.value))}
+                              value={formatCurrencyInput(account.balance || "")}
+                              onChange={(e) => {
+                                const raw = parseCurrencyInput(e.target.value);
+                                updateBankAccount(idx, "balance", Number(raw) || 0);
+                              }}
                               className="w-full pl-7 pr-3 py-2 rounded-xl border border-slate-200 bg-white text-xs font-bold text-slate-900 outline-none focus:border-[#00875a]"
                             />
                           </div>
@@ -790,12 +794,13 @@ function FinancialSetupContent() {
                           ₨
                         </span>
                         <input
-                          type="number"
-                          min="0"
+                          type="text"
+                          inputMode="numeric"
                           placeholder="850,000"
-                          value={supplierPayable === "0" ? "" : supplierPayable}
+                          value={formatCurrencyInput(supplierPayable === "0" ? "" : supplierPayable)}
                           onChange={(e) => {
-                            setSupplierPayable(e.target.value);
+                            const raw = parseCurrencyInput(e.target.value);
+                            setSupplierPayable(raw || "0");
                             if (errors.supplierPayable) setErrors((prev) => ({ ...prev, supplierPayable: "" }));
                           }}
                           className={`w-full pl-8 pr-3 py-2.5 rounded-xl border bg-white text-xs font-extrabold text-slate-900 outline-none ${
@@ -923,12 +928,13 @@ function FinancialSetupContent() {
                           ₨
                         </span>
                         <input
-                          type="number"
-                          min="0"
+                          type="text"
+                          inputMode="numeric"
                           placeholder="1,250,000"
-                          value={customerReceivable === "0" ? "" : customerReceivable}
+                          value={formatCurrencyInput(customerReceivable === "0" ? "" : customerReceivable)}
                           onChange={(e) => {
-                            setCustomerReceivable(e.target.value);
+                            const raw = parseCurrencyInput(e.target.value);
+                            setCustomerReceivable(raw || "0");
                             if (errors.customerReceivable) setErrors((prev) => ({ ...prev, customerReceivable: "" }));
                           }}
                           className={`w-full pl-8 pr-3 py-2.5 rounded-xl border bg-white text-xs font-extrabold text-slate-900 outline-none ${
@@ -1059,12 +1065,13 @@ function FinancialSetupContent() {
                         ₨
                       </span>
                       <input
-                        type="number"
-                        min="0"
+                        type="text"
+                        inputMode="numeric"
                         placeholder="5,500,000"
-                        value={currentStockValue === "0" ? "" : currentStockValue}
+                        value={formatCurrencyInput(currentStockValue === "0" ? "" : currentStockValue)}
                         onChange={(e) => {
-                          setCurrentStockValue(e.target.value);
+                          const raw = parseCurrencyInput(e.target.value);
+                          setCurrentStockValue(raw || "0");
                           if (errors.currentStockValue) setErrors((prev) => ({ ...prev, currentStockValue: "" }));
                         }}
                         className={`w-full pl-8 pr-3 py-2.5 rounded-xl border text-xs font-extrabold text-slate-900 outline-none ${
@@ -1430,11 +1437,11 @@ function FinancialSetupContent() {
             <div>
               <label className="block text-[11px] font-bold text-slate-600 mb-1">Opening Amount Owed (₨)</label>
               <input
-                type="number"
-                min="0"
+                type="text"
+                inputMode="numeric"
                 placeholder="25,000"
-                value={custDraft.balance}
-                onChange={(e) => setCustDraft({ ...custDraft, balance: e.target.value })}
+                value={formatCurrencyInput(custDraft.balance)}
+                onChange={(e) => setCustDraft({ ...custDraft, balance: parseCurrencyInput(e.target.value) })}
                 className="w-full px-3 py-2 rounded-xl border border-slate-200 text-xs font-bold text-slate-900 outline-none focus:border-[#00875a]"
               />
             </div>
@@ -1495,11 +1502,11 @@ function FinancialSetupContent() {
             <div>
               <label className="block text-[11px] font-bold text-slate-600 mb-1">Amount You Owe (₨)</label>
               <input
-                type="number"
-                min="0"
+                type="text"
+                inputMode="numeric"
                 placeholder="150,000"
-                value={suppDraft.balance}
-                onChange={(e) => setSuppDraft({ ...suppDraft, balance: e.target.value })}
+                value={formatCurrencyInput(suppDraft.balance)}
+                onChange={(e) => setSuppDraft({ ...suppDraft, balance: parseCurrencyInput(e.target.value) })}
                 className="w-full px-3 py-2 rounded-xl border border-slate-200 text-xs font-bold text-slate-900 outline-none focus:border-[#00875a]"
               />
             </div>
@@ -1550,23 +1557,23 @@ function FinancialSetupContent() {
               <div>
                 <label className="block text-[11px] font-bold text-slate-600 mb-1">Cost Price (₨)</label>
                 <input
-                  type="number"
-                  min="0"
+                  type="text"
+                  inputMode="numeric"
                   placeholder="45,000"
-                  value={prodDraft.costPrice}
-                  onChange={(e) => setProdDraft({ ...prodDraft, costPrice: e.target.value })}
+                  value={formatCurrencyInput(prodDraft.costPrice)}
+                  onChange={(e) => setProdDraft({ ...prodDraft, costPrice: parseCurrencyInput(e.target.value) })}
                   className="w-full px-3 py-2 rounded-xl border border-slate-200 text-xs font-bold text-slate-900 outline-none focus:border-[#00875a]"
                 />
               </div>
               <div>
                 <label className="block text-[11px] font-bold text-slate-600 mb-1">Selling Price (₨) *</label>
                 <input
-                  type="number"
+                  type="text"
+                  inputMode="numeric"
                   required
-                  min="0"
                   placeholder="52,000"
-                  value={prodDraft.sellingPrice}
-                  onChange={(e) => setProdDraft({ ...prodDraft, sellingPrice: e.target.value })}
+                  value={formatCurrencyInput(prodDraft.sellingPrice)}
+                  onChange={(e) => setProdDraft({ ...prodDraft, sellingPrice: parseCurrencyInput(e.target.value) })}
                   className="w-full px-3 py-2 rounded-xl border border-slate-200 text-xs font-bold text-slate-900 outline-none focus:border-[#00875a]"
                 />
               </div>

@@ -226,3 +226,32 @@ export function sanitizePhoneInput(input: string): string {
   const result = (hasLeadingPlus ? "+" : "") + digitsOnly;
   return result.slice(0, 16); // max 15 digits + 1 plus
 }
+
+/**
+ * Formats a raw number string into financial figures with thousand commas:
+ * e.g. "1000000" -> "1,000,000", 1250500 -> "1,250,500"
+ */
+export function formatCurrencyInput(value: string | number | undefined | null): string {
+  if (value === undefined || value === null) return "";
+  const rawStr = String(value).replace(/,/g, "").trim();
+  if (!rawStr) return "";
+  const num = Number(rawStr);
+  if (isNaN(num)) return rawStr;
+  const parts = rawStr.split(".");
+  parts[0] = parts[0].replace(/\B(?=(\d{3})+(?!\d))/g, ",");
+  return parts.join(".");
+}
+
+/**
+ * Parses user input containing commas into a clean raw numeric string for calculation:
+ * e.g. "1,000,000" -> "1000000", "₨ 50,000" -> "50000"
+ */
+export function parseCurrencyInput(value: string): string {
+  const clean = value.replace(/[^0-9.]/g, "");
+  const parts = clean.split(".");
+  if (parts.length > 2) {
+    return parts[0] + "." + parts.slice(1).join("");
+  }
+  return clean;
+}
+
