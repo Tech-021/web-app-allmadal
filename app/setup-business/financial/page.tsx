@@ -262,12 +262,10 @@ function FinancialSetupContent() {
       setSuppModalError(nameVal.error || "Supplier name must be at least 2 characters.");
       return;
     }
-    if (suppDraft.mobile.trim()) {
-      const phoneVal = validatePhone(suppDraft.mobile, { required: false, fieldName: "Supplier mobile" });
-      if (!phoneVal.valid) {
-        setSuppModalError(phoneVal.error || "Please enter a valid mobile number.");
-        return;
-      }
+    const phoneVal = validatePhone(suppDraft.mobile, { required: true, fieldName: "Supplier mobile / WhatsApp" });
+    if (!phoneVal.valid) {
+      setSuppModalError(phoneVal.error || "Please enter a valid mobile number (10-15 digits).");
+      return;
     }
     if (suppDraft.email.trim()) {
       const emailVal = validateEmail(suppDraft.email, { required: false });
@@ -1489,9 +1487,10 @@ function FinancialSetupContent() {
               />
             </div>
             <div>
-              <label className="block text-[11px] font-bold text-slate-600 mb-1">Mobile / WhatsApp</label>
+              <label className="block text-[11px] font-bold text-slate-600 mb-1">Mobile / WhatsApp *</label>
               <input
                 type="tel"
+                required
                 maxLength={15}
                 placeholder="03219876543"
                 value={suppDraft.mobile}

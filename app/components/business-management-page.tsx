@@ -45,7 +45,7 @@ const config: Record<
     add: "Add Supplier",
     fields: [
       { key: "name", label: "Name", required: true },
-      { key: "mobile", label: "Mobile" },
+      { key: "mobile", label: "Mobile", required: true },
       { key: "email", label: "Email", type: "email" },
     ],
     columns: ["name", "mobile", "currentBalance"],
@@ -190,10 +190,8 @@ export function BusinessManagementPage({ mode }: { mode: Mode }) {
       const nameVal = validateText(draft.name, { minLength: 2, maxLength: 60, fieldName: "Supplier name" });
       if (!nameVal.valid) errs.name = nameVal.error || "Name is required.";
 
-      if (draft.mobile) {
-        const phoneVal = validatePhone(draft.mobile, { required: false, fieldName: "Mobile number" });
-        if (!phoneVal.valid) errs.mobile = phoneVal.error || "Invalid mobile number.";
-      }
+      const phoneVal = validatePhone(draft.mobile, { required: true, fieldName: "Mobile number" });
+      if (!phoneVal.valid) errs.mobile = phoneVal.error || "Valid mobile number is required.";
       if (draft.email) {
         const emailVal = validateEmail(draft.email, { required: false });
         if (!emailVal.valid) errs.email = emailVal.error || "Invalid email.";
