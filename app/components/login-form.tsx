@@ -38,13 +38,13 @@ export function LoginForm() {
       <h1 className="text-[2rem] font-extrabold tracking-[-.035em] text-[#111827]">Welcome back</h1>
       <p className="mt-1.5 text-sm text-[#6b7280]">Apni Dukaan Ko Asaan Banayein. Enter credentials to continue.</p>
 
-      <div className="mt-7 grid grid-cols-2 gap-1 rounded-2xl bg-[#f3f4f6] p-1" role="group" aria-label="Select account role">
-        {(["staff", "admin"] as UserRole[]).map((item) => (
+      <div className="mt-7 grid grid-cols-3 gap-1 rounded-2xl bg-[#f3f4f6] p-1" role="group" aria-label="Select account role">
+        {(["staff", "admin", "accountant"] as UserRole[]).map((item) => (
           <button
             key={item}
             type="button"
             onClick={() => setRole(item)}
-            className={`rounded-xl px-4 py-2.5 text-xs font-extrabold capitalize transition-all duration-200 ${
+            className={`rounded-xl px-3 py-2.5 text-xs font-extrabold capitalize transition-all duration-200 ${
               role === item ? "bg-white text-[#00875A] shadow-sm" : "text-[#6b7280] hover:text-[#111827]"
             }`}
           >

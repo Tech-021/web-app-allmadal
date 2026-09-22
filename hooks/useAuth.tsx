@@ -2,7 +2,7 @@
 
 import { createContext, useCallback, useContext, useEffect, useMemo, useState } from "react";
 
-export type UserRole = "admin" | "staff";
+export type UserRole = "admin" | "staff" | "accountant";
 export type AuthUser = { id?: string | number; name: string; email: string; role: UserRole };
 type Credentials = { email: string; password: string; role: UserRole };
 type SignupData = { name: string; email: string; password: string };
@@ -52,11 +52,16 @@ async function parseResponse(response: Response) {
 
 function normalizeUser(data: Record<string, unknown>): AuthUser {
   const source = (data.user || data.data || data) as Record<string, unknown>;
+  const rawRole = String(source.role || "staff").toLowerCase();
+  let role: UserRole = "staff";
+  if (rawRole === "admin") role = "admin";
+  else if (rawRole === "accountant") role = "accountant";
+
   return {
     id: source.id as string | number | undefined,
     name: String(source.name || source.full_name || source.fullName || "Team member"),
     email: String(source.email || ""),
-    role: String(source.role || "staff").toLowerCase() === "admin" ? "admin" : "staff",
+    role,
   };
 }
 

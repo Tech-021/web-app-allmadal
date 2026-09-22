@@ -96,7 +96,7 @@ function DashboardContent() {
     setLoading(true);
     setError("");
     try {
-      const endpoint = user.role === "admin" ? "/dashboard" : "/dashboard/me";
+      const endpoint = user.role === "admin" || user.role === "accountant" ? "/dashboard" : "/dashboard/me";
       const payload = await api<AdminPayload>(endpoint);
       setData(payload);
     } catch (reason) {

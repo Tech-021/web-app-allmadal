@@ -34,7 +34,7 @@ export default function SettingsPage() {
     setSaving(true);
     try {
       const [profile, business] = await Promise.all([
-        api<{ user: { id?: number; fullName?: string; email: string; role: "admin" | "staff" } }>("/auth/me", {
+        api<{ user: { id?: number; fullName?: string; email: string; role: "admin" | "staff" | "accountant" } }>("/auth/me", {
           method: "PATCH",
           body: JSON.stringify({ fullName: form.name, email: form.email }),
         }),

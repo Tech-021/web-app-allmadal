@@ -58,7 +58,7 @@ export type ActivityLog = {
     id?: number | null;
     name: string;
     email: string;
-    role: "admin" | "staff" | "system";
+    role: "admin" | "staff" | "accountant" | "system";
   };
   details: string;
   target?: string;

@@ -171,7 +171,7 @@ export default function LogsPage() {
   useEffect(() => {
     if (user && user.role !== "admin") {
       showToast("Access restricted. Activity logs are available to system administrators only.", "error");
-      router.replace("/products");
+      router.replace(user.role === "accountant" ? "/accounts" : "/sales");
       return;
     }
     loadLogs();
