@@ -7,6 +7,7 @@ import { useBusiness } from "@/app/components/business-context";
 import { useToast } from "@/app/components/toast-context";
 import { logActivity } from "@/app/lib/logger";
 import { api } from "@/app/lib/api";
+import { validatePhone, validateEmail, validateText, validateNumber, sanitizePhoneInput } from "@/app/lib/validators";
 
 type BankAccount = {
   bankName: string;
@@ -230,24 +231,23 @@ function FinancialSetupContent() {
   const handleAddCustomer = (e: FormEvent) => {
     e.preventDefault();
     setCustModalError("");
-    const name = custDraft.name.trim();
-    const mobile = custDraft.mobile.trim().replace(/[^0-9]/g, "");
-    const bal = Number(custDraft.balance);
+    const nameVal = validateText(custDraft.name, { minLength: 2, maxLength: 60, fieldName: "Customer name" });
+    if (!nameVal.valid) {
+      setCustModalError(nameVal.error || "Customer name must be at least 2 characters.");
+      return;
+    }
+    const phoneVal = validatePhone(custDraft.mobile, { required: true, fieldName: "Mobile number" });
+    if (!phoneVal.valid) {
+      setCustModalError(phoneVal.error || "Please enter a valid mobile number (10-15 digits).");
+      return;
+    }
+    const balVal = validateNumber(custDraft.balance || "0", { min: 0, fieldName: "Opening balance" });
+    if (!balVal.valid) {
+      setCustModalError(balVal.error || "Amount owed must be 0 or greater.");
+      return;
+    }
 
-    if (!name || name.length < 2) {
-      setCustModalError("Customer name must be at least 2 characters.");
-      return;
-    }
-    if (!mobile || mobile.length < 10 || mobile.length > 15) {
-      setCustModalError("Please enter a valid mobile number (10-15 digits).");
-      return;
-    }
-    if (isNaN(bal) || bal < 0) {
-      setCustModalError("Amount owed must be 0 or greater.");
-      return;
-    }
-
-    setCustomers([...customers, { name, mobile: custDraft.mobile.trim(), openingBalance: bal || 0 }]);
+    setCustomers([...customers, { name: custDraft.name.trim(), mobile: custDraft.mobile.trim(), openingBalance: Number(custDraft.balance) || 0 }]);
     setCustDraft({ name: "", mobile: "", balance: "" });
     setShowAddCustomerModal(false);
     showToast("Customer added to khata list.", "success");
@@ -257,32 +257,38 @@ function FinancialSetupContent() {
   const handleAddSupplier = (e: FormEvent) => {
     e.preventDefault();
     setSuppModalError("");
-    const name = suppDraft.name.trim();
-    const bal = Number(suppDraft.balance);
-
-    if (!name || name.length < 2) {
-      setSuppModalError("Supplier name must be at least 2 characters.");
+    const nameVal = validateText(suppDraft.name, { minLength: 2, maxLength: 60, fieldName: "Supplier name" });
+    if (!nameVal.valid) {
+      setSuppModalError(nameVal.error || "Supplier name must be at least 2 characters.");
       return;
     }
-    if (isNaN(bal) || bal < 0) {
-      setSuppModalError("Amount owed must be 0 or greater.");
-      return;
-    }
-    if (suppDraft.email.trim()) {
-      const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-      if (!emailRegex.test(suppDraft.email.trim())) {
-        setSuppModalError("Please enter a valid email address.");
+    if (suppDraft.mobile.trim()) {
+      const phoneVal = validatePhone(suppDraft.mobile, { required: false, fieldName: "Supplier mobile" });
+      if (!phoneVal.valid) {
+        setSuppModalError(phoneVal.error || "Please enter a valid mobile number.");
         return;
       }
+    }
+    if (suppDraft.email.trim()) {
+      const emailVal = validateEmail(suppDraft.email, { required: false });
+      if (!emailVal.valid) {
+        setSuppModalError(emailVal.error || "Please enter a valid email address.");
+        return;
+      }
+    }
+    const balVal = validateNumber(suppDraft.balance || "0", { min: 0, fieldName: "Opening balance" });
+    if (!balVal.valid) {
+      setSuppModalError(balVal.error || "Amount owed must be 0 or greater.");
+      return;
     }
 
     setSuppliers([
       ...suppliers,
       {
-        name,
+        name: suppDraft.name.trim(),
         mobile: suppDraft.mobile.trim(),
         email: suppDraft.email.trim(),
-        openingBalance: bal || 0,
+        openingBalance: Number(suppDraft.balance) || 0,
       },
     ]);
     setSuppDraft({ name: "", mobile: "", email: "", balance: "" });
@@ -1414,9 +1420,10 @@ function FinancialSetupContent() {
               <input
                 type="tel"
                 required
-                placeholder="0300-1234567"
+                maxLength={15}
+                placeholder="03001234567"
                 value={custDraft.mobile}
-                onChange={(e) => setCustDraft({ ...custDraft, mobile: e.target.value })}
+                onChange={(e) => setCustDraft({ ...custDraft, mobile: sanitizePhoneInput(e.target.value) })}
                 className="w-full px-3 py-2 rounded-xl border border-slate-200 text-xs font-bold text-slate-900 outline-none focus:border-[#00875a]"
               />
             </div>
@@ -1478,9 +1485,10 @@ function FinancialSetupContent() {
               <label className="block text-[11px] font-bold text-slate-600 mb-1">Mobile / WhatsApp</label>
               <input
                 type="tel"
-                placeholder="0321-9876543"
+                maxLength={15}
+                placeholder="03219876543"
                 value={suppDraft.mobile}
-                onChange={(e) => setSuppDraft({ ...suppDraft, mobile: e.target.value })}
+                onChange={(e) => setSuppDraft({ ...suppDraft, mobile: sanitizePhoneInput(e.target.value) })}
                 className="w-full px-3 py-2 rounded-xl border border-slate-200 text-xs font-bold text-slate-900 outline-none focus:border-[#00875a]"
               />
             </div>

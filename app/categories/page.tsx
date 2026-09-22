@@ -187,8 +187,12 @@ export default function CategoriesPage() {
   async function submit(e: FormEvent) {
     e.preventDefault();
     const cleanName = name.trim();
-    if (!cleanName) {
-      showToast("Please enter a category name.", "error");
+    if (!cleanName || cleanName.length < 2) {
+      showToast("Category name must be at least 2 characters long.", "error");
+      return;
+    }
+    if (cleanName.length > 50) {
+      showToast("Category name cannot exceed 50 characters.", "error");
       return;
     }
 
