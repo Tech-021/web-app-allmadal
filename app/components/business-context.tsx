@@ -33,8 +33,18 @@ export type Business = {
   logoUrl?: string | null;
   workspaceMode?: "pos" | "financial" | string;
   ownerId?: number;
-  membershipRole?: "owner" | "admin" | "staff";
+  membershipRole?: "owner" | "admin" | "staff" | "accountant";
+  subscriptionStatus?: string;
+  trialEndsAt?: string | null;
+  stripeCustomerId?: string | null;
+  stripeSubscriptionId?: string | null;
+  stripePriceId?: string | null;
+  currentPeriodEnd?: string | null;
+  isTrial?: boolean;
+  isTrialExpired?: boolean;
+  trialDaysRemaining?: number;
 };
+
 
 export type WorkspaceMode = "pos" | "financial";
 

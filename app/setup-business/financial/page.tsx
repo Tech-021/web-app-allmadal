@@ -477,6 +477,53 @@ function FinancialSetupContent() {
     }
   };
 
+  const [activatingStripe, setActivatingStripe] = useState<boolean>(false);
+
+  const handleActivateStripeTrial = async () => {
+    const targetId = targetBusiness?.id || (businessIdParam ? Number(businessIdParam) : null);
+    if (!targetId) {
+      router.push("/dashboard");
+      return;
+    }
+
+    try {
+      setActivatingStripe(true);
+      const successUrl = `${window.location.origin}/dashboard?payment=success`;
+      const cancelUrl = `${window.location.origin}/dashboard?payment=trial_started`;
+
+      const response = await api<{ success: boolean; url: string }>(
+        "/billing/create-checkout-session",
+        {
+          method: "POST",
+          body: JSON.stringify({
+            businessId: targetId,
+            successUrl,
+            cancelUrl,
+          }),
+        }
+      );
+
+      if (response.url) {
+        logActivity(
+          "STRIPE_TRIAL_CHECKOUT_INITIATED",
+          "Billing",
+          `Initiated Stripe 30-day trial subscription for store '${targetBusiness?.name || `#${targetId}`}'`,
+          targetBusiness?.name || `Store #${targetId}`,
+          { targetId }
+        );
+        window.location.href = response.url;
+      } else {
+        router.push("/dashboard");
+      }
+    } catch (err: any) {
+      console.error("Stripe trial checkout error:", err);
+      showToast(err.message || "Redirecting to dashboard...", "info");
+      router.push("/dashboard");
+    } finally {
+      setActivatingStripe(false);
+    }
+  };
+
   if (authLoading) {
     return (
       <div className="min-h-screen bg-slate-50 flex items-center justify-center p-4">
@@ -1621,25 +1668,41 @@ function FinancialSetupContent() {
       {/* Completion Success Modal */}
       {setupComplete && (
         <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4">
-          <div className="bg-white rounded-3xl p-8 max-w-md w-full shadow-2xl border border-slate-100 text-center space-y-4 animate-in zoom-in-95">
+          <div className="bg-white rounded-3xl p-6 sm:p-8 max-w-md w-full shadow-2xl border border-slate-100 text-center space-y-4 animate-in zoom-in-95">
             <div className="size-16 rounded-3xl bg-[#e6f4ed] text-[#00875a] mx-auto flex items-center justify-center text-3xl shadow-md shadow-[#00875a]/10">
-              🚀
+              🎉
             </div>
-            <h3 className="text-xl font-extrabold text-slate-900">
+
+            <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-[11px] font-extrabold uppercase tracking-wider bg-emerald-100 text-emerald-800">
+              ✨ 30-Day Free Trial Activated
+            </span>
+
+            <h3 className="text-xl sm:text-2xl font-black text-slate-900 tracking-tight">
               Financial Baseline Ready!
             </h3>
-            <p className="text-xs font-medium text-slate-500">
-              All accounts, udhaar balances, inventory valuation, and brand settings have been synchronized.
+
+            <p className="text-xs sm:text-sm font-medium text-slate-600 leading-relaxed">
+              Your business is all set up. You can enjoy full access to all features during your <strong className="text-slate-900">30-day free trial</strong>.
             </p>
-            <div className="pt-4">
+
+            <div className="pt-2">
               <button
                 type="button"
-                onClick={() => router.push("/dashboard")}
-                className="w-full py-4 rounded-2xl bg-[#00875a] hover:bg-[#006b3f] text-white text-xs font-extrabold shadow-lg shadow-[#00875a]/25 transition cursor-pointer"
+                onClick={handleActivateStripeTrial}
+                disabled={activatingStripe}
+                className="w-full py-4 px-6 rounded-2xl bg-gradient-to-r from-[#00875a] to-[#006644] hover:from-[#00744e] hover:to-[#005236] text-white text-sm font-extrabold shadow-lg shadow-[#00875a]/25 transition flex items-center justify-center gap-2 cursor-pointer disabled:opacity-60"
               >
-                Go to Store Dashboard ➔
+                {activatingStripe ? (
+                  <span>Opening Stripe Gateway...</span>
+                ) : (
+                  <>
+                    <span>Activate via Stripe (30-Day Trial)</span>
+                    <span>💳 ➔</span>
+                  </>
+                )}
               </button>
             </div>
+
           </div>
         </div>
       )}

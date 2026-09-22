@@ -5,6 +5,7 @@ import { usePathname, useRouter } from "next/navigation";
 import { useEffect, useState, useRef, useMemo } from "react";
 import { useAuth } from "@/hooks/useAuth";
 import { useBusiness } from "@/app/components/business-context";
+import { TrialExpiredModal } from "@/app/components/trial-expired-modal";
 import styles from "./workspace-shell.module.css";
 import { logActivity } from "@/app/lib/logger";
 
@@ -297,6 +298,59 @@ export function WorkspaceShell({ children }: { children: React.ReactNode }) {
           )}
         </div>
 
+        {/* Pro Plan Active Badge */}
+        {activeBusiness && (activeBusiness.subscriptionStatus === "active" || Boolean(activeBusiness.stripeSubscriptionId)) && (
+          <div className="mx-2 mb-3 p-2.5 rounded-2xl bg-emerald-50 border border-emerald-200/80 flex items-center justify-between text-xs shadow-xs">
+            <div className="flex items-center gap-2 overflow-hidden">
+              <span className="text-base leading-none">🛡️</span>
+              <div className="overflow-hidden">
+                <span className="block font-black text-emerald-950 text-[11px] leading-tight truncate">
+                  Almadel Pro
+                </span>
+                <span className="block text-[10px] font-bold text-emerald-700">
+                  Active Plan
+                </span>
+              </div>
+            </div>
+            <Link
+              href="/payments"
+              className="shrink-0 px-2.5 py-1 rounded-lg bg-[#00875a] hover:bg-[#00744e] text-white text-[10px] font-extrabold transition shadow-xs"
+            >
+              Billing
+            </Link>
+          </div>
+        )}
+
+        {/* 30-Day Free Trial Badge (Unsubscribed) */}
+        {activeBusiness &&
+          activeBusiness.subscriptionStatus !== "active" &&
+          !activeBusiness.stripeSubscriptionId &&
+          (activeBusiness.isTrial || activeBusiness.subscriptionStatus === "trialing") &&
+          !activeBusiness.isTrialExpired && (
+            <div className="mx-2 mb-3 p-2.5 rounded-2xl bg-emerald-50 border border-emerald-200/80 flex items-center justify-between text-xs shadow-xs">
+              <div className="flex items-center gap-2 overflow-hidden">
+                <span className="text-base leading-none">✨</span>
+                <div className="overflow-hidden">
+                  <span className="block font-black text-emerald-950 text-[11px] leading-tight truncate">
+                    30-Day Free Trial
+                  </span>
+                  <span className="block text-[10px] font-bold text-emerald-700">
+                    {activeBusiness.trialDaysRemaining !== undefined
+                      ? `${activeBusiness.trialDaysRemaining} days remaining`
+                      : "Active Trial"}
+                  </span>
+                </div>
+              </div>
+              <Link
+                href="/payments"
+                className="shrink-0 px-2 py-1 rounded-lg bg-[#00875a] hover:bg-[#00744e] text-white text-[10px] font-extrabold transition shadow-xs"
+              >
+                Subscribe
+              </Link>
+            </div>
+          )}
+
+
         <nav>
           {accessibleLinks.map((x) => {
             const isSectionActive =
@@ -358,7 +412,12 @@ export function WorkspaceShell({ children }: { children: React.ReactNode }) {
       </header>
 
       {/* Main Page Content */}
-      <section className={styles.content}>{children}</section>
+      <section className={styles.content}>
+        {activeBusiness && (activeBusiness.isTrialExpired || activeBusiness.subscriptionStatus === "expired") && (
+          <TrialExpiredModal business={activeBusiness} />
+        )}
+        {children}
+      </section>
 
       {/* Modern Responsive Mobile Bottom Bar */}
       <nav className={styles.bottom} aria-label="Mobile Navigation">
