@@ -4,7 +4,7 @@ import { createContext, useCallback, useContext, useEffect, useMemo, useState } 
 
 export type UserRole = "admin" | "staff" | "accountant";
 export type AuthUser = { id?: string | number; name: string; email: string; role: UserRole };
-type Credentials = { email: string; password: string; role: UserRole };
+type Credentials = { email: string; password: string; role?: UserRole };
 type SignupData = { name: string; email: string; password: string };
 type AuthContextValue = {
   user: AuthUser | null; isLoading: boolean; isAuthenticated: boolean;
@@ -91,10 +91,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     const token = data.access_token || data.accessToken || data.token;
     if (token) localStorage.setItem(tokenKey, String(token));
     const nextUser = normalizeUser(data);
-    if (nextUser.role !== credentials.role) {
-      localStorage.removeItem(tokenKey);
-      throw new Error(`This account is registered as ${nextUser.role}, not ${credentials.role}.`);
-    }
     storeUser(nextUser);
     setUser(nextUser);
 
