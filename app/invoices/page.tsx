@@ -5,7 +5,7 @@ import { WorkspaceShell } from "@/app/components/workspace-shell";
 import { api } from "@/app/lib/api";
 import { useToast } from "@/app/components/toast-context";
 import { useBusiness } from "@/app/components/business-context";
-import { ReceiptModal, ReceiptSale } from "@/app/components/receipt-modal";
+import { DetailedSaleReceipt, PosReceiptModal } from "@/app/components/pos-receipt-modal";
 import { useDebounce } from "@/hooks/useDebounce";
 import ui from "@/app/components/workspace-ui.module.css";
 
@@ -14,7 +14,7 @@ interface InvoiceRecord {
   invoiceNumber?: string;
   createdAt: string;
   customerName?: string;
-  customer?: { name: string };
+  customer?: { name: string; mobile?: string };
   totalAmount: number;
   paymentMethod?: string;
   itemCount?: number;
@@ -30,7 +30,7 @@ export default function InvoicesPage() {
   const [loading, setLoading] = useState(true);
   const [query, setQuery] = useState("");
   const debouncedQuery = useDebounce(query, 250);
-  const [activeReceipt, setActiveReceipt] = useState<ReceiptSale | null>(null);
+  const [activeReceipt, setActiveReceipt] = useState<DetailedSaleReceipt | null>(null);
 
   const loadInvoices = useCallback(async () => {
     setLoading(true);
@@ -58,14 +58,23 @@ export default function InvoicesPage() {
     });
   }, [rows, debouncedQuery]);
 
-  const openReceipt = (record: InvoiceRecord) => {
-    setActiveReceipt({
-      id: String(record.invoiceNumber || record.id),
-      total: Number(record.totalAmount || 0),
-      itemsCount: Number(record.itemCount || 1),
-      createdByName: record.customer?.name || record.customerName || record.user?.fullName || "Walk-in Customer",
-      createdAt: record.createdAt || new Date().toISOString(),
-    });
+  const openReceipt = async (record: InvoiceRecord) => {
+    try {
+      const full = await api<DetailedSaleReceipt>(`/sales/${record.id}`);
+      setActiveReceipt(full);
+    } catch {
+      setActiveReceipt({
+        id: record.id,
+        invoiceNumber: record.invoiceNumber || `INV-${String(record.id).padStart(4, "0")}`,
+        createdAt: record.createdAt || new Date().toISOString(),
+        customerName: record.customer?.name || record.customerName || "Walk-in Customer",
+        customerMobile: record.customer?.mobile || null,
+        subtotal: Number(record.totalAmount || 0),
+        totalAmount: Number(record.totalAmount || 0),
+        paymentMethod: record.paymentMethod || "cash",
+        items: [],
+      });
+    }
   };
 
   return (
@@ -180,7 +189,7 @@ export default function InvoicesPage() {
       </section>
 
       {/* Invoice / Receipt Modal */}
-      <ReceiptModal sale={activeReceipt} onClose={() => setActiveReceipt(null)} />
+      <PosReceiptModal receipt={activeReceipt} onClose={() => setActiveReceipt(null)} />
     </WorkspaceShell>
   );
 }
