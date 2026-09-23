@@ -125,9 +125,14 @@ export default function StaffPage() {
       });
       setModal(null);
       const roleLabel = draft.role === "accountant" ? "Accountant" : "Staff member";
-      const msg = modal?.item ? `${roleLabel} updated successfully.` : `${roleLabel} created successfully.`;
+      const msg = modal?.item
+        ? draft.password
+          ? `${roleLabel} updated & credentials emailed.`
+          : `${roleLabel} updated successfully.`
+        : `${roleLabel} created successfully! Credentials emailed to ${draft.email}.`;
       setNotice(msg);
       showToast(msg, "success");
+
 
       logActivity(
         modal?.item ? "STAFF_UPDATE" : "STAFF_CREATE",
@@ -380,7 +385,30 @@ export default function StaffPage() {
               </button>
             </div>
             <div className={ui.formGrid}>
+              <div
+                style={{
+                  gridColumn: "1 / -1",
+                  padding: "10px 14px",
+                  background: "#f0fdf4",
+                  border: "1px solid #bbf7d0",
+                  borderRadius: 10,
+                  fontSize: 12,
+                  color: "#166534",
+                  display: "flex",
+                  alignItems: "center",
+                  gap: 8,
+                  fontWeight: 600,
+                }}
+              >
+                <span>📧</span>
+                <span>
+                  {modal.item
+                    ? "If password is changed, updated login credentials will be emailed to the user."
+                    : "Login credentials will be automatically sent to the user's email address."}
+                </span>
+              </div>
               <Field label="Full name">
+
                 <input
                   className={ui.input}
                   placeholder="e.g. Ali Ahmed"
