@@ -8,6 +8,7 @@ import { useBusiness } from "@/app/components/business-context";
 import { TrialExpiredModal } from "@/app/components/trial-expired-modal";
 import styles from "./workspace-shell.module.css";
 import { logActivity } from "@/app/lib/logger";
+import { resolveImageUrl } from "@/app/lib/api";
 
 type NavLink = {
   href: string;
@@ -98,6 +99,7 @@ export function WorkspaceShell({ children }: { children: React.ReactNode }) {
   const [bizDropdownOpen, setBizDropdownOpen] = useState(false);
   const [mobileDrawerOpen, setMobileDrawerOpen] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
+  const resolvedLogo = resolveImageUrl(activeBusiness?.logoUrl);
 
   const allLinks = workspaceMode === "pos" ? posLinks : financialLinks;
   
@@ -247,8 +249,16 @@ export function WorkspaceShell({ children }: { children: React.ReactNode }) {
                 aria-expanded={bizDropdownOpen}
               >
                 <div className="flex items-center gap-2.5 overflow-hidden">
-                  <span className="size-8 rounded-xl bg-[#e6f4ed] text-[#00875a] grid place-items-center shrink-0">
-                    <StoreIcon />
+                  <span className="size-8 rounded-xl bg-[#e6f4ed] text-[#00875a] grid place-items-center shrink-0 overflow-hidden border border-emerald-100/60 shadow-xs">
+                    {resolvedLogo ? (
+                      <img
+                        src={resolvedLogo}
+                        alt={activeBusiness.name}
+                        className="size-full object-cover rounded-xl"
+                      />
+                    ) : (
+                      <StoreIcon />
+                    )}
                   </span>
                   <div className="overflow-hidden">
                     <strong className="block text-xs font-extrabold text-gray-900 truncate leading-tight group-hover:text-[#00875a] transition">
@@ -281,7 +291,16 @@ export function WorkspaceShell({ children }: { children: React.ReactNode }) {
                           : "text-gray-700 hover:bg-gray-50"
                       }`}
                     >
-                      <span className="truncate">{b.name}</span>
+                      <div className="flex items-center gap-2 truncate">
+                        <span className="size-5 rounded-md bg-[#e6f4ed] text-[#00875a] grid place-items-center shrink-0 overflow-hidden text-[10px] font-bold">
+                          {b.logoUrl ? (
+                            <img src={resolveImageUrl(b.logoUrl) || ""} alt="" className="size-full object-cover rounded-md" />
+                          ) : (
+                            b.name[0]?.toUpperCase()
+                          )}
+                        </span>
+                        <span className="truncate">{b.name}</span>
+                      </div>
                       {b.id === activeBusiness.id && <span className="text-[11px]">✓</span>}
                     </button>
                   ))}

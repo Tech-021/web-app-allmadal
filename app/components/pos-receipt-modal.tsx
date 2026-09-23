@@ -1,7 +1,8 @@
 "use client";
 
-import React, { useRef, useState } from "react";
+import React, { useRef } from "react";
 import { useBusiness } from "@/app/components/business-context";
+import { resolveImageUrl } from "@/app/lib/api";
 
 export interface ReceiptItem {
   name: string;
@@ -49,6 +50,7 @@ export function PosReceiptModal({
   const receiptRef = useRef<HTMLDivElement>(null);
 
   const activeReceipt = receipt || sale;
+  const resolvedLogo = resolveImageUrl(activeBusiness?.logoUrl);
   if (!isOpen || !activeReceipt) return null;
 
   const handlePrint = () => {
@@ -157,9 +159,19 @@ export function PosReceiptModal({
             
             {/* Header: Store Identity & Branding */}
             <div className="text-center space-y-1">
-              <div className="size-12 rounded-2xl bg-[#00875a] text-white flex items-center justify-center text-xl font-black mx-auto shadow-md shadow-[#00875a]/20 border-2 border-emerald-700">
-                {activeBusiness?.name ? activeBusiness.name[0]?.toUpperCase() : "A"}
-              </div>
+              {resolvedLogo ? (
+                <div className="relative mx-auto flex items-center justify-center pb-1">
+                  <img
+                    src={resolvedLogo}
+                    alt={activeBusiness?.name || "Store Logo"}
+                    className="max-h-16 max-w-[170px] object-contain mx-auto rounded-xl border border-slate-100 shadow-xs p-1"
+                  />
+                </div>
+              ) : (
+                <div className="size-12 rounded-2xl bg-[#00875a] text-white flex items-center justify-center text-xl font-black mx-auto shadow-md shadow-[#00875a]/20 border-2 border-emerald-700">
+                  {activeBusiness?.name ? activeBusiness.name[0]?.toUpperCase() : "A"}
+                </div>
+              )}
               <h2 className="text-xl font-black text-slate-900 tracking-tight mt-2 uppercase">
                 {activeBusiness?.name || "Almadel Retail Store"}
               </h2>

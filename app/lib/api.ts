@@ -40,5 +40,14 @@ export async function uploadProductImage(file: File): Promise<{ url: string }> {
   return payload as { url: string };
 }
 
+export function resolveImageUrl(url?: string | null): string | null {
+  if (!url) return null;
+  if (url.startsWith("http://") || url.startsWith("https://") || url.startsWith("data:")) {
+    return url;
+  }
+  const backendBase = process.env.NEXT_PUBLIC_BACKEND_URL?.replace(/\/$/, "") || "http://localhost:4000";
+  return `${backendBase}${url.startsWith("/") ? "" : "/"}${url}`;
+}
+
 export type Product = { id:number; barcode:string; category?:string|null; costPrice:number; imageUrl?:string|null; lowStockThreshold:number; name:string; price:number; qrCode?:string|null; sellingPrice:number; sku?:string|null; stock:number };
 export type StaffItem = { user:{ id:number; email:string; fullName:string|null; role:"staff" | "accountant" | "admin" }; stats:{ products:number; sales:number; stockLogs:number; totalItemsSold:number; totalSales:number } };
