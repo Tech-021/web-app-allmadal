@@ -47,7 +47,6 @@ export function PosReceiptModal({
 }: PosReceiptModalProps) {
   const { activeBusiness } = useBusiness();
   const receiptRef = useRef<HTMLDivElement>(null);
-  const [printSize, setPrintSize] = useState<"thermal" | "standard">("thermal");
 
   const activeReceipt = receipt || sale;
   if (!isOpen || !activeReceipt) return null;
@@ -80,8 +79,8 @@ export function PosReceiptModal({
       <style>{`
         @media print {
           @page {
-            margin: 4mm 6mm;
-            size: auto;
+            margin: 6mm 8mm;
+            size: A4 portrait;
           }
           html, body {
             margin: 0 !important;
@@ -110,12 +109,12 @@ export function PosReceiptModal({
           }
           #pos-receipt-card {
             box-shadow: none !important;
-            border: none !important;
-            border-radius: 0 !important;
-            padding: 2mm 4mm !important;
+            border: 1px solid #e2e8f0 !important;
+            border-radius: 16px !important;
+            padding: 6mm 8mm !important;
             margin: 0 auto !important;
-            width: ${printSize === "thermal" ? "78mm" : "100%"} !important;
-            max-width: ${printSize === "thermal" ? "80mm" : "140mm"} !important;
+            width: 100% !important;
+            max-width: 175mm !important;
           }
           .no-print {
             display: none !important;
@@ -137,37 +136,14 @@ export function PosReceiptModal({
           {/* Top Controls Toolbar (Hidden in Print) */}
           <div className="no-print flex items-center justify-between pb-3 mb-3 border-b border-slate-100">
             <div className="flex items-center gap-2">
-              <span className="text-xs font-semibold text-slate-500">Size:</span>
-              <div className="inline-flex rounded-lg border border-slate-200 bg-slate-100 p-0.5 text-[11px] font-medium">
-                <button
-                  type="button"
-                  onClick={() => setPrintSize("thermal")}
-                  className={`px-2 py-0.5 rounded-md transition ${
-                    printSize === "thermal"
-                      ? "bg-white text-emerald-700 font-bold shadow-xs"
-                      : "text-slate-600 hover:text-slate-900"
-                  }`}
-                >
-                  80mm Slip
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setPrintSize("standard")}
-                  className={`px-2 py-0.5 rounded-md transition ${
-                    printSize === "standard"
-                      ? "bg-white text-emerald-700 font-bold shadow-xs"
-                      : "text-slate-600 hover:text-slate-900"
-                  }`}
-                >
-                  Full / A4
-                </button>
-              </div>
+              <span className="text-xs font-bold text-slate-700">Official Invoice</span>
+              
             </div>
 
             <button
               type="button"
               onClick={onClose}
-              className="p-1 rounded-full text-slate-400 hover:text-slate-700 hover:bg-slate-100 transition"
+              className="p-1 rounded-full text-slate-400 hover:text-slate-700 hover:bg-slate-100 transition cursor-pointer"
               title="Close receipt"
             >
               <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
