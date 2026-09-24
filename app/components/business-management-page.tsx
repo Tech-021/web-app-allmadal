@@ -9,6 +9,7 @@ import { useDebounce } from "@/hooks/useDebounce";
 import { logActivity } from "@/app/lib/logger";
 import { validatePhone, validateEmail, validateText, validateNumber, sanitizePhoneInput } from "@/app/lib/validators";
 import { useLanguage } from "./language-context";
+import { DetailedSaleReceipt, PosReceiptModal } from "./pos-receipt-modal";
 import ui from "./workspace-ui.module.css";
 
 type Mode = "customers" | "suppliers" | "expenses" | "accounts" | "sales";
@@ -30,15 +31,15 @@ const config: Record<
   }
 > = {
   customers: {
-    title: "Customers / Khata",
+    title: "Customers",
     endpoint: "/customers",
     add: "Add Customer",
     fields: [
-      { key: "name", label: "Name", required: true },
-      { key: "mobile", label: "Mobile", required: true },
-      { key: "email", label: "Email", type: "email" },
+      { key: "name", label: "Customer Name", required: true },
+      { key: "mobile", label: "Mobile Number", required: true },
+      { key: "email", label: "Email (Optional)", type: "email" },
     ],
-    columns: ["name", "mobile", "currentBalance", "totalSpent"],
+    columns: ["name", "mobile", "totalSpent", "visitCount", "currentBalance"],
   },
   suppliers: {
     title: "Suppliers",
@@ -116,6 +117,7 @@ export function BusinessManagementPage({ mode }: { mode: Mode }) {
       case "email": return t("table.email");
       case "currentBalance": return t("table.current_balance");
       case "totalSpent": return t("table.total_spent");
+      case "visitCount": return language === "ur" ? "Kul Khareedari" : "Visits / Orders";
       case "amount": return t("table.amount");
       case "category": return t("table.category");
       case "description": return t("table.description");
@@ -146,6 +148,12 @@ export function BusinessManagementPage({ mode }: { mode: Mode }) {
   const debouncedQuery = useDebounce(query, 300);
   const [page, setPage] = useState(1);
   const [total, setTotal] = useState(0);
+
+  // Customer Purchase History modal state
+  const [historyCustomer, setHistoryCustomer] = useState<Row | null>(null);
+  const [historyLoading, setHistoryLoading] = useState(false);
+  const [customerSales, setCustomerSales] = useState<DetailedSaleReceipt[]>([]);
+  const [selectedReceipt, setSelectedReceipt] = useState<DetailedSaleReceipt | null>(null);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -210,6 +218,22 @@ export function BusinessManagementPage({ mode }: { mode: Mode }) {
       )
     );
     setOpen(true);
+  }
+
+  async function viewCustomerHistory(customer: Row) {
+    setHistoryCustomer(customer);
+    setHistoryLoading(true);
+    try {
+      const data = await api<{ customer: Row; sales: DetailedSaleReceipt[] }>(
+        `/customers/${customer.id}/history`
+      );
+      setCustomerSales(data.sales || []);
+    } catch (e) {
+      showToast(e instanceof Error ? e.message : "Could not load customer purchase history.", "error");
+      setCustomerSales([]);
+    } finally {
+      setHistoryLoading(false);
+    }
   }
 
   function validateForm(): boolean {
@@ -467,6 +491,18 @@ export function BusinessManagementPage({ mode }: { mode: Mode }) {
                     ))}
                     <td>
                       <div className={ui.actions}>
+                        {mode === "customers" && (
+                          <button
+                            type="button"
+                            className={ui.secondary}
+                            onClick={() => void viewCustomerHistory(row)}
+                            title="View purchase history"
+                            style={{ display: "inline-flex", alignItems: "center", gap: 4 }}
+                          >
+                            <span>🛍️</span>
+                            <span>{language === "ur" ? "Tareekh" : "History"}</span>
+                          </button>
+                        )}
                         {mode !== "sales" && (
                           <>
                             <button
@@ -631,6 +667,176 @@ export function BusinessManagementPage({ mode }: { mode: Mode }) {
             </div>
           </form>
         </div>
+      )}
+
+      {/* Customer Purchase History Modal */}
+      {historyCustomer && (
+        <div
+          className={ui.modal}
+          onMouseDown={(e) => {
+            if (e.target === e.currentTarget) setHistoryCustomer(null);
+          }}
+        >
+          <div className={ui.sheet} style={{ maxWidth: 680 }}>
+            <div className={ui.sheetHead}>
+              <div>
+                <h2 style={{ margin: 0, fontSize: 18, display: "flex", alignItems: "center", gap: 8 }}>
+                  <span>🛍️</span>
+                  <span>{String(historyCustomer.name || "Customer")}</span>
+                </h2>
+                <p style={{ margin: "4px 0 0", fontSize: 12, color: "#64748b" }}>
+                  Mobile: <strong style={{ color: "#1e293b" }}>{String(historyCustomer.mobile || "—")}</strong>
+                  {historyCustomer.email ? ` • Email: ${String(historyCustomer.email)}` : ""}
+                </p>
+              </div>
+              <button
+                type="button"
+                className={ui.secondary}
+                onClick={() => setHistoryCustomer(null)}
+              >
+                Close
+              </button>
+            </div>
+
+            {/* Customer Stats Overview Cards */}
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 12, margin: "16px 0" }}>
+              <div style={{ background: "#f8fafc", padding: "12px 14px", borderRadius: 12, border: "1px solid #e2e8f0" }}>
+                <span style={{ fontSize: 11, fontWeight: 700, color: "#64748b", display: "block" }}>Total Purchases</span>
+                <strong style={{ fontSize: 16, color: "#0f172a" }}>{customerSales.length} bills</strong>
+              </div>
+              <div style={{ background: "#f0fdf4", padding: "12px 14px", borderRadius: 12, border: "1px solid #bbf7d0" }}>
+                <span style={{ fontSize: 11, fontWeight: 700, color: "#166534", display: "block" }}>Total Spent</span>
+                <strong style={{ fontSize: 16, color: "#15803d" }}>
+                  Rs {customerSales.reduce((sum, s) => sum + (Number(s.totalAmount) || 0), 0).toLocaleString()}
+                </strong>
+              </div>
+              <div style={{ background: "#f8fafc", padding: "12px 14px", borderRadius: 12, border: "1px solid #e2e8f0" }}>
+                <span style={{ fontSize: 11, fontWeight: 700, color: "#64748b", display: "block" }}>Khata Balance</span>
+                <strong style={{ fontSize: 16, color: "#0f172a" }}>
+                  {money(historyCustomer.currentBalance)}
+                </strong>
+              </div>
+            </div>
+
+            {/* Past Orders List */}
+            <div style={{ maxHeight: 420, overflowY: "auto", paddingRight: 4 }}>
+              {historyLoading ? (
+                <div style={{ textAlign: "center", padding: "32px 0", color: "#94a3b8", fontSize: 13, fontWeight: 700 }}>
+                  Loading purchase history...
+                </div>
+              ) : customerSales.length === 0 ? (
+                <div style={{ textAlign: "center", padding: "40px 16px", color: "#64748b" }}>
+                  <div style={{ fontSize: 32, marginBottom: 8 }}>🛒</div>
+                  <strong style={{ display: "block", fontSize: 14, color: "#1e293b", marginBottom: 4 }}>
+                    No purchase history yet
+                  </strong>
+                  <p style={{ margin: 0, fontSize: 12 }}>
+                    When this customer completes purchases at the POS counter, their receipts will automatically appear here.
+                  </p>
+                </div>
+              ) : (
+                <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+                  {customerSales.map((sale) => (
+                    <div
+                      key={sale.invoiceNumber}
+                      style={{
+                        padding: "14px 16px",
+                        borderRadius: 14,
+                        background: "#ffffff",
+                        border: "1px solid #e2e8f0",
+                        display: "flex",
+                        justifyContent: "space-between",
+                        alignItems: "center",
+                        gap: 12,
+                      }}
+                    >
+                      <div style={{ flex: 1, minWidth: 0 }}>
+                        <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 4 }}>
+                          <span style={{ fontSize: 13, fontWeight: 800, color: "#0f172a" }}>
+                            #{sale.invoiceNumber}
+                          </span>
+                          <span
+                            style={{
+                              fontSize: 10,
+                              fontWeight: 800,
+                              padding: "2px 8px",
+                              borderRadius: 9999,
+                              background: "#dcfce7",
+                              color: "#166534",
+                              textTransform: "uppercase",
+                            }}
+                          >
+                            {sale.paymentMethod}
+                          </span>
+                        </div>
+                        <div style={{ fontSize: 11, color: "#64748b" }}>
+                          {new Date(sale.createdAt).toLocaleDateString("en-PK", {
+                            day: "numeric",
+                            month: "short",
+                            year: "numeric",
+                            hour: "2-digit",
+                            minute: "2-digit",
+                          })}{" "}
+                          &bull; {sale.items?.length || 0} item{(sale.items?.length || 0) > 1 ? "s" : ""}
+                        </div>
+                        {sale.items && sale.items.length > 0 && (
+                          <div style={{ fontSize: 11, color: "#475569", marginTop: 4, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                            {sale.items.map((it) => `${it.name} (x${it.quantity})`).join(", ")}
+                          </div>
+                        )}
+                      </div>
+                      <div style={{ textAlign: "right", flexShrink: 0 }}>
+                        <div style={{ fontSize: 14, fontWeight: 900, color: "#00875a" }}>
+                          Rs {Number(sale.totalAmount).toLocaleString()}
+                        </div>
+                        {sale.discountAmount && sale.discountAmount > 0 ? (
+                          <div style={{ fontSize: 10, color: "#16a34a", fontWeight: 700 }}>
+                            Disc: -Rs {sale.discountAmount.toLocaleString()}
+                          </div>
+                        ) : null}
+                        <button
+                          type="button"
+                          onClick={() => setSelectedReceipt(sale)}
+                          style={{
+                            marginTop: 6,
+                            padding: "4px 10px",
+                            fontSize: 11,
+                            fontWeight: 700,
+                            borderRadius: 6,
+                            background: "#f1f5f9",
+                            border: "1px solid #cbd5e1",
+                            color: "#334155",
+                            cursor: "pointer",
+                          }}
+                        >
+                          🧾 View Receipt
+                        </button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            <div className={ui.formActions} style={{ marginTop: 16 }}>
+              <button
+                type="button"
+                className={ui.secondary}
+                onClick={() => setHistoryCustomer(null)}
+              >
+                Close
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {selectedReceipt && (
+        <PosReceiptModal
+          isOpen={true}
+          receipt={selectedReceipt}
+          onClose={() => setSelectedReceipt(null)}
+        />
       )}
     </WorkspaceShell>
   );

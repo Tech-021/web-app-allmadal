@@ -36,6 +36,7 @@ const posLinks: NavLink[] = [
     ],
   },
   { href: "/stock", label: "Stock", key: "nav.stock", icon: "📥", allowedRoles: ["admin"] },
+  { href: "/customers", label: "Customers", key: "nav.customers", icon: "👥", allowedRoles: ["admin", "staff", "accountant"] },
   { href: "/accounts", label: "Cash / Accounts", key: "nav.accounts", icon: "💵", allowedRoles: ["admin", "accountant"] },
   { href: "/reports", label: "Reports & Balance Sheet", key: "nav.reports", icon: "📈", allowedRoles: ["admin", "accountant"] },
   { href: "/expenses", label: "Expenses", key: "nav.expenses", icon: "💸", allowedRoles: ["admin", "accountant"] },
