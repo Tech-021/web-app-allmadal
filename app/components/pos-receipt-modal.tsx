@@ -1,14 +1,18 @@
 "use client";
 
-import React, { useRef } from "react";
+import React, { useRef, useState } from "react";
 import { useBusiness } from "@/app/components/business-context";
 import { resolveImageUrl } from "@/app/lib/api";
+import { useLanguage } from "@/app/components/language-context";
 
 export interface ReceiptItem {
   name: string;
   quantity: number;
   price: number;
   total: number;
+  discountAmount?: number;
+  discountType?: string;
+  discountValue?: number;
 }
 
 export interface DetailedSaleReceipt {
@@ -47,7 +51,9 @@ export function PosReceiptModal({
   onNewSale,
 }: PosReceiptModalProps) {
   const { activeBusiness } = useBusiness();
+  const { t, language } = useLanguage();
   const receiptRef = useRef<HTMLDivElement>(null);
+  const [downloadingPdf, setDownloadingPdf] = useState(false);
 
   const activeReceipt = receipt || sale;
   const resolvedLogo = resolveImageUrl(activeBusiness?.logoUrl);
@@ -55,6 +61,61 @@ export function PosReceiptModal({
 
   const handlePrint = () => {
     window.print();
+  };
+
+  const handleDownloadPdf = async () => {
+    if (!receiptRef.current) return;
+    try {
+      setDownloadingPdf(true);
+      const { toPng } = await import("html-to-image");
+      const { default: jsPDF } = await import("jspdf");
+
+      const imgData = await toPng(receiptRef.current, {
+        quality: 0.98,
+        pixelRatio: 2.5,
+        backgroundColor: "#ffffff",
+      });
+
+      const img = new Image();
+      img.src = imgData;
+      await new Promise((resolve, reject) => {
+        img.onload = () => resolve(true);
+        img.onerror = reject;
+      });
+
+      const pdf = new jsPDF({
+        orientation: "portrait",
+        unit: "mm",
+        format: "a4",
+      });
+
+      const pdfWidth = pdf.internal.pageSize.getWidth();
+      const pdfHeight = pdf.internal.pageSize.getHeight();
+
+      // Card width on A4 page (centered nicely like the print preview)
+      let targetWidth = 140; // in mm
+      let targetHeight = (img.height * targetWidth) / img.width;
+      const maxAvailableHeight = pdfHeight - 30;
+
+      if (targetHeight > maxAvailableHeight) {
+        targetHeight = maxAvailableHeight;
+        targetWidth = (img.width * targetHeight) / img.height;
+      }
+
+      const posX = (pdfWidth - targetWidth) / 2;
+      const posY = Math.max(15, (pdfHeight - targetHeight) / 2);
+
+      // Subtle rounded border wrapper matching print card UI
+      pdf.setDrawColor(226, 232, 240); // border #e2e8f0
+      pdf.roundedRect(posX - 4, posY - 4, targetWidth + 8, targetHeight + 8, 4, 4, "S");
+
+      pdf.addImage(imgData, "PNG", posX, posY, targetWidth, targetHeight, undefined, "FAST");
+      pdf.save(`Invoice-${activeReceipt.invoiceNumber}.pdf`);
+    } catch (err) {
+      console.error("Failed to generate PDF receipt:", err);
+    } finally {
+      setDownloadingPdf(false);
+    }
   };
 
   const formattedDate = new Date(activeReceipt.createdAt).toLocaleDateString("en-PK", {
@@ -200,7 +261,7 @@ export function PosReceiptModal({
                   ✓
                 </span>
                 <span className="text-xs font-black tracking-wider uppercase">
-                  Payment Status: PAID
+                  {language === "ur" ? "Adaigi: ADA SHUDA" : "Payment Status: PAID"}
                 </span>
               </div>
               <span className="text-[11px] font-bold text-emerald-700 uppercase">
@@ -237,10 +298,10 @@ export function PosReceiptModal({
             {/* Itemized Products Table */}
             <div className="space-y-1.5 text-xs">
               <div className="flex justify-between font-extrabold text-slate-500 text-[10px] border-b border-slate-200 pb-1 uppercase tracking-wider">
-                <span className="w-1/2">Item</span>
-                <span className="w-1/6 text-center">Qty</span>
-                <span className="w-1/6 text-right">Rate</span>
-                <span className="w-1/6 text-right">Total</span>
+                <span className="w-1/2">{t("nav.products", "Item")}</span>
+                <span className="w-1/6 text-center">{t("term.quantity", "Qty")}</span>
+                <span className="w-1/6 text-right">{t("term.price", "Rate")}</span>
+                <span className="w-1/6 text-right">{t("term.total", "Total")}</span>
               </div>
 
               <div className="space-y-1.5 max-h-56 overflow-y-auto print:max-h-none">
@@ -250,7 +311,12 @@ export function PosReceiptModal({
                     className="flex justify-between text-xs py-1 border-b border-slate-100 last:border-b-0"
                   >
                     <span className="w-1/2 font-bold text-slate-900 truncate pr-1">
-                      {item.name}
+                      <span>{item.name}</span>
+                      {item.discountAmount && item.discountAmount > 0 ? (
+                        <span className="block text-[10px] text-emerald-600 font-semibold">
+                          Disc: -₨{item.discountAmount.toLocaleString()}
+                        </span>
+                      ) : null}
                     </span>
                     <span className="w-1/6 text-center text-slate-600 font-medium">
                       {item.quantity}
@@ -360,21 +426,33 @@ export function PosReceiptModal({
 
           {/* Action Buttons (Hidden on Print) */}
           <div className="no-print mt-5 flex flex-col gap-2">
-            <button
-              type="button"
-              onClick={handlePrint}
-              className="w-full py-3 px-4 rounded-2xl bg-[#00875a] hover:bg-[#00744e] text-white font-extrabold text-sm shadow-lg shadow-[#00875a]/25 transition flex items-center justify-center gap-2 cursor-pointer active:scale-[0.99]"
-            >
-              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  strokeWidth={2}
-                  d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z"
-                />
-              </svg>
-              <span>Print Receipt / Invoice</span>
-            </button>
+            <div className="flex gap-2">
+              <button
+                type="button"
+                onClick={handlePrint}
+                className="flex-1 py-3 px-4 rounded-2xl bg-[#00875a] hover:bg-[#00744e] text-white font-extrabold text-xs sm:text-sm shadow-lg shadow-[#00875a]/25 transition flex items-center justify-center gap-2 cursor-pointer active:scale-[0.99]"
+              >
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    strokeWidth={2}
+                    d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z"
+                  />
+                </svg>
+                <span>{t("action.print_receipt", "Print Receipt")}</span>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => void handleDownloadPdf()}
+                disabled={downloadingPdf}
+                className="flex-1 py-3 px-4 rounded-2xl bg-slate-800 hover:bg-slate-900 text-white font-extrabold text-xs sm:text-sm shadow-md transition flex items-center justify-center gap-2 cursor-pointer active:scale-[0.99] disabled:opacity-50"
+              >
+                <span>📥</span>
+                <span>{downloadingPdf ? "Generating PDF..." : "Download PDF"}</span>
+              </button>
+            </div>
 
             <div className="flex gap-2">
               {onNewSale && (
@@ -386,7 +464,7 @@ export function PosReceiptModal({
                   }}
                   className="flex-1 py-2.5 px-3 rounded-xl bg-emerald-50 hover:bg-emerald-100 text-[#00875a] font-bold text-xs transition cursor-pointer"
                 >
-                  + New Sale
+                  {t("action.new_sale", "+ New Sale")}
                 </button>
               )}
               <button
@@ -394,7 +472,7 @@ export function PosReceiptModal({
                 onClick={onClose}
                 className="flex-1 py-2.5 px-3 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-xs transition cursor-pointer"
               >
-                Close
+                {t("action.cancel", "Close")}
               </button>
             </div>
           </div>
@@ -403,3 +481,4 @@ export function PosReceiptModal({
     </>
   );
 }
+

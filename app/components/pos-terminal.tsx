@@ -7,10 +7,14 @@ import { useBusiness } from "@/app/components/business-context";
 import { logActivity } from "@/app/lib/logger";
 import { DetailedSaleReceipt, PosReceiptModal } from "@/app/components/pos-receipt-modal";
 import { formatCurrencyInput, parseCurrencyInput } from "@/app/lib/validators";
+import { useLanguage } from "@/app/components/language-context";
+import { CameraBarcodeScannerModal } from "@/app/components/camera-barcode-scanner-modal";
 
 interface PosCartItem {
   product: Product;
   quantity: number;
+  discountType?: "none" | "fixed" | "percentage";
+  discountValue?: number;
 }
 
 interface CustomerOption {
@@ -26,6 +30,7 @@ interface PosTerminalProps {
 export function PosTerminal({ onSaleCompleted }: PosTerminalProps) {
   const { showToast } = useToast();
   const { activeBusiness } = useBusiness();
+  const { t } = useLanguage();
 
   const [products, setProducts] = useState<Product[]>([]);
   const [customers, setCustomers] = useState<CustomerOption[]>([]);
@@ -35,8 +40,18 @@ export function PosTerminal({ onSaleCompleted }: PosTerminalProps) {
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedCategory, setSelectedCategory] = useState("all");
 
+  // Camera Barcode Scanner
+  const [scannerOpen, setScannerOpen] = useState(false);
+  const [scannerLastScanned, setScannerLastScanned] = useState<{
+    code: string;
+    productName?: string;
+    price?: number;
+    found?: boolean;
+  } | null>(null);
+
   // Cart
   const [cart, setCart] = useState<PosCartItem[]>([]);
+  const [editingDiscountProductId, setEditingDiscountProductId] = useState<number | null>(null);
 
   // Customer
   const [customerMode, setCustomerMode] = useState<"walkin" | "existing">("walkin");
@@ -126,8 +141,26 @@ export function PosTerminal({ onSaleCompleted }: PosTerminalProps) {
       if (currentStock === 0) {
         showToast(`${product.name} is currently out of stock.`, "info");
       }
-      setCart([...cart, { product, quantity: 1 }]);
+      setCart([
+        ...cart,
+        {
+          product,
+          quantity: 1,
+          discountType: product.discountType || "none",
+          discountValue: Number(product.discountValue || 0),
+        },
+      ]);
     }
+  };
+
+  const updateItemDiscount = (productId: number, discountType: "none" | "fixed" | "percentage", discountValue: number) => {
+    setCart((prev) =>
+      prev.map((item) =>
+        item.product.id === productId
+          ? { ...item, discountType, discountValue: Math.max(0, discountValue) }
+          : item
+      )
+    );
   };
 
   const updateCartQty = (productId: number, newQty: number) => {
@@ -181,29 +214,88 @@ export function PosTerminal({ onSaleCompleted }: PosTerminalProps) {
     }
   };
 
+  // Camera Barcode Scanner handler
+  const handleCameraScan = (code: string) => {
+    const trimmed = code.trim();
+    if (!trimmed) return;
+
+    const match = products.find(
+      (p) =>
+        (p.barcode && p.barcode.toLowerCase() === trimmed.toLowerCase()) ||
+        (p.sku && p.sku.toLowerCase() === trimmed.toLowerCase()) ||
+        String(p.id) === trimmed
+    );
+
+    if (match) {
+      addToCart(match);
+      setScannerLastScanned({
+        code: trimmed,
+        productName: match.name,
+        price: Number(match.sellingPrice ?? match.price ?? 0),
+        found: true,
+      });
+      showToast(`✅ ${match.name} ${t("scanner.added_success", "added to bill")}`, "success");
+    } else {
+      setScannerLastScanned({
+        code: trimmed,
+        productName: t("scanner.not_found", "Product not found"),
+        found: false,
+      });
+      showToast(`⚠️ Barcode "${trimmed}" not found in inventory`, "info");
+    }
+  };
+
   // Calculations
-  const subtotal = useMemo(() => {
+  const grossSubtotal = useMemo(() => {
     return cart.reduce((acc, curr) => {
       const price = Number(curr.product.sellingPrice ?? curr.product.price ?? 0);
       return acc + price * curr.quantity;
     }, 0);
   }, [cart]);
 
-  const discountAmount = useMemo(() => {
+  const itemDiscountsTotal = useMemo(() => {
+    if (activeBusiness?.allowDiscounts === false) return 0;
+    return cart.reduce((acc, curr) => {
+      const price = Number(curr.product.sellingPrice ?? curr.product.price ?? 0);
+      const discType = curr.discountType || "none";
+      const discVal = Number(curr.discountValue || 0);
+      const lineGross = price * curr.quantity;
+
+      if (discType === "fixed" && discVal > 0) {
+        return acc + Math.min(lineGross, discVal * curr.quantity);
+      }
+      if (discType === "percentage" && discVal > 0) {
+        const pct = Math.min(100, Math.max(0, discVal));
+        return acc + Math.round(lineGross * (pct / 100));
+      }
+      return acc;
+    }, 0);
+  }, [cart, activeBusiness?.allowDiscounts]);
+
+  const netAfterItemDiscounts = useMemo(() => {
+    return Math.max(0, grossSubtotal - itemDiscountsTotal);
+  }, [grossSubtotal, itemDiscountsTotal]);
+
+  const cartDiscountAmount = useMemo(() => {
+    if (activeBusiness?.allowDiscounts === false) return 0;
     const val = Number(parseCurrencyInput(discountValue)) || 0;
     if (discountType === "fixed") {
-      return Math.min(subtotal, Math.max(0, val));
+      return Math.min(netAfterItemDiscounts, Math.max(0, val));
     }
     if (discountType === "percentage") {
       const pct = Math.min(100, Math.max(0, val));
-      return Math.round((subtotal * pct) / 100);
+      return Math.round((netAfterItemDiscounts * pct) / 100);
     }
     return 0;
-  }, [subtotal, discountType, discountValue]);
+  }, [netAfterItemDiscounts, discountType, discountValue, activeBusiness?.allowDiscounts]);
+
+  const totalDiscount = useMemo(() => {
+    return itemDiscountsTotal + cartDiscountAmount;
+  }, [itemDiscountsTotal, cartDiscountAmount]);
 
   const grandTotal = useMemo(() => {
-    return Math.max(0, subtotal - discountAmount);
-  }, [subtotal, discountAmount]);
+    return Math.max(0, grossSubtotal - totalDiscount);
+  }, [grossSubtotal, totalDiscount]);
 
   const changeDue = useMemo(() => {
     if (paymentMethod !== "cash") return 0;
@@ -234,11 +326,13 @@ export function PosTerminal({ onSaleCompleted }: PosTerminalProps) {
         productId: i.product.id,
         barcode: i.product.barcode || undefined,
         quantity: i.quantity,
+        discountType: activeBusiness?.allowDiscounts === false ? "none" : (i.discountType || "none"),
+        discountValue: activeBusiness?.allowDiscounts === false ? 0 : Number(i.discountValue || 0),
       })),
       customerName,
       customerMobile: customerMobile || undefined,
-      discountType,
-      discountValue: Number(parseCurrencyInput(discountValue)) || 0,
+      discountType: activeBusiness?.allowDiscounts === false ? "none" : discountType,
+      discountValue: activeBusiness?.allowDiscounts === false ? 0 : (Number(parseCurrencyInput(discountValue)) || 0),
       paymentMethod,
     };
 
@@ -263,15 +357,26 @@ export function PosTerminal({ onSaleCompleted }: PosTerminalProps) {
         customerMobile,
         items: cart.map((i) => {
           const rate = Number(i.product.sellingPrice ?? i.product.price ?? 0);
+          const discType = i.discountType || "none";
+          const discVal = Number(i.discountValue || 0);
+          let itemDiscount = 0;
+          if (discType === "fixed" && discVal > 0) {
+            itemDiscount = Math.min(rate * i.quantity, discVal * i.quantity);
+          } else if (discType === "percentage" && discVal > 0) {
+            itemDiscount = Math.round((rate * i.quantity) * (discVal / 100));
+          }
           return {
             name: i.product.name,
             quantity: i.quantity,
             price: rate,
-            total: rate * i.quantity,
+            total: (rate * i.quantity) - itemDiscount,
+            discountAmount: itemDiscount,
+            discountType: discType,
+            discountValue: discVal,
           };
         }),
-        subtotal,
-        discountAmount,
+        subtotal: grossSubtotal,
+        discountAmount: totalDiscount,
         discountType,
         totalAmount: res.totalAmount ?? grandTotal,
         paymentMethod,
@@ -312,28 +417,41 @@ export function PosTerminal({ onSaleCompleted }: PosTerminalProps) {
         <div className="lg:col-span-7 space-y-4">
           {/* Search & Barcode Input */}
           <div className="bg-white p-4 rounded-3xl border border-slate-200/80 shadow-xs space-y-3">
-            <div className="relative">
-              <span className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-slate-400">
-                🔍
-              </span>
-              <input
-                ref={searchInputRef}
-                type="text"
-                placeholder="Scan Barcode or Search by product name, SKU..."
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                onKeyDown={handleBarcodeKeyDown}
-                className="w-full pl-10 pr-4 py-3 rounded-2xl bg-slate-50 border border-slate-200 text-sm font-bold text-slate-900 outline-none focus:bg-white focus:border-[#00875a] transition"
-              />
-              {searchQuery && (
-                <button
-                  type="button"
-                  onClick={() => setSearchQuery("")}
-                  className="absolute inset-y-0 right-0 pr-3.5 flex items-center text-xs font-bold text-slate-400 hover:text-slate-600"
-                >
-                  ✕ Clear
-                </button>
-              )}
+            <div className="flex items-center gap-2">
+              <div className="relative flex-1">
+                <span className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-slate-400">
+                  🔍
+                </span>
+                <input
+                  ref={searchInputRef}
+                  type="text"
+                  placeholder={t("pos.scanner_input", "Scan Barcode or Search by product name, SKU...")}
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  onKeyDown={handleBarcodeKeyDown}
+                  className="w-full pl-10 pr-4 py-3 rounded-2xl bg-slate-50 border border-slate-200 text-sm font-bold text-slate-900 outline-none focus:bg-white focus:border-[#00875a] transition"
+                />
+                {searchQuery && (
+                  <button
+                    type="button"
+                    onClick={() => setSearchQuery("")}
+                    className="absolute inset-y-0 right-0 pr-3.5 flex items-center text-xs font-bold text-slate-400 hover:text-slate-600"
+                  >
+                    ✕ Clear
+                  </button>
+                )}
+              </div>
+
+              {/* Camera Barcode & QR Scanner Button */}
+              <button
+                type="button"
+                onClick={() => setScannerOpen(true)}
+                className="flex items-center gap-1.5 px-3.5 py-3 rounded-2xl bg-[#00875a] hover:bg-[#00704a] text-white text-xs font-black shadow-xs shrink-0 transition cursor-pointer active:scale-95"
+                title={t("pos.scan_camera_tip", "Scan barcode with mobile camera or webcam")}
+              >
+                <span className="text-sm">📷</span>
+                <span className="hidden sm:inline">{t("pos.scan_camera", "Camera Scanner")}</span>
+              </button>
             </div>
 
             {/* Category Filter Pills */}
@@ -347,7 +465,7 @@ export function PosTerminal({ onSaleCompleted }: PosTerminalProps) {
                     : "bg-slate-100 hover:bg-slate-200 text-slate-600"
                 }`}
               >
-                All Items ({products.length})
+                {t("nav.all_products", "All Items")} ({products.length})
               </button>
               {categories.map((cat) => (
                 <button
@@ -417,9 +535,33 @@ export function PosTerminal({ onSaleCompleted }: PosTerminalProps) {
                     </div>
 
                     <div className="mt-3 pt-2 border-t border-slate-100 flex items-center justify-between">
-                      <span className="text-xs font-black text-slate-900">
-                        ₨ {price.toLocaleString()}
-                      </span>
+                      <div>
+                        {p.discountType && p.discountType !== "none" && Number(p.discountValue || 0) > 0 ? (
+                          <div>
+                            <span className="block text-[10px] line-through text-slate-400">
+                              ₨ {price.toLocaleString()}
+                            </span>
+                            <div className="flex items-center gap-1">
+                              <span className="text-xs font-black text-[#00875a]">
+                                ₨{" "}
+                                {Math.max(
+                                  0,
+                                  p.discountType === "percentage"
+                                    ? Math.round(price * (1 - Number(p.discountValue) / 100))
+                                    : price - Number(p.discountValue)
+                                ).toLocaleString()}
+                              </span>
+                              <span className="text-[9px] font-extrabold px-1 rounded bg-emerald-100 text-emerald-800">
+                                {p.discountType === "percentage" ? `-${p.discountValue}%` : `-₨${p.discountValue}`}
+                              </span>
+                            </div>
+                          </div>
+                        ) : (
+                          <span className="text-xs font-black text-slate-900">
+                            ₨ {price.toLocaleString()}
+                          </span>
+                        )}
+                      </div>
                       <span className="size-6 rounded-lg bg-emerald-50 group-hover:bg-[#00875a] text-[#00875a] group-hover:text-white flex items-center justify-center text-xs font-black transition">
                         +
                       </span>
@@ -436,7 +578,7 @@ export function PosTerminal({ onSaleCompleted }: PosTerminalProps) {
           <div className="flex items-center justify-between pb-3 border-b border-slate-100">
             <div>
               <h3 className="text-base font-black text-slate-900 tracking-tight flex items-center gap-2">
-                <span>🛒</span> Customer Bill
+                <span>🛒</span> {t("pos.cart", "Customer Bill")}
               </h3>
               <p className="text-[11px] font-medium text-slate-400">
                 {cart.length} unique {cart.length === 1 ? "item" : "items"}
@@ -448,7 +590,7 @@ export function PosTerminal({ onSaleCompleted }: PosTerminalProps) {
                 onClick={clearCart}
                 className="text-xs font-bold text-red-500 hover:text-red-700 hover:underline cursor-pointer"
               >
-                Clear Cart
+                {t("pos.clear_cart", "Clear Bill")}
               </button>
             )}
           </div>
@@ -464,57 +606,138 @@ export function PosTerminal({ onSaleCompleted }: PosTerminalProps) {
             ) : (
               cart.map((item) => {
                 const rate = Number(item.product.sellingPrice ?? item.product.price ?? 0);
-                const lineTotal = rate * item.quantity;
                 const max = Number(item.product.stock || 0);
+                const hasDiscount = item.discountType && item.discountType !== "none" && Number(item.discountValue || 0) > 0;
+                let unitDiscount = 0;
+                if (hasDiscount) {
+                  if (item.discountType === "percentage") {
+                    unitDiscount = Math.round(rate * (Number(item.discountValue) / 100));
+                  } else {
+                    unitDiscount = Math.min(rate, Number(item.discountValue));
+                  }
+                }
+                const netRate = Math.max(0, rate - unitDiscount);
+                const lineTotal = netRate * item.quantity;
+                const isEditingDiscount = editingDiscountProductId === item.product.id;
 
                 return (
                   <div
                     key={item.product.id}
-                    className="p-2.5 bg-slate-50 rounded-2xl border border-slate-100 flex items-center justify-between gap-2"
+                    className="p-2.5 bg-slate-50 rounded-2xl border border-slate-100 space-y-2"
                   >
-                    <div className="flex-1 min-w-0">
-                      <strong className="block text-xs font-bold text-slate-900 truncate">
-                        {item.product.name}
-                      </strong>
-                      <span className="text-[10px] text-slate-500">
-                        ₨ {rate.toLocaleString()} each
-                      </span>
+                    <div className="flex items-center justify-between gap-2">
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center gap-1.5 flex-wrap">
+                          <strong className="block text-xs font-bold text-slate-900 truncate">
+                            {item.product.name}
+                          </strong>
+                          {hasDiscount && (
+                            <span className="text-[9px] font-extrabold px-1.5 py-0.5 rounded bg-emerald-100 text-emerald-800">
+                              {item.discountType === "percentage" ? `${item.discountValue}% Off` : `-₨${item.discountValue}`}
+                            </span>
+                          )}
+                        </div>
+                        <div className="flex items-center gap-1.5 text-[10px]">
+                          {hasDiscount ? (
+                            <>
+                              <span className="line-through text-slate-400">₨ {rate.toLocaleString()}</span>
+                              <span className="font-bold text-emerald-700">₨ {netRate.toLocaleString()} each</span>
+                            </>
+                          ) : (
+                            <span className="text-slate-500">₨ {rate.toLocaleString()} each</span>
+                          )}
+                        </div>
+                      </div>
+
+                      <div className="flex items-center gap-1 shrink-0">
+                        <button
+                          type="button"
+                          onClick={() => updateCartQty(item.product.id, item.quantity - 1)}
+                          className="size-7 rounded-lg bg-white border border-slate-200 hover:bg-slate-100 font-bold text-xs cursor-pointer"
+                        >
+                          -
+                        </button>
+                        <span className="w-7 text-center text-xs font-black text-slate-900">
+                          {item.quantity}
+                        </span>
+                        <button
+                          type="button"
+                          onClick={() => updateCartQty(item.product.id, item.quantity + 1)}
+                          disabled={max > 0 && item.quantity >= max}
+                          className="size-7 rounded-lg bg-white border border-slate-200 hover:bg-slate-100 font-bold text-xs disabled:opacity-40 cursor-pointer"
+                        >
+                          +
+                        </button>
+                      </div>
+
+                      <div className="w-20 text-right shrink-0">
+                        {hasDiscount && (
+                          <span className="block text-[10px] line-through text-slate-400">
+                            ₨ {(rate * item.quantity).toLocaleString()}
+                          </span>
+                        )}
+                        <strong className="text-xs font-black text-slate-900">
+                          ₨ {lineTotal.toLocaleString()}
+                        </strong>
+                      </div>
+
+                      <div className="flex items-center gap-1 shrink-0">
+                        {activeBusiness?.allowDiscounts !== false && (
+                          <button
+                            type="button"
+                            onClick={() => setEditingDiscountProductId(isEditingDiscount ? null : item.product.id)}
+                            className={`size-6 rounded grid place-items-center text-xs font-bold transition cursor-pointer ${
+                              isEditingDiscount ? "bg-emerald-600 text-white" : "text-emerald-700 hover:bg-emerald-50"
+                            }`}
+                            title="Set discount for this product"
+                          >
+                            🏷️
+                          </button>
+                        )}
+                        <button
+                          type="button"
+                          onClick={() => removeFromCart(item.product.id)}
+                          className="size-6 text-red-500 hover:bg-red-50 rounded grid place-items-center text-xs font-bold cursor-pointer"
+                        >
+                          ✕
+                        </button>
+                      </div>
                     </div>
 
-                    <div className="flex items-center gap-1 shrink-0">
-                      <button
-                        type="button"
-                        onClick={() => updateCartQty(item.product.id, item.quantity - 1)}
-                        className="size-7 rounded-lg bg-white border border-slate-200 hover:bg-slate-100 font-bold text-xs"
-                      >
-                        -
-                      </button>
-                      <span className="w-7 text-center text-xs font-black text-slate-900">
-                        {item.quantity}
-                      </span>
-                      <button
-                        type="button"
-                        onClick={() => updateCartQty(item.product.id, item.quantity + 1)}
-                        disabled={max > 0 && item.quantity >= max}
-                        className="size-7 rounded-lg bg-white border border-slate-200 hover:bg-slate-100 font-bold text-xs disabled:opacity-40"
-                      >
-                        +
-                      </button>
-                    </div>
-
-                    <div className="w-20 text-right shrink-0">
-                      <strong className="text-xs font-black text-slate-900">
-                        ₨ {lineTotal.toLocaleString()}
-                      </strong>
-                    </div>
-
-                    <button
-                      type="button"
-                      onClick={() => removeFromCart(item.product.id)}
-                      className="size-6 text-red-500 hover:bg-red-50 rounded grid place-items-center text-xs font-bold shrink-0"
-                    >
-                      ✕
-                    </button>
+                    {/* Inline Item Discount Editor */}
+                    {isEditingDiscount && activeBusiness?.allowDiscounts !== false && (
+                      <div className="p-2 bg-emerald-50/70 rounded-xl border border-emerald-200/80 flex items-center justify-between gap-2 text-xs">
+                        <span className="text-[10px] font-bold text-emerald-900">Item Disc:</span>
+                        <div className="flex items-center gap-1.5">
+                          <select
+                            value={item.discountType || "none"}
+                            onChange={(e) => updateItemDiscount(item.product.id, e.target.value as any, item.discountValue || 0)}
+                            className="text-[11px] font-bold px-1.5 py-1 rounded-lg bg-white border border-emerald-300 text-slate-800 outline-none"
+                          >
+                            <option value="none">No Disc</option>
+                            <option value="fixed">Fixed (₨ Off)</option>
+                            <option value="percentage">Percent (% Off)</option>
+                          </select>
+                          {item.discountType !== "none" && (
+                            <input
+                              type="number"
+                              min="0"
+                              placeholder={item.discountType === "percentage" ? "10" : "50"}
+                              value={item.discountValue || ""}
+                              onChange={(e) => updateItemDiscount(item.product.id, item.discountType || "fixed", Number(e.target.value) || 0)}
+                              className="w-16 text-[11px] font-bold px-1.5 py-1 rounded-lg bg-white border border-emerald-300 text-slate-900 outline-none"
+                            />
+                          )}
+                          <button
+                            type="button"
+                            onClick={() => setEditingDiscountProductId(null)}
+                            className="text-[10px] px-2 py-1 bg-emerald-700 hover:bg-emerald-800 text-white font-black rounded-lg cursor-pointer"
+                          >
+                            Done
+                          </button>
+                        </div>
+                      </div>
+                    )}
                   </div>
                 );
               })
@@ -582,27 +805,37 @@ export function PosTerminal({ onSaleCompleted }: PosTerminalProps) {
 
           {/* Discount & Payment Method */}
           <div className="space-y-2 text-xs">
-            <div className="flex gap-2">
-              <select
-                value={discountType}
-                onChange={(e) => setDiscountType(e.target.value as any)}
-                className="w-1/2 px-2 py-1.5 rounded-xl bg-slate-50 border border-slate-200 font-bold text-slate-700 outline-none"
-              >
-                <option value="none">No Discount</option>
-                <option value="fixed">Fixed (₨ Off)</option>
-                <option value="percentage">Percent (% Off)</option>
-              </select>
-              {discountType !== "none" && (
-                <input
-                  type="text"
-                  inputMode="numeric"
-                  placeholder={discountType === "percentage" ? "10%" : "200"}
-                  value={discountType === "fixed" ? formatCurrencyInput(discountValue) : discountValue}
-                  onChange={(e) => setDiscountValue(e.target.value)}
-                  className="w-1/2 px-2.5 py-1.5 rounded-xl bg-slate-50 border border-slate-200 font-black text-slate-900 outline-none"
-                />
-              )}
-            </div>
+            {activeBusiness?.allowDiscounts === false ? (
+              <div className="py-2 px-3 rounded-xl bg-slate-100 border border-slate-200 text-slate-500 font-bold flex items-center justify-between">
+                <span>{t("term.discount", "Discount")}</span>
+                <span className="text-[11px] text-slate-400 font-semibold flex items-center gap-1">
+                  <span>🔒</span>
+                  <span>Disabled by Store Owner</span>
+                </span>
+              </div>
+            ) : (
+              <div className="flex gap-2">
+                <select
+                  value={discountType}
+                  onChange={(e) => setDiscountType(e.target.value as any)}
+                  className="w-1/2 px-2 py-1.5 rounded-xl bg-slate-50 border border-slate-200 font-bold text-slate-700 outline-none"
+                >
+                  <option value="none">No Discount</option>
+                  <option value="fixed">Fixed (₨ Off)</option>
+                  <option value="percentage">Percent (% Off)</option>
+                </select>
+                {discountType !== "none" && (
+                  <input
+                    type="text"
+                    inputMode="numeric"
+                    placeholder={discountType === "percentage" ? "10%" : "200"}
+                    value={discountType === "fixed" ? formatCurrencyInput(discountValue) : discountValue}
+                    onChange={(e) => setDiscountValue(e.target.value)}
+                    className="w-1/2 px-2.5 py-1.5 rounded-xl bg-slate-50 border border-slate-200 font-black text-slate-900 outline-none"
+                  />
+                )}
+              </div>
+            )}
 
             {/* Payment Method Selector */}
             <div className="grid grid-cols-2 gap-2">
@@ -615,7 +848,7 @@ export function PosTerminal({ onSaleCompleted }: PosTerminalProps) {
                     : "bg-slate-50 text-slate-600 border-slate-200"
                 }`}
               >
-                <span>💵</span> Cash
+                <span>💵</span> {t("term.cash", "Cash")}
               </button>
               <button
                 type="button"
@@ -626,7 +859,7 @@ export function PosTerminal({ onSaleCompleted }: PosTerminalProps) {
                     : "bg-slate-50 text-slate-600 border-slate-200"
                 }`}
               >
-                <span>🏦</span> Online / Bank
+                <span>🏦</span> {t("term.online", "Online / Bank")}
               </button>
             </div>
 
@@ -656,17 +889,23 @@ export function PosTerminal({ onSaleCompleted }: PosTerminalProps) {
           {/* Subtotal & Total Bill Breakdown */}
           <div className="p-3.5 rounded-2xl bg-slate-900 text-white space-y-1.5">
             <div className="flex justify-between text-xs text-slate-300">
-              <span>Subtotal</span>
-              <span>₨ {subtotal.toLocaleString()}</span>
+              <span>{t("term.subtotal", "Gross Subtotal")}</span>
+              <span>₨ {grossSubtotal.toLocaleString()}</span>
             </div>
-            {discountAmount > 0 && (
+            {itemDiscountsTotal > 0 && (
               <div className="flex justify-between text-xs text-emerald-400">
-                <span>Discount</span>
-                <span>- ₨ {discountAmount.toLocaleString()}</span>
+                <span>Product Discounts</span>
+                <span>- ₨ {itemDiscountsTotal.toLocaleString()}</span>
+              </div>
+            )}
+            {cartDiscountAmount > 0 && (
+              <div className="flex justify-between text-xs text-emerald-400">
+                <span>Bill Discount ({discountType === "percentage" ? `${discountValue}%` : `Fixed`})</span>
+                <span>- ₨ {cartDiscountAmount.toLocaleString()}</span>
               </div>
             )}
             <div className="flex justify-between items-baseline pt-2 border-t border-slate-800">
-              <span className="text-xs font-extrabold text-slate-400 uppercase tracking-wider">Total</span>
+              <span className="text-xs font-extrabold text-slate-400 uppercase tracking-wider">{t("term.total", "Total")}</span>
               <span className="text-xl font-black text-emerald-400">
                 ₨ {grandTotal.toLocaleString()}
               </span>
@@ -684,7 +923,7 @@ export function PosTerminal({ onSaleCompleted }: PosTerminalProps) {
               <span>Completing Sale...</span>
             ) : (
               <>
-                <span>Complete Sale (Bill Banayein)</span>
+                <span>{t("pos.complete_btn", "Complete Sale (Bill Banayein)")}</span>
                 <span className="text-lg">➔</span>
               </>
             )}
@@ -700,6 +939,17 @@ export function PosTerminal({ onSaleCompleted }: PosTerminalProps) {
           onNewSale={() => setReceipt(null)}
         />
       )}
+
+      {/* Camera Barcode & QR Scanner Modal */}
+      <CameraBarcodeScannerModal
+        isOpen={scannerOpen}
+        onClose={() => setScannerOpen(false)}
+        onScan={handleCameraScan}
+        continuous={true}
+        lastScannedInfo={scannerLastScanned}
+        title={t("scanner.title", "Camera Barcode & QR Scanner")}
+        subtitle={t("scanner.subtitle", "Point camera at any product barcode to instantly add to bill")}
+      />
     </>
   );
 }

@@ -8,18 +8,26 @@ import { useBusiness } from "@/app/components/business-context";
 import { logActivity } from "@/app/lib/logger";
 import { useDebounce } from "@/hooks/useDebounce";
 import { validateText, validateNumber } from "@/app/lib/validators";
+import { ProductCsvModal } from "@/app/components/product-csv-modal";
+import { CameraBarcodeScannerModal } from "@/app/components/camera-barcode-scanner-modal";
+import { BarcodeStickerModal } from "@/app/components/barcode-sticker-modal";
+import { useLanguage } from "@/app/components/language-context";
 import ui from "@/app/components/workspace-ui.module.css";
 
 type Draft = {
   name: string; barcode: string; sku: string; category: string;
   costPrice: string; sellingPrice: string; stock: string; lowStockThreshold: string;
   qrCode: string; imageUrl: string;
+  discountType: "none" | "fixed" | "percentage";
+  discountValue: string;
 };
 
 const blank: Draft = {
   name: "", barcode: "", sku: "", category: "",
   costPrice: "0", sellingPrice: "", stock: "0", lowStockThreshold: "5",
   qrCode: "", imageUrl: "",
+  discountType: "none",
+  discountValue: "0",
 };
 
 const money = (n: number) => `Rs ${Number(n).toLocaleString()}`;
@@ -27,6 +35,7 @@ const money = (n: number) => `Rs ${Number(n).toLocaleString()}`;
 export default function ProductsPage() {
   const { showToast, confirmDialog } = useToast();
   const { activeBusiness } = useBusiness();
+  const { t } = useLanguage();
   const [products, setProducts] = useState<Product[]>([]);
   const [query, setQuery] = useState("");
   const debouncedQuery = useDebounce(query, 250);
@@ -41,6 +50,11 @@ export default function ProductsPage() {
   const [selectedIds, setSelectedIds] = useState<number[]>([]);
   const [bulkDeleting, setBulkDeleting] = useState(false);
   const [mediaFile, setMediaFile] = useState<File | null>(null);
+  const [showImportModal, setShowImportModal] = useState(false);
+  const [scannerOpen, setScannerOpen] = useState(false);
+  const [scannerTarget, setScannerTarget] = useState<"search" | "form">("search");
+  const [showStickerModal, setShowStickerModal] = useState(false);
+  const [stickerInitialIds, setStickerInitialIds] = useState<number[]>([]);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -128,7 +142,7 @@ export default function ProductsPage() {
     );
   };
 
-  function open(p?: Product) {
+  function open(p?: Product, initialBarcode?: string) {
     setEditing(p ?? null);
     setFieldErrors({});
     setDraft(
@@ -144,8 +158,13 @@ export default function ProductsPage() {
             lowStockThreshold: String(p.lowStockThreshold),
             qrCode: p.qrCode ?? "",
             imageUrl: p.imageUrl ?? "",
+            discountType: (p.discountType as any) || "none",
+            discountValue: String(p.discountValue || 0),
           }
-        : blank
+        : {
+            ...blank,
+            barcode: initialBarcode !== undefined ? initialBarcode : blank.barcode,
+          }
     );
     setError("");
     setMediaFile(null);
@@ -170,6 +189,21 @@ export default function ProductsPage() {
     const lowStockVal = validateNumber(draft.lowStockThreshold || "5", { min: 0, integerOnly: true, fieldName: "Low stock alert" });
     if (!lowStockVal.valid) errs.lowStockThreshold = lowStockVal.error || "Threshold must be 0 or greater.";
 
+    let parsedDiscountVal = 0;
+    if (draft.discountType !== "none") {
+      const discVal = validateNumber(draft.discountValue || "0", { min: 0, fieldName: "Discount value" });
+      if (!discVal.valid) errs.discountValue = discVal.error || "Discount must be 0 or greater.";
+      else {
+        parsedDiscountVal = Number(draft.discountValue);
+        const salePrice = Number(draft.sellingPrice);
+        if (draft.discountType === "percentage" && parsedDiscountVal > 100) {
+          errs.discountValue = "Percentage discount cannot exceed 100%.";
+        } else if (draft.discountType === "fixed" && parsedDiscountVal > salePrice) {
+          errs.discountValue = "Fixed discount cannot exceed the sale price.";
+        }
+      }
+    }
+
     setFieldErrors(errs);
     if (Object.keys(errs).length > 0) {
       const firstErr = Object.values(errs)[0];
@@ -181,7 +215,15 @@ export default function ProductsPage() {
     setSaving(true);
     try {
       const imageUrl = mediaFile ? (await uploadProductImage(mediaFile)).url : draft.imageUrl;
-      const payload = { ...draft, barcode: editing?.barcode || draft.barcode || `AUTO-${Date.now()}`, imageUrl, qrCode: undefined, price: draft.sellingPrice };
+      const payload = {
+        ...draft,
+        barcode: editing?.barcode || draft.barcode || `AUTO-${Date.now()}`,
+        imageUrl,
+        qrCode: undefined,
+        price: draft.sellingPrice,
+        discountType: draft.discountType,
+        discountValue: draft.discountType === "none" ? 0 : parsedDiscountVal,
+      };
       await api(editing ? `/products/${editing.id}` : "/products", {
         method: editing ? "PATCH" : "POST",
         body: JSON.stringify(payload),
@@ -304,12 +346,103 @@ export default function ProductsPage() {
     }
   }
 
+  const handleExportCsv = () => {
+    if (products.length === 0) {
+      showToast("No products available to export.", "info");
+      return;
+    }
+
+    const exportItems = shown.length > 0 ? shown : products;
+    const escapeCsv = (str: string | number | undefined | null) => {
+      if (str === null || str === undefined) return '""';
+      const s = String(str).replace(/"/g, '""');
+      return `"${s}"`;
+    };
+
+    const headers = [
+      "Barcode",
+      "Name",
+      "Category",
+      "Cost Price",
+      "Selling Price",
+      "Stock",
+      "Low Stock Alert",
+      "SKU",
+      "QR Code",
+    ];
+
+    const rows = [headers.join(",")];
+    for (const p of exportItems) {
+      rows.push(
+        [
+          escapeCsv(p.barcode),
+          escapeCsv(p.name),
+          escapeCsv(p.category || ""),
+          p.costPrice ?? 0,
+          p.sellingPrice || p.price || 0,
+          p.stock ?? 0,
+          p.lowStockThreshold ?? 5,
+          escapeCsv(p.sku || ""),
+          escapeCsv(p.qrCode || ""),
+        ].join(",")
+      );
+    }
+
+    const csvContent = "\uFEFF" + rows.join("\r\n");
+    const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    const safeStoreName = (activeBusiness?.name || "almadel").replace(/[^a-zA-Z0-9_-]/g, "_");
+    link.href = url;
+    link.download = `products-${safeStoreName}-${new Date().toISOString().slice(0, 10)}.csv`;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
+
+    showToast(`Exported ${exportItems.length} products to CSV.`, "success");
+    logActivity(
+      "PRODUCT_CSV_EXPORT",
+      "Product",
+      `Exported ${exportItems.length} products to CSV`,
+      `${exportItems.length} items`
+    );
+  };
+
+  const handleBarcodeScanned = (code: string) => {
+    const trimmed = code.trim();
+    if (!trimmed) return;
+
+    if (scannerTarget === "form") {
+      setDraft((prev) => ({ ...prev, barcode: trimmed }));
+      showToast(`Scanned barcode: ${trimmed}`, "success");
+    } else {
+      const match = products.find(
+        (p) =>
+          (p.barcode && p.barcode.trim().toLowerCase() === trimmed.toLowerCase()) ||
+          (p.sku && p.sku.trim().toLowerCase() === trimmed.toLowerCase())
+      );
+      if (match) {
+        setQuery(trimmed);
+        showToast(`Found product: ${match.name}`, "success");
+      } else {
+        // Barcode is brand new - immediately open the Add Product modal with this barcode pre-filled!
+        setQuery("");
+        open(undefined, trimmed);
+        showToast(
+          `Scanned barcode "${trimmed}". Enter details to add this product to your store!`,
+          "info"
+        );
+      }
+    }
+  };
+
   return (
     <WorkspaceShell>
       <div className={ui.head}>
         <div>
-          <label>Inventory</label>
-          <h1>Products</h1>
+          <label>{t("nav.stock", "Inventory")}</label>
+          <h1>{t("nav.products", "Products")}</h1>
           <p>Manage product details, pricing, barcodes, and stock status.</p>
         </div>
         <div style={{ display: "flex", gap: 10, alignItems: "center" }}>
@@ -330,8 +463,35 @@ export default function ProductsPage() {
               {bulkDeleting ? "Deleting..." : `🗑️ Delete Selected (${selectedIds.length})`}
             </button>
           )}
+          <button
+            className={ui.secondary}
+            onClick={handleExportCsv}
+            title="Export products to CSV spreadsheet"
+            style={{ fontWeight: 800 }}
+          >
+            {t("action.export_csv", "📥 Export CSV")}
+          </button>
+          <button
+            className={ui.secondary}
+            onClick={() => setShowImportModal(true)}
+            title="Bulk import products from CSV spreadsheet"
+            style={{ fontWeight: 800 }}
+          >
+            {t("action.import_csv", "📤 Import CSV")}
+          </button>
+          <button
+            className={ui.secondary}
+            onClick={() => {
+              setStickerInitialIds(selectedIds.length > 0 ? selectedIds : []);
+              setShowStickerModal(true);
+            }}
+            title="Generate and print barcode sticker labels"
+            style={{ fontWeight: 800 }}
+          >
+            {t("stickers.print_btn", "🏷️ Print Barcode Labels")}
+          </button>
           <button className={ui.primary} onClick={() => open()}>
-            + Add product
+            {t("action.add_product", "+ Add product")}
           </button>
         </div>
       </div>
@@ -342,12 +502,24 @@ export default function ProductsPage() {
       <div className={ui.toolbar}>
         <input
           className={`${ui.input} ${ui.search}`}
-          placeholder="Search name, barcode, SKU, or category..."
+          placeholder={t("action.search", "Search name, barcode, SKU, or category...")}
           value={query}
           onChange={(e) => setQuery(e.target.value)}
         />
+        <button
+          className={ui.secondary}
+          onClick={() => {
+            setScannerTarget("search");
+            setScannerOpen(true);
+          }}
+          title={t("pos.scan_camera_tip", "Scan barcode with camera")}
+          style={{ fontWeight: 800, display: "flex", alignItems: "center", gap: 6 }}
+        >
+          <span>📷</span>
+          <span>{t("scanner.open", "Scan Barcode")}</span>
+        </button>
         <button className={ui.secondary} onClick={() => void load()}>
-          Refresh
+          {t("action.refresh", "Refresh")}
         </button>
       </div>
 
@@ -425,6 +597,26 @@ export default function ProductsPage() {
               }}
             >
               Deselect All
+            </button>
+            <button
+              onClick={() => {
+                setStickerInitialIds(selectedIds);
+                setShowStickerModal(true);
+              }}
+              style={{
+                background: "#ffffff",
+                border: "none",
+                color: "#006b3f",
+                padding: "7px 16px",
+                borderRadius: 9999,
+                fontSize: 12,
+                fontWeight: 800,
+                cursor: "pointer",
+                boxShadow: "0 2px 10px rgba(0, 0, 0, 0.15)",
+                transition: "all 0.15s ease",
+              }}
+            >
+              🏷️ Print Labels ({selectedIds.length})
             </button>
             <button
               disabled={bulkDeleting}
@@ -524,9 +716,40 @@ export default function ProductsPage() {
                     </td>
                     <td>{money(p.costPrice)}</td>
                     <td>
-                      <strong style={{ color: "#00875a" }}>
-                        {money(p.sellingPrice || p.price)}
-                      </strong>
+                      {p.discountType && p.discountType !== "none" && Number(p.discountValue || 0) > 0 ? (
+                        <div>
+                          <div style={{ textDecoration: "line-through", color: "#94a3b8", fontSize: 11 }}>
+                            {money(p.sellingPrice || p.price)}
+                          </div>
+                          <strong style={{ color: "#00875a", fontSize: 13 }}>
+                            {money(
+                              Math.max(
+                                0,
+                                p.discountType === "percentage"
+                                  ? Math.round(Number(p.sellingPrice || p.price) * (1 - Number(p.discountValue) / 100))
+                                  : Number(p.sellingPrice || p.price) - Number(p.discountValue)
+                              )
+                            )}
+                          </strong>
+                          <span
+                            style={{
+                              marginLeft: 6,
+                              fontSize: 10,
+                              background: "#dcfce7",
+                              color: "#15803d",
+                              padding: "2px 6px",
+                              borderRadius: 4,
+                              fontWeight: 800,
+                            }}
+                          >
+                            {p.discountType === "percentage" ? `-${p.discountValue}%` : `-Rs ${p.discountValue}`}
+                          </span>
+                        </div>
+                      ) : (
+                        <strong style={{ color: "#00875a" }}>
+                          {money(p.sellingPrice || p.price)}
+                        </strong>
+                      )}
                     </td>
                     <td>
                       {Number(p.stock) === 0 ? (
@@ -539,6 +762,17 @@ export default function ProductsPage() {
                     </td>
                     <td>
                       <div className={ui.actions}>
+                        <button
+                          className={ui.secondary}
+                          onClick={() => {
+                            setStickerInitialIds([p.id]);
+                            setShowStickerModal(true);
+                          }}
+                          title="Print barcode stickers for this product"
+                          style={{ padding: "6px 10px" }}
+                        >
+                          🏷️
+                        </button>
                         <button className={ui.secondary} onClick={() => open(p)}>
                           Edit
                         </button>
@@ -553,7 +787,35 @@ export default function ProductsPage() {
               {!loading && !shown.length && (
                 <tr>
                   <td colSpan={8} className={ui.empty}>
-                    No products found.
+                    <div style={{ padding: "32px 16px", display: "flex", flexDirection: "column", alignItems: "center", gap: 12 }}>
+                      <p style={{ margin: 0, fontSize: 14, color: "#6b7280" }}>
+                        {query
+                          ? `No products found matching "${query}".`
+                          : "No products found."}
+                      </p>
+                      {query && (
+                        <button
+                          type="button"
+                          className={ui.primary}
+                          onClick={() => {
+                            const candidate = query.trim();
+                            open(undefined, candidate);
+                          }}
+                          style={{
+                            padding: "8px 20px",
+                            fontSize: 13,
+                            display: "inline-flex",
+                            alignItems: "center",
+                            gap: 6,
+                            borderRadius: 9999,
+                            cursor: "pointer",
+                          }}
+                        >
+                          <span>+</span>
+                          <span>Add "{query.trim()}" as New Product</span>
+                        </button>
+                      )}
+                    </div>
                   </td>
                 </tr>
               )}
@@ -580,6 +842,7 @@ export default function ProductsPage() {
               {(
                 [
                   ["name", "Product name *"],
+                  ["barcode", "Barcode"],
                   ["sku", "SKU"],
                   ["category", "Category"],
                   ["costPrice", "Cost price (Rs.)"],
@@ -603,6 +866,33 @@ export default function ProductsPage() {
                         <span className={ui.muted}>{mediaFile?.name || "Current image selected"}</span>
                       )}
                     </>
+                  ) : key === "barcode" ? (
+                    <div style={{ display: "flex", gap: 6 }}>
+                      <input
+                        className={`${ui.input} ${fieldErrors[key] ? "border-red-500 bg-red-50/40" : ""}`}
+                        style={{ flex: 1 }}
+                        type="text"
+                        placeholder="e.g. 896400012345"
+                        value={draft.barcode}
+                        onChange={(e) => {
+                          setDraft({ ...draft, barcode: e.target.value });
+                          if (fieldErrors.barcode) setFieldErrors((prev) => ({ ...prev, barcode: "" }));
+                        }}
+                      />
+                      <button
+                        type="button"
+                        className={ui.secondary}
+                        onClick={() => {
+                          setScannerTarget("form");
+                          setScannerOpen(true);
+                        }}
+                        title="Scan barcode with camera"
+                        style={{ padding: "0 12px", whiteSpace: "nowrap", display: "flex", alignItems: "center", gap: 4 }}
+                      >
+                        <span>📷</span>
+                        <span>Scan</span>
+                      </button>
+                    </div>
                   ) : (
                     <input
                       className={`${ui.input} ${fieldErrors[key] ? "border-red-500 bg-red-50/40" : ""}`}
@@ -637,6 +927,67 @@ export default function ProductsPage() {
                   )}
                 </div>
               ))}
+
+              {/* Product Discount Section */}
+              <div className={ui.span2} style={{ background: "#f8fafc", padding: "14px 16px", borderRadius: 12, border: "1px solid #e2e8f0", marginTop: 4 }}>
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 8, flexWrap: "wrap", gap: 6 }}>
+                  <label style={{ fontSize: 13, fontWeight: 700, color: "#1e293b", margin: 0 }}>
+                    🏷️ Product Discount (Optional)
+                  </label>
+                  {draft.discountType !== "none" && Number(draft.discountValue) > 0 && Number(draft.sellingPrice) > 0 && (
+                    <span style={{ fontSize: 12, fontWeight: 800, color: "#00875a" }}>
+                      Net Price: Rs{" "}
+                      {Math.max(
+                        0,
+                        draft.discountType === "percentage"
+                          ? Math.round(Number(draft.sellingPrice) * (1 - Number(draft.discountValue) / 100))
+                          : Number(draft.sellingPrice) - Number(draft.discountValue)
+                      ).toLocaleString()}{" "}
+                      <span style={{ color: "#64748b", fontWeight: 500, fontSize: 11 }}>
+                        ({draft.discountType === "percentage" ? `${draft.discountValue}% Off` : `Rs ${draft.discountValue} Off`})
+                      </span>
+                    </span>
+                  )}
+                </div>
+                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
+                  <div>
+                    <label style={{ fontSize: 11, fontWeight: 600, color: "#64748b", display: "block", marginBottom: 4 }}>Discount Type</label>
+                    <select
+                      className={ui.input}
+                      value={draft.discountType}
+                      onChange={(e) => setDraft({ ...draft, discountType: e.target.value as any })}
+                      style={{ height: 38 }}
+                    >
+                      <option value="none">No Discount</option>
+                      <option value="fixed">Fixed (Rs. Off)</option>
+                      <option value="percentage">Percentage (% Off)</option>
+                    </select>
+                  </div>
+                  <div>
+                    <label style={{ fontSize: 11, fontWeight: 600, color: "#64748b", display: "block", marginBottom: 4 }}>
+                      {draft.discountType === "percentage" ? "Percentage (%)" : "Amount (Rs.)"}
+                    </label>
+                    <input
+                      className={`${ui.input} ${fieldErrors.discountValue ? "border-red-500 bg-red-50/40" : ""}`}
+                      type="number"
+                      min="0"
+                      disabled={draft.discountType === "none"}
+                      placeholder={draft.discountType === "percentage" ? "e.g. 10" : "e.g. 50"}
+                      value={draft.discountValue}
+                      onChange={(e) => {
+                        setDraft({ ...draft, discountValue: e.target.value });
+                        if (fieldErrors.discountValue) setFieldErrors((prev) => ({ ...prev, discountValue: "" }));
+                      }}
+                      style={{ height: 38 }}
+                    />
+                    {fieldErrors.discountValue && (
+                      <span className="text-[11px] font-bold text-red-600 mt-1 block">
+                        {fieldErrors.discountValue}
+                      </span>
+                    )}
+                  </div>
+                </div>
+              </div>
             </div>
             <div className={ui.formActions}>
               <button type="button" className={ui.secondary} onClick={() => setEditing(undefined)}>
@@ -649,6 +1000,35 @@ export default function ProductsPage() {
           </form>
         </div>
       )}
+
+      {/* CSV Import Modal */}
+      <ProductCsvModal
+        isOpen={showImportModal}
+        onClose={() => setShowImportModal(false)}
+        onSuccess={() => void load()}
+      />
+
+      {/* Camera Barcode & QR Scanner Modal */}
+      <CameraBarcodeScannerModal
+        isOpen={scannerOpen}
+        onClose={() => setScannerOpen(false)}
+        onScan={handleBarcodeScanned}
+        continuous={false}
+        title={scannerTarget === "form" ? "Scan Barcode for Product" : "Scan Barcode"}
+        subtitle={
+          scannerTarget === "form"
+            ? "Point camera at product barcode"
+            : "Scan barcode to find product or add as new product"
+        }
+      />
+
+      {/* Barcode Sticker Label Generator Modal (Section 9 & 22) */}
+      <BarcodeStickerModal
+        isOpen={showStickerModal}
+        onClose={() => setShowStickerModal(false)}
+        products={products}
+        initialSelectedIds={stickerInitialIds}
+      />
     </WorkspaceShell>
   );
 }

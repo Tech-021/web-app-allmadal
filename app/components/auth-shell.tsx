@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { LanguageSwitcher } from "./language-switcher";
 
 export function AlmadelLogoMark() {
   return (
@@ -33,17 +34,20 @@ export function AuthShell({ children, mode }: { children: React.ReactNode; mode:
         <p className="relative text-xs text-white/40">© 2026 Almadel. All rights reserved.</p>
       </aside>
       <section className="flex min-h-screen flex-col px-5 py-6 sm:px-10 lg:px-14">
-        <header className="flex items-center justify-between lg:justify-end pb-4 border-b border-gray-100 lg:border-0 lg:pb-0">
+        <header className="flex items-center justify-between pb-4 border-b border-gray-100 lg:border-0 lg:pb-0 gap-4">
           <div className="flex items-center gap-2.5 lg:hidden">
             <AlmadelLogoMark />
             <span className="font-extrabold text-base text-[#111827]">Almadel</span>
           </div>
-          <p className="text-xs sm:text-sm font-medium text-[#4b5563]">
-            {mode === "login" ? "New to Almadel?" : "Already have an account?"}{" "}
-            <Link className="ml-1 font-bold text-[#00875A] transition hover:underline" href={mode === "login" ? "/signup" : "/login"}>
-              {mode === "login" ? "Naya Account Banayein" : "Sign in"}
-            </Link>
-          </p>
+          <div className="flex items-center gap-3 sm:gap-4 ml-auto">
+            <LanguageSwitcher variant="pill" />
+            <p className="text-xs sm:text-sm font-medium text-[#4b5563]">
+              {mode === "login" ? "New to Almadel?" : "Already have an account?"}{" "}
+              <Link className="ml-1 font-bold text-[#00875A] transition hover:underline" href={mode === "login" ? "/signup" : "/login"}>
+                {mode === "login" ? "Naya Account Banayein" : "Sign in"}
+              </Link>
+            </p>
+          </div>
         </header>
         <div className="mx-auto flex w-full max-w-[450px] flex-1 items-center py-12">{children}</div>
       </section>
