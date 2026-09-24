@@ -8,6 +8,7 @@ import { useBusiness } from "@/app/components/business-context";
 import { logActivity } from "@/app/lib/logger";
 import { useDebounce } from "@/hooks/useDebounce";
 import { validateText, validateNumber } from "@/app/lib/validators";
+import { ProductCsvModal } from "@/app/components/product-csv-modal";
 import ui from "@/app/components/workspace-ui.module.css";
 
 type Draft = {
@@ -41,6 +42,7 @@ export default function ProductsPage() {
   const [selectedIds, setSelectedIds] = useState<number[]>([]);
   const [bulkDeleting, setBulkDeleting] = useState(false);
   const [mediaFile, setMediaFile] = useState<File | null>(null);
+  const [showImportModal, setShowImportModal] = useState(false);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -304,6 +306,69 @@ export default function ProductsPage() {
     }
   }
 
+  const handleExportCsv = () => {
+    if (products.length === 0) {
+      showToast("No products available to export.", "info");
+      return;
+    }
+
+    const exportItems = shown.length > 0 ? shown : products;
+    const escapeCsv = (str: string | number | undefined | null) => {
+      if (str === null || str === undefined) return '""';
+      const s = String(str).replace(/"/g, '""');
+      return `"${s}"`;
+    };
+
+    const headers = [
+      "Barcode",
+      "Name",
+      "Category",
+      "Cost Price",
+      "Selling Price",
+      "Stock",
+      "Low Stock Alert",
+      "SKU",
+      "QR Code",
+    ];
+
+    const rows = [headers.join(",")];
+    for (const p of exportItems) {
+      rows.push(
+        [
+          escapeCsv(p.barcode),
+          escapeCsv(p.name),
+          escapeCsv(p.category || ""),
+          p.costPrice ?? 0,
+          p.sellingPrice || p.price || 0,
+          p.stock ?? 0,
+          p.lowStockThreshold ?? 5,
+          escapeCsv(p.sku || ""),
+          escapeCsv(p.qrCode || ""),
+        ].join(",")
+      );
+    }
+
+    const csvContent = "\uFEFF" + rows.join("\r\n");
+    const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    const safeStoreName = (activeBusiness?.name || "almadel").replace(/[^a-zA-Z0-9_-]/g, "_");
+    link.href = url;
+    link.download = `products-${safeStoreName}-${new Date().toISOString().slice(0, 10)}.csv`;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
+
+    showToast(`Exported ${exportItems.length} products to CSV.`, "success");
+    logActivity(
+      "PRODUCT_CSV_EXPORT",
+      "Product",
+      `Exported ${exportItems.length} products to CSV`,
+      `${exportItems.length} items`
+    );
+  };
+
   return (
     <WorkspaceShell>
       <div className={ui.head}>
@@ -330,6 +395,22 @@ export default function ProductsPage() {
               {bulkDeleting ? "Deleting..." : `🗑️ Delete Selected (${selectedIds.length})`}
             </button>
           )}
+          <button
+            className={ui.secondary}
+            onClick={handleExportCsv}
+            title="Export products to CSV spreadsheet"
+            style={{ fontWeight: 800 }}
+          >
+            📥 Export CSV
+          </button>
+          <button
+            className={ui.secondary}
+            onClick={() => setShowImportModal(true)}
+            title="Bulk import products from CSV spreadsheet"
+            style={{ fontWeight: 800 }}
+          >
+            📤 Import CSV
+          </button>
           <button className={ui.primary} onClick={() => open()}>
             + Add product
           </button>
@@ -649,6 +730,13 @@ export default function ProductsPage() {
           </form>
         </div>
       )}
+
+      {/* CSV Import Modal */}
+      <ProductCsvModal
+        isOpen={showImportModal}
+        onClose={() => setShowImportModal(false)}
+        onSuccess={() => void load()}
+      />
     </WorkspaceShell>
   );
 }
