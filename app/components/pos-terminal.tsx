@@ -8,6 +8,7 @@ import { logActivity } from "@/app/lib/logger";
 import { DetailedSaleReceipt, PosReceiptModal } from "@/app/components/pos-receipt-modal";
 import { formatCurrencyInput, parseCurrencyInput } from "@/app/lib/validators";
 import { useLanguage } from "@/app/components/language-context";
+import { CameraBarcodeScannerModal } from "@/app/components/camera-barcode-scanner-modal";
 
 interface PosCartItem {
   product: Product;
@@ -36,6 +37,15 @@ export function PosTerminal({ onSaleCompleted }: PosTerminalProps) {
   // Filters
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedCategory, setSelectedCategory] = useState("all");
+
+  // Camera Barcode Scanner
+  const [scannerOpen, setScannerOpen] = useState(false);
+  const [scannerLastScanned, setScannerLastScanned] = useState<{
+    code: string;
+    productName?: string;
+    price?: number;
+    found?: boolean;
+  } | null>(null);
 
   // Cart
   const [cart, setCart] = useState<PosCartItem[]>([]);
@@ -183,6 +193,37 @@ export function PosTerminal({ onSaleCompleted }: PosTerminalProps) {
     }
   };
 
+  // Camera Barcode Scanner handler
+  const handleCameraScan = (code: string) => {
+    const trimmed = code.trim();
+    if (!trimmed) return;
+
+    const match = products.find(
+      (p) =>
+        (p.barcode && p.barcode.toLowerCase() === trimmed.toLowerCase()) ||
+        (p.sku && p.sku.toLowerCase() === trimmed.toLowerCase()) ||
+        String(p.id) === trimmed
+    );
+
+    if (match) {
+      addToCart(match);
+      setScannerLastScanned({
+        code: trimmed,
+        productName: match.name,
+        price: Number(match.sellingPrice ?? match.price ?? 0),
+        found: true,
+      });
+      showToast(`✅ ${match.name} ${t("scanner.added_success", "added to bill")}`, "success");
+    } else {
+      setScannerLastScanned({
+        code: trimmed,
+        productName: t("scanner.not_found", "Product not found"),
+        found: false,
+      });
+      showToast(`⚠️ Barcode "${trimmed}" not found in inventory`, "info");
+    }
+  };
+
   // Calculations
   const subtotal = useMemo(() => {
     return cart.reduce((acc, curr) => {
@@ -314,28 +355,41 @@ export function PosTerminal({ onSaleCompleted }: PosTerminalProps) {
         <div className="lg:col-span-7 space-y-4">
           {/* Search & Barcode Input */}
           <div className="bg-white p-4 rounded-3xl border border-slate-200/80 shadow-xs space-y-3">
-            <div className="relative">
-              <span className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-slate-400">
-                🔍
-              </span>
-              <input
-                ref={searchInputRef}
-                type="text"
-                placeholder={t("pos.scanner_input", "Scan Barcode or Search by product name, SKU...")}
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                onKeyDown={handleBarcodeKeyDown}
-                className="w-full pl-10 pr-4 py-3 rounded-2xl bg-slate-50 border border-slate-200 text-sm font-bold text-slate-900 outline-none focus:bg-white focus:border-[#00875a] transition"
-              />
-              {searchQuery && (
-                <button
-                  type="button"
-                  onClick={() => setSearchQuery("")}
-                  className="absolute inset-y-0 right-0 pr-3.5 flex items-center text-xs font-bold text-slate-400 hover:text-slate-600"
-                >
-                  ✕ Clear
-                </button>
-              )}
+            <div className="flex items-center gap-2">
+              <div className="relative flex-1">
+                <span className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-slate-400">
+                  🔍
+                </span>
+                <input
+                  ref={searchInputRef}
+                  type="text"
+                  placeholder={t("pos.scanner_input", "Scan Barcode or Search by product name, SKU...")}
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  onKeyDown={handleBarcodeKeyDown}
+                  className="w-full pl-10 pr-4 py-3 rounded-2xl bg-slate-50 border border-slate-200 text-sm font-bold text-slate-900 outline-none focus:bg-white focus:border-[#00875a] transition"
+                />
+                {searchQuery && (
+                  <button
+                    type="button"
+                    onClick={() => setSearchQuery("")}
+                    className="absolute inset-y-0 right-0 pr-3.5 flex items-center text-xs font-bold text-slate-400 hover:text-slate-600"
+                  >
+                    ✕ Clear
+                  </button>
+                )}
+              </div>
+
+              {/* Camera Barcode & QR Scanner Button */}
+              <button
+                type="button"
+                onClick={() => setScannerOpen(true)}
+                className="flex items-center gap-1.5 px-3.5 py-3 rounded-2xl bg-[#00875a] hover:bg-[#00704a] text-white text-xs font-black shadow-xs shrink-0 transition cursor-pointer active:scale-95"
+                title={t("pos.scan_camera_tip", "Scan barcode with mobile camera or webcam")}
+              >
+                <span className="text-sm">📷</span>
+                <span className="hidden sm:inline">{t("pos.scan_camera", "Camera Scanner")}</span>
+              </button>
             </div>
 
             {/* Category Filter Pills */}
@@ -702,6 +756,17 @@ export function PosTerminal({ onSaleCompleted }: PosTerminalProps) {
           onNewSale={() => setReceipt(null)}
         />
       )}
+
+      {/* Camera Barcode & QR Scanner Modal */}
+      <CameraBarcodeScannerModal
+        isOpen={scannerOpen}
+        onClose={() => setScannerOpen(false)}
+        onScan={handleCameraScan}
+        continuous={true}
+        lastScannedInfo={scannerLastScanned}
+        title={t("scanner.title", "Camera Barcode & QR Scanner")}
+        subtitle={t("scanner.subtitle", "Point camera at any product barcode to instantly add to bill")}
+      />
     </>
   );
 }

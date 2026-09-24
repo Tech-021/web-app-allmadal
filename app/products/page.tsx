@@ -9,6 +9,7 @@ import { logActivity } from "@/app/lib/logger";
 import { useDebounce } from "@/hooks/useDebounce";
 import { validateText, validateNumber } from "@/app/lib/validators";
 import { ProductCsvModal } from "@/app/components/product-csv-modal";
+import { CameraBarcodeScannerModal } from "@/app/components/camera-barcode-scanner-modal";
 import { useLanguage } from "@/app/components/language-context";
 import ui from "@/app/components/workspace-ui.module.css";
 
@@ -45,6 +46,8 @@ export default function ProductsPage() {
   const [bulkDeleting, setBulkDeleting] = useState(false);
   const [mediaFile, setMediaFile] = useState<File | null>(null);
   const [showImportModal, setShowImportModal] = useState(false);
+  const [scannerOpen, setScannerOpen] = useState(false);
+  const [scannerTarget, setScannerTarget] = useState<"search" | "form">("search");
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -132,7 +135,7 @@ export default function ProductsPage() {
     );
   };
 
-  function open(p?: Product) {
+  function open(p?: Product, initialBarcode?: string) {
     setEditing(p ?? null);
     setFieldErrors({});
     setDraft(
@@ -149,7 +152,10 @@ export default function ProductsPage() {
             qrCode: p.qrCode ?? "",
             imageUrl: p.imageUrl ?? "",
           }
-        : blank
+        : {
+            ...blank,
+            barcode: initialBarcode !== undefined ? initialBarcode : blank.barcode,
+          }
     );
     setError("");
     setMediaFile(null);
@@ -371,6 +377,34 @@ export default function ProductsPage() {
     );
   };
 
+  const handleBarcodeScanned = (code: string) => {
+    const trimmed = code.trim();
+    if (!trimmed) return;
+
+    if (scannerTarget === "form") {
+      setDraft((prev) => ({ ...prev, barcode: trimmed }));
+      showToast(`Scanned barcode: ${trimmed}`, "success");
+    } else {
+      const match = products.find(
+        (p) =>
+          (p.barcode && p.barcode.trim().toLowerCase() === trimmed.toLowerCase()) ||
+          (p.sku && p.sku.trim().toLowerCase() === trimmed.toLowerCase())
+      );
+      if (match) {
+        setQuery(trimmed);
+        showToast(`Found product: ${match.name}`, "success");
+      } else {
+        // Barcode is brand new - immediately open the Add Product modal with this barcode pre-filled!
+        setQuery("");
+        open(undefined, trimmed);
+        showToast(
+          `Scanned barcode "${trimmed}". Enter details to add this product to your store!`,
+          "info"
+        );
+      }
+    }
+  };
+
   return (
     <WorkspaceShell>
       <div className={ui.head}>
@@ -429,6 +463,18 @@ export default function ProductsPage() {
           value={query}
           onChange={(e) => setQuery(e.target.value)}
         />
+        <button
+          className={ui.secondary}
+          onClick={() => {
+            setScannerTarget("search");
+            setScannerOpen(true);
+          }}
+          title={t("pos.scan_camera_tip", "Scan barcode with camera")}
+          style={{ fontWeight: 800, display: "flex", alignItems: "center", gap: 6 }}
+        >
+          <span>📷</span>
+          <span>{t("scanner.open", "Scan Barcode")}</span>
+        </button>
         <button className={ui.secondary} onClick={() => void load()}>
           {t("action.refresh", "Refresh")}
         </button>
@@ -636,7 +682,35 @@ export default function ProductsPage() {
               {!loading && !shown.length && (
                 <tr>
                   <td colSpan={8} className={ui.empty}>
-                    No products found.
+                    <div style={{ padding: "32px 16px", display: "flex", flexDirection: "column", alignItems: "center", gap: 12 }}>
+                      <p style={{ margin: 0, fontSize: 14, color: "#6b7280" }}>
+                        {query
+                          ? `No products found matching "${query}".`
+                          : "No products found."}
+                      </p>
+                      {query && (
+                        <button
+                          type="button"
+                          className={ui.primary}
+                          onClick={() => {
+                            const candidate = query.trim();
+                            open(undefined, candidate);
+                          }}
+                          style={{
+                            padding: "8px 20px",
+                            fontSize: 13,
+                            display: "inline-flex",
+                            alignItems: "center",
+                            gap: 6,
+                            borderRadius: 9999,
+                            cursor: "pointer",
+                          }}
+                        >
+                          <span>+</span>
+                          <span>Add "{query.trim()}" as New Product</span>
+                        </button>
+                      )}
+                    </div>
                   </td>
                 </tr>
               )}
@@ -663,6 +737,7 @@ export default function ProductsPage() {
               {(
                 [
                   ["name", "Product name *"],
+                  ["barcode", "Barcode"],
                   ["sku", "SKU"],
                   ["category", "Category"],
                   ["costPrice", "Cost price (Rs.)"],
@@ -686,6 +761,33 @@ export default function ProductsPage() {
                         <span className={ui.muted}>{mediaFile?.name || "Current image selected"}</span>
                       )}
                     </>
+                  ) : key === "barcode" ? (
+                    <div style={{ display: "flex", gap: 6 }}>
+                      <input
+                        className={`${ui.input} ${fieldErrors[key] ? "border-red-500 bg-red-50/40" : ""}`}
+                        style={{ flex: 1 }}
+                        type="text"
+                        placeholder="e.g. 896400012345"
+                        value={draft.barcode}
+                        onChange={(e) => {
+                          setDraft({ ...draft, barcode: e.target.value });
+                          if (fieldErrors.barcode) setFieldErrors((prev) => ({ ...prev, barcode: "" }));
+                        }}
+                      />
+                      <button
+                        type="button"
+                        className={ui.secondary}
+                        onClick={() => {
+                          setScannerTarget("form");
+                          setScannerOpen(true);
+                        }}
+                        title="Scan barcode with camera"
+                        style={{ padding: "0 12px", whiteSpace: "nowrap", display: "flex", alignItems: "center", gap: 4 }}
+                      >
+                        <span>📷</span>
+                        <span>Scan</span>
+                      </button>
+                    </div>
                   ) : (
                     <input
                       className={`${ui.input} ${fieldErrors[key] ? "border-red-500 bg-red-50/40" : ""}`}
@@ -738,6 +840,20 @@ export default function ProductsPage() {
         isOpen={showImportModal}
         onClose={() => setShowImportModal(false)}
         onSuccess={() => void load()}
+      />
+
+      {/* Camera Barcode & QR Scanner Modal */}
+      <CameraBarcodeScannerModal
+        isOpen={scannerOpen}
+        onClose={() => setScannerOpen(false)}
+        onScan={handleBarcodeScanned}
+        continuous={false}
+        title={scannerTarget === "form" ? "Scan Barcode for Product" : "Scan Barcode"}
+        subtitle={
+          scannerTarget === "form"
+            ? "Point camera at product barcode"
+            : "Scan barcode to find product or add as new product"
+        }
       />
     </WorkspaceShell>
   );

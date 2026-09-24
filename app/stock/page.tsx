@@ -6,6 +6,7 @@ import { api, Product } from "@/app/lib/api";
 import { useToast } from "@/app/components/toast-context";
 import { useBusiness } from "@/app/components/business-context";
 import { logActivity } from "@/app/lib/logger";
+import { CameraBarcodeScannerModal } from "@/app/components/camera-barcode-scanner-modal";
 import ui from "@/app/components/workspace-ui.module.css";
 
 const money = (n: number) => `Rs ${Number(n).toLocaleString()}`;
@@ -39,6 +40,7 @@ export default function StockPage() {
   const [activeTab, setActiveTab] = useState<"all" | "low" | "out">("all");
   const [query, setQuery] = useState("");
   const [modalOpen, setModalOpen] = useState(false);
+  const [scannerOpen, setScannerOpen] = useState(false);
 
   // Modal form states
   const [search, setSearch] = useState("");
@@ -149,6 +151,25 @@ export default function StockPage() {
       setSaving(false);
     }
   }
+
+  const handleBarcodeScanned = (code: string) => {
+    const trimmed = code.trim();
+    if (!trimmed) return;
+    const match = products.find(
+      (p) =>
+        (p.barcode && p.barcode.toLowerCase() === trimmed.toLowerCase()) ||
+        (p.sku && p.sku.toLowerCase() === trimmed.toLowerCase())
+    );
+    if (match) {
+      setBarcode(match.barcode || trimmed);
+      setSearch(match.name);
+      showToast(`Selected: ${match.name}`, "success");
+    } else {
+      setBarcode(trimmed);
+      setSearch(trimmed);
+      showToast(`Scanned barcode: ${trimmed}`, "info");
+    }
+  };
 
   return (
     <WorkspaceShell>
@@ -450,13 +471,26 @@ export default function StockPage() {
             <div className={ui.formGrid}>
               <div className={`${ui.field} ${ui.span2}`}>
                 <label>Search Product Name or Barcode</label>
-                <input
-                  className={ui.input}
-                  value={search}
-                  onChange={(e) => setSearch(e.target.value)}
-                  placeholder="Type product name or scan barcode…"
-                  autoFocus
-                />
+                <div style={{ display: "flex", gap: 6 }}>
+                  <input
+                    className={ui.input}
+                    style={{ flex: 1 }}
+                    value={search}
+                    onChange={(e) => setSearch(e.target.value)}
+                    placeholder="Type product name or scan barcode…"
+                    autoFocus
+                  />
+                  <button
+                    type="button"
+                    className={ui.secondary}
+                    onClick={() => setScannerOpen(true)}
+                    title="Scan barcode with camera"
+                    style={{ padding: "0 14px", whiteSpace: "nowrap", display: "flex", alignItems: "center", gap: 6, fontWeight: 800 }}
+                  >
+                    <span>📷</span>
+                    <span>Scan</span>
+                  </button>
+                </div>
                 {autocompleteMatches.length > 0 && (
                   <div className="border border-gray-200 rounded-2xl mt-1.5 max-h-44 overflow-y-auto bg-white shadow-lg">
                     {autocompleteMatches.map((m) => (
@@ -527,6 +561,16 @@ export default function StockPage() {
           </form>
         </div>
       )}
+
+      {/* Camera Barcode & QR Scanner Modal */}
+      <CameraBarcodeScannerModal
+        isOpen={scannerOpen}
+        onClose={() => setScannerOpen(false)}
+        onScan={handleBarcodeScanned}
+        continuous={false}
+        title="Scan Product Barcode"
+        subtitle="Point camera at product barcode"
+      />
     </WorkspaceShell>
   );
 }

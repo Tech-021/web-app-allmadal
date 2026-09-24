@@ -10,6 +10,7 @@
     "dev:turbo": "next dev --turbopack"
   },
   "dependencies": {
+    "html5-qrcode": "^2.3.8",
     "next": "16.2.12",
     "postcss": "^8.5.25",
     "react": "19.2.4",
