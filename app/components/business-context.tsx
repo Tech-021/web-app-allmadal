@@ -25,6 +25,7 @@ export type Business = {
   hasSupplierUdhaar?: boolean;
   supplierPayable?: number;
   manageStock?: boolean;
+  allowDiscounts?: boolean;
   currentStockValue?: number;
   taxRegistered?: string;
   ntn?: string | null;

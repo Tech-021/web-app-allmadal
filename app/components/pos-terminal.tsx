@@ -638,27 +638,37 @@ export function PosTerminal({ onSaleCompleted }: PosTerminalProps) {
 
           {/* Discount & Payment Method */}
           <div className="space-y-2 text-xs">
-            <div className="flex gap-2">
-              <select
-                value={discountType}
-                onChange={(e) => setDiscountType(e.target.value as any)}
-                className="w-1/2 px-2 py-1.5 rounded-xl bg-slate-50 border border-slate-200 font-bold text-slate-700 outline-none"
-              >
-                <option value="none">No Discount</option>
-                <option value="fixed">Fixed (₨ Off)</option>
-                <option value="percentage">Percent (% Off)</option>
-              </select>
-              {discountType !== "none" && (
-                <input
-                  type="text"
-                  inputMode="numeric"
-                  placeholder={discountType === "percentage" ? "10%" : "200"}
-                  value={discountType === "fixed" ? formatCurrencyInput(discountValue) : discountValue}
-                  onChange={(e) => setDiscountValue(e.target.value)}
-                  className="w-1/2 px-2.5 py-1.5 rounded-xl bg-slate-50 border border-slate-200 font-black text-slate-900 outline-none"
-                />
-              )}
-            </div>
+            {activeBusiness?.allowDiscounts === false ? (
+              <div className="py-2 px-3 rounded-xl bg-slate-100 border border-slate-200 text-slate-500 font-bold flex items-center justify-between">
+                <span>{t("term.discount", "Discount")}</span>
+                <span className="text-[11px] text-slate-400 font-semibold flex items-center gap-1">
+                  <span>🔒</span>
+                  <span>Disabled by Store Owner</span>
+                </span>
+              </div>
+            ) : (
+              <div className="flex gap-2">
+                <select
+                  value={discountType}
+                  onChange={(e) => setDiscountType(e.target.value as any)}
+                  className="w-1/2 px-2 py-1.5 rounded-xl bg-slate-50 border border-slate-200 font-bold text-slate-700 outline-none"
+                >
+                  <option value="none">No Discount</option>
+                  <option value="fixed">Fixed (₨ Off)</option>
+                  <option value="percentage">Percent (% Off)</option>
+                </select>
+                {discountType !== "none" && (
+                  <input
+                    type="text"
+                    inputMode="numeric"
+                    placeholder={discountType === "percentage" ? "10%" : "200"}
+                    value={discountType === "fixed" ? formatCurrencyInput(discountValue) : discountValue}
+                    onChange={(e) => setDiscountValue(e.target.value)}
+                    className="w-1/2 px-2.5 py-1.5 rounded-xl bg-slate-50 border border-slate-200 font-black text-slate-900 outline-none"
+                  />
+                )}
+              </div>
+            )}
 
             {/* Payment Method Selector */}
             <div className="grid grid-cols-2 gap-2">

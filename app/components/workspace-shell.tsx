@@ -42,6 +42,7 @@ const posLinks: NavLink[] = [
   { href: "/payments", label: "Payments / Billing", key: "nav.payments", icon: "💳", allowedRoles: ["admin", "accountant"] },
   { href: "/staff", label: "Staff & Permissions", key: "nav.staff", icon: "👥", allowedRoles: ["admin"] },
   { href: "/logs", label: "Activity Logs", key: "nav.logs", icon: "📋", allowedRoles: ["admin"] },
+  { href: "/settings", label: "Settings", key: "nav.settings", icon: "⚙️", allowedRoles: ["admin"] },
 ];
 
 const financialLinks: NavLink[] = [

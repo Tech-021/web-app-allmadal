@@ -18,6 +18,7 @@ export default function SettingsPage() {
   const [saving, setSaving] = useState(false);
   const [logoUploading, setLogoUploading] = useState(false);
   const [logoUrl, setLogoUrl] = useState<string>("");
+  const [allowDiscounts, setAllowDiscounts] = useState(true);
 
   const [form, setForm] = useState({
     name: user?.name || "",
@@ -40,6 +41,7 @@ export default function SettingsPage() {
       city: activeBusiness?.city || "",
     });
     setLogoUrl(activeBusiness?.logoUrl || "");
+    setAllowDiscounts(activeBusiness?.allowDiscounts !== false);
   }, [user?.name, user?.email, activeBusiness]);
 
   // Handle Logo File Upload
@@ -96,6 +98,7 @@ export default function SettingsPage() {
             address: form.address,
             city: form.city,
             logoUrl: logoUrl || null,
+            allowDiscounts,
           }),
         }),
       ]);
@@ -277,6 +280,25 @@ export default function SettingsPage() {
               onChange={(e) => setForm({ ...form, email: e.target.value })}
             />
           </div>
+        </div>
+
+        {/* POS & Billing Preferences */}
+        <div style={{ marginTop: 24, padding: "20px 24px", background: "#f8fafc", borderRadius: 16, border: "1px solid #e2e8f0" }}>
+          <h3 style={{ fontSize: 15, fontWeight: 800, color: "#0f172a", marginBottom: 4 }}>
+            POS Billing & Discount Rules
+          </h3>
+          <p style={{ fontSize: 12, color: "#64748b", marginBottom: 14 }}>
+            Control pricing flexibility for cashiers and counter staff.
+          </p>
+          <label style={{ display: "flex", alignItems: "center", gap: 10, cursor: "pointer", fontSize: 13, fontWeight: 700, color: "#1e293b" }}>
+            <input
+              type="checkbox"
+              checked={allowDiscounts}
+              onChange={(e) => setAllowDiscounts(e.target.checked)}
+              style={{ width: 18, height: 18, accentColor: "#00875a", cursor: "pointer" }}
+            />
+            <span>Enable Discounts at POS Counter (Allow cashiers to apply Fixed ₨ or Percent % discounts)</span>
+          </label>
         </div>
 
         <div className={ui.formActions}>
