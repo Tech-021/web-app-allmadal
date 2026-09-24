@@ -18,12 +18,16 @@ type Draft = {
   name: string; barcode: string; sku: string; category: string;
   costPrice: string; sellingPrice: string; stock: string; lowStockThreshold: string;
   qrCode: string; imageUrl: string;
+  discountType: "none" | "fixed" | "percentage";
+  discountValue: string;
 };
 
 const blank: Draft = {
   name: "", barcode: "", sku: "", category: "",
   costPrice: "0", sellingPrice: "", stock: "0", lowStockThreshold: "5",
   qrCode: "", imageUrl: "",
+  discountType: "none",
+  discountValue: "0",
 };
 
 const money = (n: number) => `Rs ${Number(n).toLocaleString()}`;
@@ -154,6 +158,8 @@ export default function ProductsPage() {
             lowStockThreshold: String(p.lowStockThreshold),
             qrCode: p.qrCode ?? "",
             imageUrl: p.imageUrl ?? "",
+            discountType: (p.discountType as any) || "none",
+            discountValue: String(p.discountValue || 0),
           }
         : {
             ...blank,
@@ -183,6 +189,21 @@ export default function ProductsPage() {
     const lowStockVal = validateNumber(draft.lowStockThreshold || "5", { min: 0, integerOnly: true, fieldName: "Low stock alert" });
     if (!lowStockVal.valid) errs.lowStockThreshold = lowStockVal.error || "Threshold must be 0 or greater.";
 
+    let parsedDiscountVal = 0;
+    if (draft.discountType !== "none") {
+      const discVal = validateNumber(draft.discountValue || "0", { min: 0, fieldName: "Discount value" });
+      if (!discVal.valid) errs.discountValue = discVal.error || "Discount must be 0 or greater.";
+      else {
+        parsedDiscountVal = Number(draft.discountValue);
+        const salePrice = Number(draft.sellingPrice);
+        if (draft.discountType === "percentage" && parsedDiscountVal > 100) {
+          errs.discountValue = "Percentage discount cannot exceed 100%.";
+        } else if (draft.discountType === "fixed" && parsedDiscountVal > salePrice) {
+          errs.discountValue = "Fixed discount cannot exceed the sale price.";
+        }
+      }
+    }
+
     setFieldErrors(errs);
     if (Object.keys(errs).length > 0) {
       const firstErr = Object.values(errs)[0];
@@ -194,7 +215,15 @@ export default function ProductsPage() {
     setSaving(true);
     try {
       const imageUrl = mediaFile ? (await uploadProductImage(mediaFile)).url : draft.imageUrl;
-      const payload = { ...draft, barcode: editing?.barcode || draft.barcode || `AUTO-${Date.now()}`, imageUrl, qrCode: undefined, price: draft.sellingPrice };
+      const payload = {
+        ...draft,
+        barcode: editing?.barcode || draft.barcode || `AUTO-${Date.now()}`,
+        imageUrl,
+        qrCode: undefined,
+        price: draft.sellingPrice,
+        discountType: draft.discountType,
+        discountValue: draft.discountType === "none" ? 0 : parsedDiscountVal,
+      };
       await api(editing ? `/products/${editing.id}` : "/products", {
         method: editing ? "PATCH" : "POST",
         body: JSON.stringify(payload),
@@ -687,9 +716,40 @@ export default function ProductsPage() {
                     </td>
                     <td>{money(p.costPrice)}</td>
                     <td>
-                      <strong style={{ color: "#00875a" }}>
-                        {money(p.sellingPrice || p.price)}
-                      </strong>
+                      {p.discountType && p.discountType !== "none" && Number(p.discountValue || 0) > 0 ? (
+                        <div>
+                          <div style={{ textDecoration: "line-through", color: "#94a3b8", fontSize: 11 }}>
+                            {money(p.sellingPrice || p.price)}
+                          </div>
+                          <strong style={{ color: "#00875a", fontSize: 13 }}>
+                            {money(
+                              Math.max(
+                                0,
+                                p.discountType === "percentage"
+                                  ? Math.round(Number(p.sellingPrice || p.price) * (1 - Number(p.discountValue) / 100))
+                                  : Number(p.sellingPrice || p.price) - Number(p.discountValue)
+                              )
+                            )}
+                          </strong>
+                          <span
+                            style={{
+                              marginLeft: 6,
+                              fontSize: 10,
+                              background: "#dcfce7",
+                              color: "#15803d",
+                              padding: "2px 6px",
+                              borderRadius: 4,
+                              fontWeight: 800,
+                            }}
+                          >
+                            {p.discountType === "percentage" ? `-${p.discountValue}%` : `-Rs ${p.discountValue}`}
+                          </span>
+                        </div>
+                      ) : (
+                        <strong style={{ color: "#00875a" }}>
+                          {money(p.sellingPrice || p.price)}
+                        </strong>
+                      )}
                     </td>
                     <td>
                       {Number(p.stock) === 0 ? (
@@ -867,6 +927,67 @@ export default function ProductsPage() {
                   )}
                 </div>
               ))}
+
+              {/* Product Discount Section */}
+              <div className={ui.span2} style={{ background: "#f8fafc", padding: "14px 16px", borderRadius: 12, border: "1px solid #e2e8f0", marginTop: 4 }}>
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 8, flexWrap: "wrap", gap: 6 }}>
+                  <label style={{ fontSize: 13, fontWeight: 700, color: "#1e293b", margin: 0 }}>
+                    🏷️ Product Discount (Optional)
+                  </label>
+                  {draft.discountType !== "none" && Number(draft.discountValue) > 0 && Number(draft.sellingPrice) > 0 && (
+                    <span style={{ fontSize: 12, fontWeight: 800, color: "#00875a" }}>
+                      Net Price: Rs{" "}
+                      {Math.max(
+                        0,
+                        draft.discountType === "percentage"
+                          ? Math.round(Number(draft.sellingPrice) * (1 - Number(draft.discountValue) / 100))
+                          : Number(draft.sellingPrice) - Number(draft.discountValue)
+                      ).toLocaleString()}{" "}
+                      <span style={{ color: "#64748b", fontWeight: 500, fontSize: 11 }}>
+                        ({draft.discountType === "percentage" ? `${draft.discountValue}% Off` : `Rs ${draft.discountValue} Off`})
+                      </span>
+                    </span>
+                  )}
+                </div>
+                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
+                  <div>
+                    <label style={{ fontSize: 11, fontWeight: 600, color: "#64748b", display: "block", marginBottom: 4 }}>Discount Type</label>
+                    <select
+                      className={ui.input}
+                      value={draft.discountType}
+                      onChange={(e) => setDraft({ ...draft, discountType: e.target.value as any })}
+                      style={{ height: 38 }}
+                    >
+                      <option value="none">No Discount</option>
+                      <option value="fixed">Fixed (Rs. Off)</option>
+                      <option value="percentage">Percentage (% Off)</option>
+                    </select>
+                  </div>
+                  <div>
+                    <label style={{ fontSize: 11, fontWeight: 600, color: "#64748b", display: "block", marginBottom: 4 }}>
+                      {draft.discountType === "percentage" ? "Percentage (%)" : "Amount (Rs.)"}
+                    </label>
+                    <input
+                      className={`${ui.input} ${fieldErrors.discountValue ? "border-red-500 bg-red-50/40" : ""}`}
+                      type="number"
+                      min="0"
+                      disabled={draft.discountType === "none"}
+                      placeholder={draft.discountType === "percentage" ? "e.g. 10" : "e.g. 50"}
+                      value={draft.discountValue}
+                      onChange={(e) => {
+                        setDraft({ ...draft, discountValue: e.target.value });
+                        if (fieldErrors.discountValue) setFieldErrors((prev) => ({ ...prev, discountValue: "" }));
+                      }}
+                      style={{ height: 38 }}
+                    />
+                    {fieldErrors.discountValue && (
+                      <span className="text-[11px] font-bold text-red-600 mt-1 block">
+                        {fieldErrors.discountValue}
+                      </span>
+                    )}
+                  </div>
+                </div>
+              </div>
             </div>
             <div className={ui.formActions}>
               <button type="button" className={ui.secondary} onClick={() => setEditing(undefined)}>

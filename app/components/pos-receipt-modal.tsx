@@ -10,6 +10,9 @@ export interface ReceiptItem {
   quantity: number;
   price: number;
   total: number;
+  discountAmount?: number;
+  discountType?: string;
+  discountValue?: number;
 }
 
 export interface DetailedSaleReceipt {
@@ -252,7 +255,12 @@ export function PosReceiptModal({
                     className="flex justify-between text-xs py-1 border-b border-slate-100 last:border-b-0"
                   >
                     <span className="w-1/2 font-bold text-slate-900 truncate pr-1">
-                      {item.name}
+                      <span>{item.name}</span>
+                      {item.discountAmount && item.discountAmount > 0 ? (
+                        <span className="block text-[10px] text-emerald-600 font-semibold">
+                          Disc: -₨{item.discountAmount.toLocaleString()}
+                        </span>
+                      ) : null}
                     </span>
                     <span className="w-1/6 text-center text-slate-600 font-medium">
                       {item.quantity}
