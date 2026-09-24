@@ -135,6 +135,11 @@ export const translations: TranslationDictionary = {
   "scanner.not_found": { en: "Product not found for scanned barcode", ur: "Is barcode ka koi samaan daryaft nahi hua" },
   "scanner.added_success": { en: "Added to bill successfully", ur: "Kamyabi se bill mein shamil kar diya gaya" },
 
+  // ================= BARCODE STICKER GENERATOR =================
+  "stickers.title": { en: "Barcode Sticker Generator", ur: "Barcode Sticker Generator" },
+  "stickers.print_btn": { en: "🏷️ Print Barcode Labels", ur: "🏷️ Barcode Stickers Print Karein" },
+  "stickers.print_selected": { en: "🏷️ Print Labels", ur: "🏷️ Stickers Print Karein" },
+
   // ================= CUSTOMERS & KHATA =================
   "customers.title": { en: "Customers & Khata", ur: "Grahak & Khata Register" },
   "customers.subtitle": { en: "Manage customer ledgers, credit balances, and collections.", ur: "Grahakon ka udhaar khata aur wasooli check karein." },

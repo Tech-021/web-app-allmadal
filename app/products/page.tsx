@@ -10,6 +10,7 @@ import { useDebounce } from "@/hooks/useDebounce";
 import { validateText, validateNumber } from "@/app/lib/validators";
 import { ProductCsvModal } from "@/app/components/product-csv-modal";
 import { CameraBarcodeScannerModal } from "@/app/components/camera-barcode-scanner-modal";
+import { BarcodeStickerModal } from "@/app/components/barcode-sticker-modal";
 import { useLanguage } from "@/app/components/language-context";
 import ui from "@/app/components/workspace-ui.module.css";
 
@@ -48,6 +49,8 @@ export default function ProductsPage() {
   const [showImportModal, setShowImportModal] = useState(false);
   const [scannerOpen, setScannerOpen] = useState(false);
   const [scannerTarget, setScannerTarget] = useState<"search" | "form">("search");
+  const [showStickerModal, setShowStickerModal] = useState(false);
+  const [stickerInitialIds, setStickerInitialIds] = useState<number[]>([]);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -447,6 +450,17 @@ export default function ProductsPage() {
           >
             {t("action.import_csv", "📤 Import CSV")}
           </button>
+          <button
+            className={ui.secondary}
+            onClick={() => {
+              setStickerInitialIds(selectedIds.length > 0 ? selectedIds : []);
+              setShowStickerModal(true);
+            }}
+            title="Generate and print barcode sticker labels"
+            style={{ fontWeight: 800 }}
+          >
+            {t("stickers.print_btn", "🏷️ Print Barcode Labels")}
+          </button>
           <button className={ui.primary} onClick={() => open()}>
             {t("action.add_product", "+ Add product")}
           </button>
@@ -554,6 +568,26 @@ export default function ProductsPage() {
               }}
             >
               Deselect All
+            </button>
+            <button
+              onClick={() => {
+                setStickerInitialIds(selectedIds);
+                setShowStickerModal(true);
+              }}
+              style={{
+                background: "#ffffff",
+                border: "none",
+                color: "#006b3f",
+                padding: "7px 16px",
+                borderRadius: 9999,
+                fontSize: 12,
+                fontWeight: 800,
+                cursor: "pointer",
+                boxShadow: "0 2px 10px rgba(0, 0, 0, 0.15)",
+                transition: "all 0.15s ease",
+              }}
+            >
+              🏷️ Print Labels ({selectedIds.length})
             </button>
             <button
               disabled={bulkDeleting}
@@ -668,6 +702,17 @@ export default function ProductsPage() {
                     </td>
                     <td>
                       <div className={ui.actions}>
+                        <button
+                          className={ui.secondary}
+                          onClick={() => {
+                            setStickerInitialIds([p.id]);
+                            setShowStickerModal(true);
+                          }}
+                          title="Print barcode stickers for this product"
+                          style={{ padding: "6px 10px" }}
+                        >
+                          🏷️
+                        </button>
                         <button className={ui.secondary} onClick={() => open(p)}>
                           Edit
                         </button>
@@ -854,6 +899,14 @@ export default function ProductsPage() {
             ? "Point camera at product barcode"
             : "Scan barcode to find product or add as new product"
         }
+      />
+
+      {/* Barcode Sticker Label Generator Modal (Section 9 & 22) */}
+      <BarcodeStickerModal
+        isOpen={showStickerModal}
+        onClose={() => setShowStickerModal(false)}
+        products={products}
+        initialSelectedIds={stickerInitialIds}
       />
     </WorkspaceShell>
   );
