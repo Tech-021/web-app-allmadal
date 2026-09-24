@@ -123,13 +123,13 @@ export const translations: TranslationDictionary = {
   "pos.change_return": { en: "Change to Return", ur: "Baqaya Wapsi" },
   "pos.complete_btn": { en: "Complete Sale (Bill Banayein)", ur: "Bill Mukammal Karein (Bill Banayein)" },
   "pos.select_payment": { en: "Select Payment Method", ur: "Adaigi Ka Tareeqa Chunein" },
-  "pos.scan_camera": { en: "📷 Camera Scanner", ur: "📷 Camera Scanner" },
+  "pos.scan_camera": { en: "Camera Scanner", ur: "Camera Scanner" },
   "pos.scan_camera_tip": { en: "Scan barcode with mobile camera or webcam", ur: "Mobile camera ya webcam se barcode scan karein" },
 
   // ================= CAMERA BARCODE SCANNER =================
   "scanner.title": { en: "Camera Barcode & QR Scanner", ur: "Camera Barcode & QR Scanner" },
   "scanner.subtitle": { en: "Point device camera at any retail product barcode or QR code.", ur: "Apne mobile ya webcam camera ko product barcode ya QR code ke samnay rakhein." },
-  "scanner.open": { en: "📷 Scan with Camera", ur: "📷 Camera Se Scan Karein" },
+  "scanner.open": { en: "Scan with Camera", ur: "Camera Se Scan Karein" },
   "scanner.continuous": { en: "Continuous POS Scan", ur: "Musalsal Scan (Tez POS)" },
   "scanner.flip_camera": { en: "Flip Camera", ur: "Camera Badlein" },
   "scanner.not_found": { en: "Product not found for scanned barcode", ur: "Is barcode ka koi samaan daryaft nahi hua" },
