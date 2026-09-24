@@ -7,6 +7,7 @@ import { useBusiness } from "@/app/components/business-context";
 import { logActivity } from "@/app/lib/logger";
 import { DetailedSaleReceipt, PosReceiptModal } from "@/app/components/pos-receipt-modal";
 import { formatCurrencyInput, parseCurrencyInput } from "@/app/lib/validators";
+import { useLanguage } from "@/app/components/language-context";
 
 interface PosCartItem {
   product: Product;
@@ -26,6 +27,7 @@ interface PosTerminalProps {
 export function PosTerminal({ onSaleCompleted }: PosTerminalProps) {
   const { showToast } = useToast();
   const { activeBusiness } = useBusiness();
+  const { t } = useLanguage();
 
   const [products, setProducts] = useState<Product[]>([]);
   const [customers, setCustomers] = useState<CustomerOption[]>([]);
@@ -319,7 +321,7 @@ export function PosTerminal({ onSaleCompleted }: PosTerminalProps) {
               <input
                 ref={searchInputRef}
                 type="text"
-                placeholder="Scan Barcode or Search by product name, SKU..."
+                placeholder={t("pos.scanner_input", "Scan Barcode or Search by product name, SKU...")}
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
                 onKeyDown={handleBarcodeKeyDown}
@@ -347,7 +349,7 @@ export function PosTerminal({ onSaleCompleted }: PosTerminalProps) {
                     : "bg-slate-100 hover:bg-slate-200 text-slate-600"
                 }`}
               >
-                All Items ({products.length})
+                {t("nav.all_products", "All Items")} ({products.length})
               </button>
               {categories.map((cat) => (
                 <button
@@ -436,7 +438,7 @@ export function PosTerminal({ onSaleCompleted }: PosTerminalProps) {
           <div className="flex items-center justify-between pb-3 border-b border-slate-100">
             <div>
               <h3 className="text-base font-black text-slate-900 tracking-tight flex items-center gap-2">
-                <span>🛒</span> Customer Bill
+                <span>🛒</span> {t("pos.cart", "Customer Bill")}
               </h3>
               <p className="text-[11px] font-medium text-slate-400">
                 {cart.length} unique {cart.length === 1 ? "item" : "items"}
@@ -448,7 +450,7 @@ export function PosTerminal({ onSaleCompleted }: PosTerminalProps) {
                 onClick={clearCart}
                 className="text-xs font-bold text-red-500 hover:text-red-700 hover:underline cursor-pointer"
               >
-                Clear Cart
+                {t("pos.clear_cart", "Clear Bill")}
               </button>
             )}
           </div>
@@ -615,7 +617,7 @@ export function PosTerminal({ onSaleCompleted }: PosTerminalProps) {
                     : "bg-slate-50 text-slate-600 border-slate-200"
                 }`}
               >
-                <span>💵</span> Cash
+                <span>💵</span> {t("term.cash", "Cash")}
               </button>
               <button
                 type="button"
@@ -626,7 +628,7 @@ export function PosTerminal({ onSaleCompleted }: PosTerminalProps) {
                     : "bg-slate-50 text-slate-600 border-slate-200"
                 }`}
               >
-                <span>🏦</span> Online / Bank
+                <span>🏦</span> {t("term.online", "Online / Bank")}
               </button>
             </div>
 
@@ -656,17 +658,17 @@ export function PosTerminal({ onSaleCompleted }: PosTerminalProps) {
           {/* Subtotal & Total Bill Breakdown */}
           <div className="p-3.5 rounded-2xl bg-slate-900 text-white space-y-1.5">
             <div className="flex justify-between text-xs text-slate-300">
-              <span>Subtotal</span>
+              <span>{t("term.subtotal", "Subtotal")}</span>
               <span>₨ {subtotal.toLocaleString()}</span>
             </div>
             {discountAmount > 0 && (
               <div className="flex justify-between text-xs text-emerald-400">
-                <span>Discount</span>
+                <span>{t("term.discount", "Discount")}</span>
                 <span>- ₨ {discountAmount.toLocaleString()}</span>
               </div>
             )}
             <div className="flex justify-between items-baseline pt-2 border-t border-slate-800">
-              <span className="text-xs font-extrabold text-slate-400 uppercase tracking-wider">Total</span>
+              <span className="text-xs font-extrabold text-slate-400 uppercase tracking-wider">{t("term.total", "Total")}</span>
               <span className="text-xl font-black text-emerald-400">
                 ₨ {grandTotal.toLocaleString()}
               </span>
@@ -684,7 +686,7 @@ export function PosTerminal({ onSaleCompleted }: PosTerminalProps) {
               <span>Completing Sale...</span>
             ) : (
               <>
-                <span>Complete Sale (Bill Banayein)</span>
+                <span>{t("pos.complete_btn", "Complete Sale (Bill Banayein)")}</span>
                 <span className="text-lg">➔</span>
               </>
             )}

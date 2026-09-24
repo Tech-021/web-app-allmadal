@@ -5,10 +5,12 @@ import { useRouter } from "next/navigation";
 import { FormEvent, useState } from "react";
 import { Field } from "./auth-shell";
 import { useAuth } from "@/hooks/useAuth";
+import { useLanguage } from "./language-context";
 
 export function LoginForm() {
   const router = useRouter();
   const { login } = useAuth();
+  const { t, language } = useLanguage();
   const [show, setShow] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
@@ -33,16 +35,27 @@ export function LoginForm() {
 
   return (
     <div className="w-full">
-      <h1 className="text-[2rem] font-extrabold tracking-[-.035em] text-[#111827]">Welcome back</h1>
-      <p className="mt-1.5 text-sm text-[#6b7280]">Apni Dukaan Ko Asaan Banayein. Enter credentials to continue.</p>
+      <h1 className="text-[2rem] font-extrabold tracking-[-.035em] text-[#111827]">
+        {t("auth.welcome_back", "Welcome back")}
+      </h1>
+      <p className="mt-1.5 text-sm text-[#6b7280]">
+        Apni Dukaan Ko Asaan Banayein. {language === "ur" ? "Credentials enter karein." : "Enter credentials to continue."}
+      </p>
 
       <form className="mt-7 space-y-4.5" onSubmit={submit}>
-        <Field label="Email address" name="email" type="email" placeholder="you@almadel.com" autoComplete="email" required />
         <Field
-          label="Password"
+          label={t("auth.email", "Email address")}
+          name="email"
+          type="email"
+          placeholder="you@almadel.com"
+          autoComplete="email"
+          required
+        />
+        <Field
+          label={t("auth.password", "Password")}
           name="password"
           type={show ? "text" : "password"}
-          placeholder="Enter your password"
+          placeholder={language === "ur" ? "Apna password darj karein" : "Enter your password"}
           autoComplete="current-password"
           minLength={8}
           required
@@ -53,17 +66,18 @@ export function LoginForm() {
               onClick={() => setShow(!show)}
               aria-label={show ? "Hide password" : "Show password"}
             >
-              {show ? "Hide" : "Show"}
+              {show ? (language === "ur" ? "Chupayein" : "Hide") : (language === "ur" ? "Dikhayein" : "Show")}
             </button>
           }
         />
 
         <div className="flex items-center justify-between text-xs">
           <label className="flex items-center gap-2 font-medium text-[#4b5563] cursor-pointer">
-            <input className="accent-[#00875A] rounded" type="checkbox" /> Remember me
+            <input className="accent-[#00875A] rounded" type="checkbox" />
+            {t("auth.remember_me", "Remember me")}
           </label>
           <Link className="font-bold text-[#00875A] transition hover:underline" href="/forgot-password">
-            Forgot Password?
+            {t("auth.forgot_password", "Forgot Password?")}
           </Link>
         </div>
 
@@ -77,7 +91,7 @@ export function LoginForm() {
           disabled={busy}
           className="h-12.5 w-full rounded-full bg-[#00875A] font-extrabold text-white shadow-[0_8px_20px_rgba(0,135,90,.22)] transition-all duration-200 hover:bg-[#006b3f] hover:shadow-[0_10px_24px_rgba(0,135,90,.3)] active:scale-[0.99] disabled:cursor-not-allowed disabled:opacity-60 text-sm tracking-wide cursor-pointer"
         >
-          {busy ? "Signing in…" : "Login Karein"}
+          {busy ? t("auth.signing_in", "Signing in…") : t("auth.login", "Login Karein")}
         </button>
       </form>
 

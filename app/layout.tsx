@@ -6,6 +6,8 @@ import { ToastProvider } from "@/app/components/toast-context";
 import { BusinessProvider } from "@/app/components/business-context";
 import { RealtimeProvider } from "@/app/components/realtime-provider";
 
+import { LanguageProvider } from "@/app/components/language-context";
+
 const plusJakartaSans = Plus_Jakarta_Sans({
   subsets: ["latin"],
   weight: ["400", "500", "600", "700", "800"],
@@ -44,13 +46,15 @@ export default function RootLayout({
       className={`h-full antialiased ${plusJakartaSans.variable}`}
     >
       <body suppressHydrationWarning className={`min-h-full flex flex-col ${plusJakartaSans.className}`}>
-        <AuthProvider>
-          <RealtimeProvider>
-            <ToastProvider>
-              <BusinessProvider>{children}</BusinessProvider>
-            </ToastProvider>
-          </RealtimeProvider>
-        </AuthProvider>
+        <LanguageProvider>
+          <AuthProvider>
+            <RealtimeProvider>
+              <ToastProvider>
+                <BusinessProvider>{children}</BusinessProvider>
+              </ToastProvider>
+            </RealtimeProvider>
+          </AuthProvider>
+        </LanguageProvider>
       </body>
     </html>
   );

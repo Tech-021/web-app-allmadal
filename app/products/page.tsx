@@ -9,6 +9,7 @@ import { logActivity } from "@/app/lib/logger";
 import { useDebounce } from "@/hooks/useDebounce";
 import { validateText, validateNumber } from "@/app/lib/validators";
 import { ProductCsvModal } from "@/app/components/product-csv-modal";
+import { useLanguage } from "@/app/components/language-context";
 import ui from "@/app/components/workspace-ui.module.css";
 
 type Draft = {
@@ -28,6 +29,7 @@ const money = (n: number) => `Rs ${Number(n).toLocaleString()}`;
 export default function ProductsPage() {
   const { showToast, confirmDialog } = useToast();
   const { activeBusiness } = useBusiness();
+  const { t } = useLanguage();
   const [products, setProducts] = useState<Product[]>([]);
   const [query, setQuery] = useState("");
   const debouncedQuery = useDebounce(query, 250);
@@ -373,8 +375,8 @@ export default function ProductsPage() {
     <WorkspaceShell>
       <div className={ui.head}>
         <div>
-          <label>Inventory</label>
-          <h1>Products</h1>
+          <label>{t("nav.stock", "Inventory")}</label>
+          <h1>{t("nav.products", "Products")}</h1>
           <p>Manage product details, pricing, barcodes, and stock status.</p>
         </div>
         <div style={{ display: "flex", gap: 10, alignItems: "center" }}>
@@ -401,7 +403,7 @@ export default function ProductsPage() {
             title="Export products to CSV spreadsheet"
             style={{ fontWeight: 800 }}
           >
-            📥 Export CSV
+            {t("action.export_csv", "📥 Export CSV")}
           </button>
           <button
             className={ui.secondary}
@@ -409,10 +411,10 @@ export default function ProductsPage() {
             title="Bulk import products from CSV spreadsheet"
             style={{ fontWeight: 800 }}
           >
-            📤 Import CSV
+            {t("action.import_csv", "📤 Import CSV")}
           </button>
           <button className={ui.primary} onClick={() => open()}>
-            + Add product
+            {t("action.add_product", "+ Add product")}
           </button>
         </div>
       </div>
@@ -423,12 +425,12 @@ export default function ProductsPage() {
       <div className={ui.toolbar}>
         <input
           className={`${ui.input} ${ui.search}`}
-          placeholder="Search name, barcode, SKU, or category..."
+          placeholder={t("action.search", "Search name, barcode, SKU, or category...")}
           value={query}
           onChange={(e) => setQuery(e.target.value)}
         />
         <button className={ui.secondary} onClick={() => void load()}>
-          Refresh
+          {t("action.refresh", "Refresh")}
         </button>
       </div>
 

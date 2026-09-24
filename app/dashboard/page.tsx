@@ -8,6 +8,7 @@ import { ReceiptModal, ReceiptSale } from "@/app/components/receipt-modal";
 import { api } from "@/app/lib/api";
 import { useBusiness } from "@/app/components/business-context";
 import { useToast } from "@/app/components/toast-context";
+import { useLanguage } from "@/app/components/language-context";
 import styles from "./dashboard.module.css";
 
 type Sale = { id: number | string; total_amount?: number; total_items?: number; created_at?: string };
@@ -53,6 +54,7 @@ function MetricCard({ icon, label, tone, value }: { icon: Parameters<typeof Icon
 }
 
 function SalesChart({ sales }: { sales: Sale[] }) {
+  const { t } = useLanguage();
   const series = useMemo(() => Array.from({ length: 7 }, (_, index) => {
     const date = new Date(); date.setHours(0, 0, 0, 0); date.setDate(date.getDate() - (6 - index));
     const total = sales.reduce((sum, sale) => {
@@ -66,7 +68,13 @@ function SalesChart({ sales }: { sales: Sale[] }) {
   const points = series.map((day, i) => `${8 + i * 15.33},${82 - (day.total / max) * 62}`).join(" ");
   const area = `8,82 ${points} 100,82`;
   return <section className={styles.panel}>
-    <div className={styles.panelHeading}><div><h2>Sales overview</h2><p>Last 7 days</p></div><span>Weekly</span></div>
+    <div className={styles.panelHeading}>
+      <div>
+        <h2>{t("dashboard.sales_overview", "Sales overview")}</h2>
+        <p>{t("dashboard.last_7_days", "Last 7 days")}</p>
+      </div>
+      <span>{t("dashboard.weekly", "Weekly")}</span>
+    </div>
     <div className={styles.chartWrap}>
       <svg className={styles.chart} viewBox="0 0 108 90" preserveAspectRatio="none" role="img" aria-label="Sales over the last seven days">
         <defs><linearGradient id="salesFill" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stopColor="#0f766e" stopOpacity=".22" /><stop offset="1" stopColor="#0f766e" stopOpacity="0" /></linearGradient></defs>
@@ -82,6 +90,7 @@ function SalesChart({ sales }: { sales: Sale[] }) {
 function DashboardContent() {
   const { user, isLoading } = useAuth();
   const { activeBusiness, workspaceMode, setWorkspaceMode } = useBusiness();
+  const { t, language } = useLanguage();
   const router = useRouter();
   const searchParams = useSearchParams();
   const paymentSuccess = searchParams.get("payment") === "success";
@@ -195,22 +204,24 @@ function DashboardContent() {
       <div className={styles.topbar}>
         <div>
           <div className="flex items-center gap-2 mb-1">
-            <span className={styles.eyebrow}>{user.role}</span>
+            <span className={styles.eyebrow}>
+              {user.role === "admin" ? t("role.owner", "Store Owner") : user.role === "accountant" ? t("role.accountant", "Accountant") : t("role.staff", "Staff Member")}
+            </span>
             <span className="px-2 py-0.5 rounded-md text-[10px] font-extrabold uppercase tracking-wide bg-slate-100 text-slate-700">
-              {workspaceMode === "financial" ? "📊 Financial Workspace" : "🛒 POS Workspace"}
+              {workspaceMode === "financial" ? `📊 ${t("nav.dashboard", "Financial Workspace")}` : `🛒 ${t("nav.sales", "POS Workspace")}`}
             </span>
           </div>
-          <h1>Hello, {user.name}</h1>
+          <h1>{t("auth.welcome_back", "Hello")}, {user.name}</h1>
           <p>
             {workspaceMode === "financial"
-              ? "Comprehensive financial standing, accounts, receivables, and inventory valuation."
+              ? (language === "ur" ? "Dukaan ka mukammal hisab kitab, rokarr, grahak udhaar aur stock valuation." : "Comprehensive financial standing, accounts, receivables, and inventory valuation.")
               : user.role === "admin"
-              ? "Sales, stock value, products, and low stock signals in one place."
-              : "Your private sales performance for this account."}
+              ? (language === "ur" ? "Bikri, samaan ki qeemat aur kam stock ki ittilayein ek jagah." : "Sales, stock value, products, and low stock signals in one place.")
+              : (language === "ur" ? "Aapke account ki zati bikri ki karkardagi." : "Your private sales performance for this account.")}
           </p>
         </div>
         <button className={styles.refresh} disabled={loading} onClick={() => void fetchDashboard()}>
-          <Icon name="refresh" />{loading ? "Refreshing…" : "Refresh"}
+          <Icon name="refresh" />{loading ? t("action.refresh", "Refreshing…") : t("action.refresh", "Refresh")}
         </button>
       </div>
 
@@ -220,42 +231,42 @@ function DashboardContent() {
       {user.role === "admin" && workspaceMode === "financial" ? (
         <section className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3 mb-6">
           <article className="p-4 rounded-2xl bg-white border border-slate-200/80 shadow-xs space-y-1">
-            <span className="text-[11px] font-bold text-slate-500 uppercase tracking-wide">Cash in Hand</span>
+            <span className="text-[11px] font-bold text-slate-500 uppercase tracking-wide">{t("dashboard.cash_in_hand", "Cash in Hand")}</span>
             <p className="text-base font-black text-emerald-800">₨ {cashInHand.toLocaleString()}</p>
           </article>
           <article className="p-4 rounded-2xl bg-white border border-slate-200/80 shadow-xs space-y-1">
-            <span className="text-[11px] font-bold text-slate-500 uppercase tracking-wide">Bank Accounts</span>
+            <span className="text-[11px] font-bold text-slate-500 uppercase tracking-wide">{t("nav.accounts", "Bank Accounts")}</span>
             <p className="text-base font-black text-blue-700">₨ {bankBalance.toLocaleString()}</p>
           </article>
           <article className="p-4 rounded-2xl bg-white border border-slate-200/80 shadow-xs space-y-1">
-            <span className="text-[11px] font-bold text-slate-500 uppercase tracking-wide">Customer Khata</span>
+            <span className="text-[11px] font-bold text-slate-500 uppercase tracking-wide">{t("dashboard.customer_receivable", "Customer Khata")}</span>
             <p className="text-base font-black text-teal-700">₨ {customerReceivable.toLocaleString()}</p>
           </article>
           <article className="p-4 rounded-2xl bg-white border border-slate-200/80 shadow-xs space-y-1">
-            <span className="text-[11px] font-bold text-slate-500 uppercase tracking-wide">Supplier Payables</span>
+            <span className="text-[11px] font-bold text-slate-500 uppercase tracking-wide">{t("dashboard.supplier_payable", "Supplier Payables")}</span>
             <p className="text-base font-black text-amber-700">₨ {supplierPayable.toLocaleString()}</p>
           </article>
           <article className="p-4 rounded-2xl bg-white border border-slate-200/80 shadow-xs space-y-1">
-            <span className="text-[11px] font-bold text-slate-500 uppercase tracking-wide">Stock Value</span>
+            <span className="text-[11px] font-bold text-slate-500 uppercase tracking-wide">{t("nav.stock", "Stock Value")}</span>
             <p className="text-base font-black text-slate-900">{money(stockValue)}</p>
           </article>
           <article className="p-4 rounded-2xl bg-white border border-slate-200/80 shadow-xs space-y-1">
-            <span className="text-[11px] font-bold text-slate-500 uppercase tracking-wide">Recorded Sales</span>
+            <span className="text-[11px] font-bold text-slate-500 uppercase tracking-wide">{t("dashboard.total_sales", "Recorded Sales")}</span>
             <p className="text-base font-black text-[#00875a]">{money(totalSales)}</p>
           </article>
         </section>
       ) : (
         <section className={styles.metricGrid} aria-label="Dashboard metrics">
           {user.role === "admin" ? <>
-            <MetricCard icon="cash" label="Total sales" tone="green" value={money(totalSales)} />
-            <MetricCard icon="people" label="Staff" tone="blue" value={String(data.staffCount ?? 0)} />
-            <MetricCard icon="cube" label="My products" tone="teal" value={String(breakdown.myProducts ?? 0)} />
-            <MetricCard icon="warning" label="Low stock" tone="red" value={String(lowStock)} />
+            <MetricCard icon="cash" label={t("dashboard.total_sales", "Total sales")} tone="green" value={money(totalSales)} />
+            <MetricCard icon="people" label={t("nav.staff", "Staff")} tone="blue" value={String(data.staffCount ?? 0)} />
+            <MetricCard icon="cube" label={t("nav.products", "My products")} tone="teal" value={String(breakdown.myProducts ?? 0)} />
+            <MetricCard icon="warning" label={t("dashboard.low_stock", "Low stock")} tone="red" value={String(lowStock)} />
           </> : <>
-            <MetricCard icon="cash" label="My sales" tone="green" value={money(totalSales)} />
-            <MetricCard icon="receipt" label="My orders" tone="blue" value={String(sales.length)} />
-            <MetricCard icon="cube" label="Items sold" tone="teal" value={String(totalItems)} />
-            <MetricCard icon="trend" label="Average sale" tone="green" value={money(sales.length ? totalSales / sales.length : 0)} />
+            <MetricCard icon="cash" label={t("dashboard.total_sales", "My sales")} tone="green" value={money(totalSales)} />
+            <MetricCard icon="receipt" label={t("dashboard.total_orders", "My orders")} tone="blue" value={String(sales.length)} />
+            <MetricCard icon="cube" label={t("term.quantity", "Items sold")} tone="teal" value={String(totalItems)} />
+            <MetricCard icon="trend" label={t("dashboard.sales_overview", "Average sale")} tone="green" value={money(sales.length ? totalSales / sales.length : 0)} />
           </>}
         </section>
       )}
@@ -265,18 +276,18 @@ function DashboardContent() {
           {user.role === "admin" ? (
             <section className={styles.valuePanel}>
               <div>
-                <span>Inventory value</span>
+                <span>{t("nav.stock", "Inventory value")}</span>
                 <strong>{money(stockValue)}</strong>
-                <p>{totalItems} items sold from recorded sales. {breakdown.unassignedProducts ?? 0} older products have no owner yet.</p>
+                <p>{totalItems} {language === "ur" ? "ashya bik chuki hain." : "items sold from recorded sales."}</p>
               </div>
               <span className={styles.valueIcon}><Icon name="cube" /></span>
             </section>
           ) : (
             <section className={styles.valuePanel}>
               <div>
-                <span>Overall performance</span>
+                <span>{t("dashboard.sales_overview", "Overall performance")}</span>
                 <strong>{money(totalSales)}</strong>
-                <p>Total sales completed from your own account.</p>
+                <p>{language === "ur" ? "Aapke zati account se mukammal bikri." : "Total sales completed from your own account."}</p>
               </div>
               <span className={styles.valueIcon}><Icon name="trend" /></span>
             </section>
@@ -287,15 +298,15 @@ function DashboardContent() {
         <section className={`${styles.panel} ${styles.recent}`}>
           <div className={styles.panelHeading}>
             <div>
-              <h2>{user.role === "admin" ? "Recent sales" : "My recent sales"}</h2>
-              <p>Latest activity</p>
+              <h2>{t("dashboard.recent_sales", user.role === "admin" ? "Recent sales" : "My recent sales")}</h2>
+              <p>{t("dashboard.last_7_days", "Latest activity")}</p>
             </div>
           </div>
           <div className={styles.saleList}>
             {sales.length === 0 ? (
               <div className={styles.empty}>
                 <Icon name="receipt" />
-                <p>No sales recorded yet.</p>
+                <p>{t("dashboard.no_sales", "No sales recorded yet.")}</p>
               </div>
             ) : (
               sales.slice(0, 6).map((sale) => (

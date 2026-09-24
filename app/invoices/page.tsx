@@ -7,6 +7,7 @@ import { useToast } from "@/app/components/toast-context";
 import { useBusiness } from "@/app/components/business-context";
 import { DetailedSaleReceipt, PosReceiptModal } from "@/app/components/pos-receipt-modal";
 import { useDebounce } from "@/hooks/useDebounce";
+import { useLanguage } from "@/app/components/language-context";
 import ui from "@/app/components/workspace-ui.module.css";
 
 interface InvoiceRecord {
@@ -26,6 +27,7 @@ const money = (v: number = 0) => `Rs ${Math.round(v).toLocaleString()}`;
 export default function InvoicesPage() {
   const { showToast } = useToast();
   const { activeBusiness } = useBusiness();
+  const { t, language } = useLanguage();
   const [rows, setRows] = useState<InvoiceRecord[]>([]);
   const [loading, setLoading] = useState(true);
   const [query, setQuery] = useState("");
@@ -81,23 +83,24 @@ export default function InvoicesPage() {
     <WorkspaceShell>
       <div className={ui.head}>
         <div>
-          <label>Sales &amp; Receipts</label>
-          <h1>Invoices / Receipts</h1>
+          <label>{language === "ur" ? "Bikri o Raseedein" : "Sales & Receipts"}</label>
+          <h1>{t("invoices.title")}</h1>
           <p>
-            Generated customer sales receipts and invoice records for{" "}
-            <strong>{activeBusiness?.name || "Active Store"}</strong>.
+            {language === "ur"
+              ? "Tamam pichli bikri ki raseedein, print aur mukammal customer records."
+              : `Generated customer sales receipts and invoice records for ${activeBusiness?.name || "Active Store"}.`}
           </p>
         </div>
 
         <button className={ui.secondary} onClick={() => void loadInvoices()}>
-          🔄 Refresh
+          🔄 {t("action.refresh")}
         </button>
       </div>
 
       <div className={ui.toolbar}>
         <input
           className={`${ui.input} ${ui.search}`}
-          placeholder="Search by invoice number or customer name..."
+          placeholder={t("invoices.search_placeholder")}
           value={query}
           onChange={(e) => setQuery(e.target.value)}
         />
@@ -108,12 +111,12 @@ export default function InvoicesPage() {
           <table className={ui.table}>
             <thead>
               <tr>
-                <th>Invoice #</th>
-                <th>Date &amp; Time</th>
-                <th>Customer</th>
-                <th>Total Amount</th>
-                <th>Payment Mode</th>
-                <th>Action</th>
+                <th>{t("table.invoice_number")}</th>
+                <th>{t("table.date")}</th>
+                <th>{t("table.customer")}</th>
+                <th>{t("table.total_amount")}</th>
+                <th>{t("table.payment_mode")}</th>
+                <th>{t("table.actions")}</th>
               </tr>
             </thead>
             <tbody>
@@ -131,7 +134,7 @@ export default function InvoicesPage() {
               ) : filteredRows.length === 0 ? (
                 <tr>
                   <td colSpan={6} className={ui.empty}>
-                    No invoices found.
+                    {t("table.no_records")}
                   </td>
                 </tr>
               ) : (
@@ -176,7 +179,7 @@ export default function InvoicesPage() {
                             openReceipt(r);
                           }}
                         >
-                          📄 View
+                          {t("table.view")}
                         </button>
                       </td>
                     </tr>

@@ -9,63 +9,68 @@ import { TrialExpiredModal } from "@/app/components/trial-expired-modal";
 import styles from "./workspace-shell.module.css";
 import { logActivity } from "@/app/lib/logger";
 import { resolveImageUrl } from "@/app/lib/api";
+import { useLanguage } from "./language-context";
+import { LanguageSwitcher } from "./language-switcher";
 
 type NavLink = {
   href: string;
   label: string;
+  key: string;
   icon: string;
   allowedRoles: Array<"admin" | "staff" | "accountant">;
-  subItems?: Array<{ href: string; label: string; allowedRoles?: Array<"admin" | "staff" | "accountant"> }>;
+  subItems?: Array<{ href: string; label: string; key?: string; allowedRoles?: Array<"admin" | "staff" | "accountant"> }>;
 };
 
 const posLinks: NavLink[] = [
-  { href: "/dashboard", label: "Dashboard", icon: "📊", allowedRoles: ["admin", "staff", "accountant"] },
-  { href: "/sales", label: "Sales", icon: "🛒", allowedRoles: ["admin", "staff"] },
+  { href: "/dashboard", label: "Dashboard", key: "nav.dashboard", icon: "📊", allowedRoles: ["admin", "staff", "accountant"] },
+  { href: "/sales", label: "Sales", key: "nav.sales", icon: "🛒", allowedRoles: ["admin", "staff"] },
   {
     href: "/products",
     label: "Products",
+    key: "nav.products",
     icon: "📦",
     allowedRoles: ["admin", "staff"],
     subItems: [
-      { href: "/products", label: "All Products" },
-      { href: "/categories", label: "Categories" },
+      { href: "/products", label: "All Products", key: "nav.all_products" },
+      { href: "/categories", label: "Categories", key: "nav.categories" },
     ],
   },
-  { href: "/stock", label: "Stock", icon: "📥", allowedRoles: ["admin"] },
-  { href: "/accounts", label: "Cash / Accounts", icon: "💵", allowedRoles: ["admin", "accountant"] },
-  { href: "/reports", label: "Reports & Balance Sheet", icon: "📈", allowedRoles: ["admin", "accountant"] },
-  { href: "/expenses", label: "Expenses", icon: "💸", allowedRoles: ["admin", "accountant"] },
-  { href: "/payments", label: "Payments / Billing", icon: "💳", allowedRoles: ["admin", "accountant"] },
-  { href: "/staff", label: "Staff & Permissions", icon: "👥", allowedRoles: ["admin"] },
-  { href: "/logs", label: "Activity Logs", icon: "📋", allowedRoles: ["admin"] },
+  { href: "/stock", label: "Stock", key: "nav.stock", icon: "📥", allowedRoles: ["admin"] },
+  { href: "/accounts", label: "Cash / Accounts", key: "nav.accounts", icon: "💵", allowedRoles: ["admin", "accountant"] },
+  { href: "/reports", label: "Reports & Balance Sheet", key: "nav.reports", icon: "📈", allowedRoles: ["admin", "accountant"] },
+  { href: "/expenses", label: "Expenses", key: "nav.expenses", icon: "💸", allowedRoles: ["admin", "accountant"] },
+  { href: "/payments", label: "Payments / Billing", key: "nav.payments", icon: "💳", allowedRoles: ["admin", "accountant"] },
+  { href: "/staff", label: "Staff & Permissions", key: "nav.staff", icon: "👥", allowedRoles: ["admin"] },
+  { href: "/logs", label: "Activity Logs", key: "nav.logs", icon: "📋", allowedRoles: ["admin"] },
 ];
 
 const financialLinks: NavLink[] = [
-  { href: "/dashboard", label: "Dashboard", icon: "📊", allowedRoles: ["admin", "staff", "accountant"] },
-  { href: "/sales", label: "Sales", icon: "🛒", allowedRoles: ["admin", "staff"] },
+  { href: "/dashboard", label: "Dashboard", key: "nav.dashboard", icon: "📊", allowedRoles: ["admin", "staff", "accountant"] },
+  { href: "/sales", label: "Sales", key: "nav.sales", icon: "🛒", allowedRoles: ["admin", "staff"] },
   {
     href: "/products",
     label: "Products / Inventory",
+    key: "nav.products_inventory",
     icon: "📦",
     allowedRoles: ["admin", "staff"],
     subItems: [
-      { href: "/products", label: "All Products" },
-      { href: "/categories", label: "Categories" },
-      { href: "/stock", label: "Stock Levels", allowedRoles: ["admin"] },
+      { href: "/products", label: "All Products", key: "nav.all_products" },
+      { href: "/categories", label: "Categories", key: "nav.categories" },
+      { href: "/stock", label: "Stock Levels", key: "nav.stock_levels", allowedRoles: ["admin"] },
     ],
   },
-  { href: "/accounts", label: "Cash / Accounts", icon: "💵", allowedRoles: ["admin", "accountant"] },
-  { href: "/customers", label: "Customers / Khata", icon: "👥", allowedRoles: ["admin", "accountant"] },
-  { href: "/suppliers", label: "Suppliers", icon: "🏢", allowedRoles: ["admin", "accountant"] },
-  { href: "/expenses", label: "Expenses", icon: "💸", allowedRoles: ["admin", "accountant"] },
-  { href: "/imei", label: "IMEI Management", icon: "📱", allowedRoles: ["admin"] },
-  { href: "/payments", label: "Payments / Billing", icon: "💳", allowedRoles: ["admin", "accountant"] },
-  { href: "/invoices", label: "Invoices / Receipts", icon: "🧾", allowedRoles: ["admin", "accountant"] },
-  { href: "/daily-closing", label: "Daily Closing", icon: "🔒", allowedRoles: ["admin", "accountant"] },
-  { href: "/reports", label: "Reports & Balance Sheet", icon: "📈", allowedRoles: ["admin", "accountant"] },
-  { href: "/staff", label: "Staff & Permissions", icon: "👤", allowedRoles: ["admin"] },
-  { href: "/logs", label: "Activity Logs", icon: "📋", allowedRoles: ["admin"] },
-  { href: "/settings", label: "Settings", icon: "⚙️", allowedRoles: ["admin"] },
+  { href: "/accounts", label: "Cash / Accounts", key: "nav.accounts", icon: "💵", allowedRoles: ["admin", "accountant"] },
+  { href: "/customers", label: "Customers / Khata", key: "nav.customers", icon: "👥", allowedRoles: ["admin", "accountant"] },
+  { href: "/suppliers", label: "Suppliers", key: "nav.suppliers", icon: "🏢", allowedRoles: ["admin", "accountant"] },
+  { href: "/expenses", label: "Expenses", key: "nav.expenses", icon: "💸", allowedRoles: ["admin", "accountant"] },
+  { href: "/imei", label: "IMEI Management", key: "nav.imei", icon: "📱", allowedRoles: ["admin"] },
+  { href: "/payments", label: "Payments / Billing", key: "nav.payments", icon: "💳", allowedRoles: ["admin", "accountant"] },
+  { href: "/invoices", label: "Invoices / Receipts", key: "nav.invoices", icon: "🧾", allowedRoles: ["admin", "accountant"] },
+  { href: "/daily-closing", label: "Daily Closing", key: "nav.daily_closing", icon: "🔒", allowedRoles: ["admin", "accountant"] },
+  { href: "/reports", label: "Reports & Balance Sheet", key: "nav.reports", icon: "📈", allowedRoles: ["admin", "accountant"] },
+  { href: "/staff", label: "Staff & Permissions", key: "nav.staff", icon: "👤", allowedRoles: ["admin"] },
+  { href: "/logs", label: "Activity Logs", key: "nav.logs", icon: "📋", allowedRoles: ["admin"] },
+  { href: "/settings", label: "Settings", key: "nav.settings", icon: "⚙️", allowedRoles: ["admin"] },
 ];
 
 function ShoppingBagIcon() {
@@ -93,6 +98,7 @@ function StoreIcon() {
 export function WorkspaceShell({ children }: { children: React.ReactNode }) {
   const { user, isLoading: authLoading, logout } = useAuth();
   const { activeBusiness, businesses, switchBusiness, workspaceMode } = useBusiness();
+  const { language, t } = useLanguage();
   const router = useRouter();
   const pathname = usePathname();
 
@@ -103,16 +109,22 @@ export function WorkspaceShell({ children }: { children: React.ReactNode }) {
 
   const allLinks = workspaceMode === "pos" ? posLinks : financialLinks;
   
-  // Filter links by user role
+  // Filter links by user role and translate labels dynamically
   const accessibleLinks = useMemo(() => {
     if (!user) return [];
     return allLinks
       .filter((x) => x.allowedRoles.includes(user.role))
       .map((x) => ({
         ...x,
-        subItems: x.subItems?.filter((s) => !s.allowedRoles || s.allowedRoles.includes(user.role)),
+        label: t(x.key, x.label),
+        subItems: x.subItems
+          ?.filter((s) => !s.allowedRoles || s.allowedRoles.includes(user.role))
+          .map((s) => ({
+            ...s,
+            label: s.key ? t(s.key, s.label) : s.label,
+          })),
       }));
-  }, [allLinks, user]);
+  }, [allLinks, user, language, t]);
 
   // Primary mobile navigation bar links (max 3-4 items)
   const mobilePrimaryLinks = useMemo(() => {
@@ -233,7 +245,7 @@ export function WorkspaceShell({ children }: { children: React.ReactNode }) {
           <span><ShoppingBagIcon /></span>
           <div>
             <strong>Almadel</strong>
-            <small>Store Management</small>
+            <small>{t("shell.store_management", "Store Management")}</small>
           </div>
         </Link>
 
@@ -407,13 +419,32 @@ export function WorkspaceShell({ children }: { children: React.ReactNode }) {
           })}
         </nav>
 
+        {/* Language Switcher in Sidebar */}
+        <div className="mx-2 mt-auto mb-2 p-2 rounded-2xl bg-white border border-gray-200/80 flex items-center justify-between text-xs shadow-2xs">
+          <span className="text-[11px] font-bold text-gray-500">Language</span>
+          <LanguageSwitcher variant="pill" />
+        </div>
+
         <div className={styles.user}>
           <b>{user.name[0]?.toUpperCase()}</b>
           <span>
             <strong>{user.name}</strong>
-            <small>{user.role === "admin" ? "Store Owner" : user.role === "accountant" ? "Accountant" : "Staff Member"}</small>
+            <small>
+              {user.role === "admin"
+                ? t("role.owner", "Store Owner")
+                : user.role === "accountant"
+                ? t("role.accountant", "Accountant")
+                : t("role.staff", "Staff Member")}
+            </small>
           </span>
-          <button aria-label="Sign out" onClick={async () => { await logout(); router.push("/login"); }}>
+          <button
+            aria-label={t("shell.sign_out", "Sign out")}
+            title={t("shell.sign_out", "Sign out")}
+            onClick={async () => {
+              await logout();
+              router.push("/login");
+            }}
+          >
             ⏻
           </button>
         </div>
@@ -425,9 +456,12 @@ export function WorkspaceShell({ children }: { children: React.ReactNode }) {
           <span><ShoppingBagIcon /></span>
           <strong>{activeBusiness?.name || "Almadel"}</strong>
         </Link>
-        <button onClick={async () => { await logout(); router.push("/login"); }}>
-          Sign out
-        </button>
+        <div className="flex items-center gap-2">
+          <LanguageSwitcher variant="compact" />
+          <button onClick={async () => { await logout(); router.push("/login"); }}>
+            {t("shell.sign_out", "Sign out")}
+          </button>
+        </div>
       </header>
 
       {/* Main Page Content */}
@@ -465,7 +499,7 @@ export function WorkspaceShell({ children }: { children: React.ReactNode }) {
             aria-label="Open full workspace navigation menu"
           >
             <i>☰</i>
-            <span>More</span>
+            <span>{t("shell.more", "More")}</span>
           </button>
         )}
       </nav>
@@ -528,7 +562,7 @@ export function WorkspaceShell({ children }: { children: React.ReactNode }) {
                 }}
                 className="font-bold text-red-600 hover:underline"
               >
-                Sign out
+                {t("shell.sign_out", "Sign out")}
               </button>
             </div>
           </div>

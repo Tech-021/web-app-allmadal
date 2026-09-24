@@ -3,6 +3,7 @@
 import React, { useRef } from "react";
 import { useBusiness } from "@/app/components/business-context";
 import { resolveImageUrl } from "@/app/lib/api";
+import { useLanguage } from "@/app/components/language-context";
 
 export interface ReceiptItem {
   name: string;
@@ -47,6 +48,7 @@ export function PosReceiptModal({
   onNewSale,
 }: PosReceiptModalProps) {
   const { activeBusiness } = useBusiness();
+  const { t, language } = useLanguage();
   const receiptRef = useRef<HTMLDivElement>(null);
 
   const activeReceipt = receipt || sale;
@@ -200,7 +202,7 @@ export function PosReceiptModal({
                   ✓
                 </span>
                 <span className="text-xs font-black tracking-wider uppercase">
-                  Payment Status: PAID
+                  {language === "ur" ? "Adaigi: ADA SHUDA" : "Payment Status: PAID"}
                 </span>
               </div>
               <span className="text-[11px] font-bold text-emerald-700 uppercase">
@@ -237,10 +239,10 @@ export function PosReceiptModal({
             {/* Itemized Products Table */}
             <div className="space-y-1.5 text-xs">
               <div className="flex justify-between font-extrabold text-slate-500 text-[10px] border-b border-slate-200 pb-1 uppercase tracking-wider">
-                <span className="w-1/2">Item</span>
-                <span className="w-1/6 text-center">Qty</span>
-                <span className="w-1/6 text-right">Rate</span>
-                <span className="w-1/6 text-right">Total</span>
+                <span className="w-1/2">{t("nav.products", "Item")}</span>
+                <span className="w-1/6 text-center">{t("term.quantity", "Qty")}</span>
+                <span className="w-1/6 text-right">{t("term.price", "Rate")}</span>
+                <span className="w-1/6 text-right">{t("term.total", "Total")}</span>
               </div>
 
               <div className="space-y-1.5 max-h-56 overflow-y-auto print:max-h-none">
@@ -373,7 +375,7 @@ export function PosReceiptModal({
                   d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z"
                 />
               </svg>
-              <span>Print Receipt / Invoice</span>
+              <span>{t("action.print_receipt", "Print Receipt / Invoice")}</span>
             </button>
 
             <div className="flex gap-2">
@@ -386,7 +388,7 @@ export function PosReceiptModal({
                   }}
                   className="flex-1 py-2.5 px-3 rounded-xl bg-emerald-50 hover:bg-emerald-100 text-[#00875a] font-bold text-xs transition cursor-pointer"
                 >
-                  + New Sale
+                  {t("action.new_sale", "+ New Sale")}
                 </button>
               )}
               <button
@@ -394,7 +396,7 @@ export function PosReceiptModal({
                 onClick={onClose}
                 className="flex-1 py-2.5 px-3 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-xs transition cursor-pointer"
               >
-                Close
+                {t("action.cancel", "Close")}
               </button>
             </div>
           </div>

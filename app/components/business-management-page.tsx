@@ -8,6 +8,7 @@ import { useBusiness } from "./business-context";
 import { useDebounce } from "@/hooks/useDebounce";
 import { logActivity } from "@/app/lib/logger";
 import { validatePhone, validateEmail, validateText, validateNumber, sanitizePhoneInput } from "@/app/lib/validators";
+import { useLanguage } from "./language-context";
 import ui from "./workspace-ui.module.css";
 
 type Mode = "customers" | "suppliers" | "expenses" | "accounts" | "sales";
@@ -93,6 +94,45 @@ export function BusinessManagementPage({ mode }: { mode: Mode }) {
   const c = config[mode];
   const { showToast, confirmDialog } = useToast();
   const { activeBusiness } = useBusiness();
+  const { t, language } = useLanguage();
+
+  const modeTitle =
+    mode === "customers" ? t("customers.title") :
+    mode === "suppliers" ? t("suppliers.title") :
+    mode === "expenses" ? t("expenses.title") :
+    mode === "accounts" ? t("nav.accounts") : t("nav.sales");
+
+  const modeAdd =
+    mode === "customers" ? (language === "ur" ? "Naya Grahak Dalein" : "Add Customer") :
+    mode === "suppliers" ? (language === "ur" ? "Naya Supplier Dalein" : "Add Supplier") :
+    mode === "expenses" ? (language === "ur" ? "Naya Kharcha Dalein" : "Add Expense") :
+    mode === "accounts" ? (language === "ur" ? "Naya Account Dalein" : "Add Account") :
+    (language === "ur" ? "Naya Bill Banayein" : "Create Sale");
+
+  const getColTitle = (x: string) => {
+    switch (x) {
+      case "name": return t("table.name");
+      case "mobile": return t("table.mobile");
+      case "email": return t("table.email");
+      case "currentBalance": return t("table.current_balance");
+      case "totalSpent": return t("table.total_spent");
+      case "amount": return t("table.amount");
+      case "category": return t("table.category");
+      case "description": return t("table.description");
+      case "accountId": return t("table.account");
+      case "type": return t("table.type");
+      case "openingBalance": return t("table.opening_balance");
+      case "balance": return t("table.balance");
+      case "invoiceNumber": return t("table.invoice_number");
+      case "createdAt":
+      case "occurredAt": return t("table.date");
+      case "customerName": return t("table.customer");
+      case "totalAmount": return t("table.total_amount");
+      case "paymentMethod": return t("table.payment_mode");
+      case "itemCount": return t("term.quantity");
+      default: return title(x);
+    }
+  };
 
   const [rows, setRows] = useState<Row[]>([]);
   const [accounts, setAccounts] = useState<Row[]>([]);
@@ -323,19 +363,36 @@ export function BusinessManagementPage({ mode }: { mode: Mode }) {
     }
   }
 
+  const getFieldLabel = (field: Field) => {
+    switch (field.key) {
+      case "name": return t("table.name");
+      case "mobile": return t("table.mobile");
+      case "email": return t("table.email");
+      case "amount": return t("table.amount");
+      case "category": return t("table.category");
+      case "description": return t("table.description");
+      case "accountId": return t("table.account");
+      case "type": return t("table.type");
+      case "openingBalance": return t("table.opening_balance");
+      default: return field.label;
+    }
+  };
+
   return (
     <WorkspaceShell>
       <div className={ui.head}>
         <div>
-          <label>Business Management</label>
-          <h1>{c.title}</h1>
+          <label>{language === "ur" ? "Dukaan Intizam (Management)" : "Business Management"}</label>
+          <h1>{modeTitle}</h1>
           <p>
-            Business-scoped records with debounced search, server-side pagination, and safe mutations.
+            {language === "ur"
+              ? "Mehfooz aur asaan hisab kitab, talaash aur mukammal ledger record."
+              : "Business-scoped records with debounced search, server-side pagination, and safe mutations."}
           </p>
         </div>
         {mode !== "sales" && (
           <button className={ui.primary} onClick={() => begin()}>
-            + {c.add}
+            + {modeAdd}
           </button>
         )}
       </div>
@@ -349,10 +406,10 @@ export function BusinessManagementPage({ mode }: { mode: Mode }) {
               setQuery(e.target.value);
               setPage(1);
             }}
-            placeholder={`Search ${c.title.toLowerCase()}...`}
+            placeholder={language === "ur" ? "Talaash karein..." : `Search ${c.title.toLowerCase()}...`}
           />
           <button className={ui.secondary} onClick={() => void load()}>
-            Refresh
+            🔄 {t("action.refresh")}
           </button>
         </div>
       )}
@@ -363,9 +420,9 @@ export function BusinessManagementPage({ mode }: { mode: Mode }) {
             <thead>
               <tr>
                 {c.columns.map((x) => (
-                  <th key={x}>{title(x)}</th>
+                  <th key={x}>{getColTitle(x)}</th>
                 ))}
-                <th>Actions</th>
+                <th>{t("table.actions")}</th>
               </tr>
             </thead>
             <tbody>
@@ -385,7 +442,7 @@ export function BusinessManagementPage({ mode }: { mode: Mode }) {
               ) : rows.length === 0 ? (
                 <tr>
                   <td colSpan={c.columns.length + 1} className={ui.empty}>
-                    No records found.
+                    {t("table.no_records")}
                   </td>
                 </tr>
               ) : (
@@ -416,13 +473,13 @@ export function BusinessManagementPage({ mode }: { mode: Mode }) {
                               className={ui.secondary}
                               onClick={() => begin(row)}
                             >
-                              Edit
+                              {t("action.edit")}
                             </button>
                             <button
                               className={ui.danger}
                               onClick={() => void remove(row)}
                             >
-                              Delete
+                              {t("action.delete")}
                             </button>
                           </>
                         )}
@@ -442,17 +499,17 @@ export function BusinessManagementPage({ mode }: { mode: Mode }) {
               disabled={page <= 1}
               onClick={() => setPage((p) => p - 1)}
             >
-              Previous
+              {t("table.previous")}
             </button>
             <span className="text-slate-600">
-              Page {page} of {Math.ceil(total / 25)}
+              {t("table.page")} {page} {t("table.of")} {Math.ceil(total / 25)}
             </span>
             <button
               className={ui.secondary}
               disabled={page * 25 >= total}
               onClick={() => setPage((p) => p + 1)}
             >
-              Next
+              {t("table.next")}
             </button>
           </div>
         )}
@@ -469,22 +526,22 @@ export function BusinessManagementPage({ mode }: { mode: Mode }) {
             <div className={ui.sheetHead}>
               <h2>
                 {editing
-                  ? `Edit ${c.title.replace(" / Khata", "")}`
-                  : c.add}
+                  ? `${t("action.edit")} ${modeTitle}`
+                  : `+ ${modeAdd}`}
               </h2>
               <button
                 type="button"
                 className={ui.secondary}
                 onClick={() => setOpen(false)}
               >
-                Close
+                {t("form.close")}
               </button>
             </div>
             <div className={ui.formGrid}>
               {c.fields.map((field) => (
                 <div className={ui.field} key={field.key}>
                   <label>
-                    {field.label} {field.required && <span className="text-red-500">*</span>}
+                    {getFieldLabel(field)} {field.required && <span className="text-red-500">*</span>}
                   </label>
                   {field.type === "select" ? (
                     <select
@@ -495,7 +552,7 @@ export function BusinessManagementPage({ mode }: { mode: Mode }) {
                         if (fieldErrors[field.key]) setFieldErrors((p) => ({ ...p, [field.key]: "" }));
                       }}
                     >
-                      <option value="cash">Cash</option>
+                      <option value="cash">Cash (Rokarr)</option>
                       <option value="bank">Bank</option>
                       <option value="wallet">Wallet</option>
                       <option value="online">Online</option>
@@ -510,7 +567,7 @@ export function BusinessManagementPage({ mode }: { mode: Mode }) {
                         if (fieldErrors[field.key]) setFieldErrors((p) => ({ ...p, [field.key]: "" }));
                       }}
                     >
-                      <option value="">Select Account</option>
+                      <option value="">{t("form.select_account")}</option>
                       {accounts
                         .filter((a) => a.isActive !== false)
                         .map((a) => (
@@ -562,14 +619,14 @@ export function BusinessManagementPage({ mode }: { mode: Mode }) {
                 className={ui.secondary}
                 onClick={() => setOpen(false)}
               >
-                Cancel
+                {t("action.cancel")}
               </button>
               <button className={ui.primary} disabled={saving}>
                 {saving
-                  ? "Saving..."
+                  ? t("form.saving")
                   : editing
-                  ? "Save Changes"
-                  : "Save"}
+                  ? t("action.save_changes")
+                  : t("action.save")}
               </button>
             </div>
           </form>
