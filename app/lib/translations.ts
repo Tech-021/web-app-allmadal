@@ -182,6 +182,23 @@ export const translations: TranslationDictionary = {
   "expenses.subtitle": { en: "Track daily shop overhead, utilities, and minor costs.", ur: "Dukaan ke rozana kharche aur bills darj karein." },
   "expenses.add_btn": { en: "+ Record Expense", ur: "+ Naya Kharcha Darj Karein" },
 
+  // ================= REPORTS & ANALYTICS =================
+  "reports.title": { en: "Reports & Analytics", ur: "Reports aur Karobari Tajziya" },
+  "reports.subtitle": { en: "Sales summaries, product performance, and inventory health.", ur: "Bikri ka hisab, samaan ki karkardagi aur stock ki tafseel." },
+  "reports.sales_report": { en: "Sales Report", ur: "Bikri Ki Report" },
+  "reports.product_report": { en: "Product Report", ur: "Samaan Ki Report" },
+  "reports.stock_report": { en: "Stock Report", ur: "Stock Ki Report" },
+  "reports.daily": { en: "Daily", ur: "Rozana (Daily)" },
+  "reports.weekly": { en: "Weekly", ur: "Haftawar (Weekly)" },
+  "reports.monthly": { en: "Monthly", ur: "Mahana (Monthly)" },
+  "reports.best_selling": { en: "Best Selling Products", ur: "Ziyada Bikne Wala Samaan" },
+  "reports.least_selling": { en: "Least Selling Products", ur: "Kam / Na Bikne Wala Samaan" },
+  "reports.current_inventory": { en: "Current Inventory", ur: "Mojooda Stock" },
+  "reports.low_stock": { en: "Low Stock", ur: "Kam Stock" },
+  "reports.out_of_stock": { en: "Out of Stock", ur: "Stock Khatam" },
+  "reports.export_csv": { en: "Export CSV", ur: "CSV Download Karein" },
+  "reports.print": { en: "Print Report", ur: "Report Print Karein" },
+
   // ================= INVOICES & RECEIPTS =================
   "invoices.title": { en: "Invoices / Receipts", ur: "Raseedein & Invoices" },
   "invoices.subtitle": { en: "Search, reprint, and review customer sales history.", ur: "Pichli raseedein aur bikri ka record check karein." },
