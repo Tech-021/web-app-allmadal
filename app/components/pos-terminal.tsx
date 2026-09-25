@@ -9,6 +9,16 @@ import { DetailedSaleReceipt, PosReceiptModal } from "@/app/components/pos-recei
 import { formatCurrencyInput, parseCurrencyInput } from "@/app/lib/validators";
 import { useLanguage } from "@/app/components/language-context";
 import { CameraBarcodeScannerModal } from "@/app/components/camera-barcode-scanner-modal";
+import {
+  isBrowserOnline,
+  savePosCache,
+  getPosCache,
+  recordOfflineSale,
+  getPendingOfflineSales,
+  syncOfflineSales,
+  listenConnectionStatus,
+} from "@/app/lib/offline-sync";
+import { PaginationControls } from "@/app/components/pagination-controls";
 
 interface PosCartItem {
   product: Product;
@@ -36,9 +46,16 @@ export function PosTerminal({ onSaleCompleted }: PosTerminalProps) {
   const [customers, setCustomers] = useState<CustomerOption[]>([]);
   const [loading, setLoading] = useState(true);
 
-  // Filters
+  // Offline and Synchronization state
+  const [isOnline, setIsOnline] = useState<boolean>(true);
+  const [pendingSyncCount, setPendingSyncCount] = useState<number>(0);
+  const [isSyncing, setIsSyncing] = useState<boolean>(false);
+
+  // Filters & Catalog Pagination
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedCategory, setSelectedCategory] = useState("all");
+  const [catalogPage, setCatalogPage] = useState<number>(1);
+  const [catalogPageSize, setCatalogPageSize] = useState<number>(12);
 
   // Camera Barcode Scanner
   const [scannerOpen, setScannerOpen] = useState(false);
@@ -73,22 +90,115 @@ export function PosTerminal({ onSaleCompleted }: PosTerminalProps) {
 
   const searchInputRef = useRef<HTMLInputElement>(null);
 
-  // Fetch products and customers
+  // Fetch products and customers with Offline Local Cache Support
   const loadData = useCallback(async () => {
     setLoading(true);
+    const bizId = activeBusiness?.id;
     try {
-      const [prodRes, custRes] = await Promise.all([
-        api<Product[]>("/products").catch(() => []),
-        api<{ customers: CustomerOption[] }>("/customers").catch(() => ({ customers: [] })),
-      ]);
-      setProducts(Array.isArray(prodRes) ? prodRes : []);
-      setCustomers(custRes.customers || []);
+      if (isBrowserOnline()) {
+        const [prodRes, custRes] = await Promise.all([
+          api<Product[]>("/products").catch(() => []),
+          api<{ customers: CustomerOption[] }>("/customers").catch(() => ({ customers: [] })),
+        ]);
+        const prodList = Array.isArray(prodRes) ? prodRes : [];
+        const custList = custRes.customers || [];
+        setProducts(prodList);
+        setCustomers(custList);
+        if (bizId) {
+          savePosCache(bizId, prodList, custList);
+        }
+      } else {
+        // Offline: read from local cache
+        if (bizId) {
+          const cached = getPosCache(bizId);
+          if (cached) {
+            setProducts(cached.products || []);
+            setCustomers(cached.customers || []);
+          }
+        }
+      }
     } catch (e) {
-      console.error("Failed to load POS data:", e);
+      console.warn("Failed to load POS data from server, falling back to cache:", e);
+      if (bizId) {
+        const cached = getPosCache(bizId);
+        if (cached) {
+          setProducts(cached.products || []);
+          setCustomers(cached.customers || []);
+        }
+      }
     } finally {
       setLoading(false);
     }
   }, [activeBusiness?.id]);
+
+  // Setup connection status listener and auto-sync
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    setIsOnline(isBrowserOnline());
+
+    const bizId = activeBusiness?.id;
+    if (bizId) {
+      setPendingSyncCount(getPendingOfflineSales(bizId).length);
+    }
+
+    const cleanup = listenConnectionStatus(async (online) => {
+      setIsOnline(online);
+      if (online && bizId) {
+        showToast("Internet connection restored! Syncing offline sales...", "info");
+        setIsSyncing(true);
+        const res = await syncOfflineSales(bizId, api);
+        setIsSyncing(false);
+        setPendingSyncCount(getPendingOfflineSales(bizId).length);
+        if (res.synced > 0) {
+          showToast(`Synced ${res.synced} offline sales with cloud!`, "success");
+          void loadData();
+          if (onSaleCompleted) onSaleCompleted();
+        }
+      } else if (!online) {
+        showToast("Offline Mode Active. Product search, barcode scanning, and billing are running locally.", "info");
+      }
+    });
+
+    // Auto-sync on mount if online and has pending sales
+    if (isBrowserOnline() && bizId && getPendingOfflineSales(bizId).length > 0) {
+      void (async () => {
+        setIsSyncing(true);
+        const res = await syncOfflineSales(bizId, api);
+        setIsSyncing(false);
+        setPendingSyncCount(getPendingOfflineSales(bizId).length);
+        if (res.synced > 0) {
+          showToast(`Synced ${res.synced} pending offline sales with cloud!`, "success");
+          void loadData();
+          if (onSaleCompleted) onSaleCompleted();
+        }
+      })();
+    }
+
+    return cleanup;
+  }, [activeBusiness?.id, loadData, onSaleCompleted, showToast]);
+
+  const handleManualSync = async () => {
+    const bizId = activeBusiness?.id;
+    if (!bizId || isSyncing) return;
+    setIsSyncing(true);
+    try {
+      const res = await syncOfflineSales(bizId, api);
+      setPendingSyncCount(getPendingOfflineSales(bizId).length);
+      if (res.synced > 0) {
+        showToast(`Synced ${res.synced} offline sales with cloud!`, "success");
+        void loadData();
+        if (onSaleCompleted) onSaleCompleted();
+      } else if (res.failed > 0) {
+        showToast("Some offline sales could not be synced yet.", "error");
+      } else {
+        showToast("All sales are up to date with cloud.", "info");
+      }
+    } catch (e: any) {
+      showToast(e.message || "Sync failed", "error");
+    } finally {
+      setIsSyncing(false);
+    }
+  };
 
   useEffect(() => {
     void loadData();
@@ -119,6 +229,16 @@ export function PosTerminal({ onSaleCompleted }: PosTerminalProps) {
       return name.includes(q) || barcode.includes(q) || sku.includes(q) || cat.includes(q);
     });
   }, [products, searchQuery, selectedCategory]);
+
+  // Reset catalog pagination to page 1 on search or category filter change
+  useEffect(() => {
+    setCatalogPage(1);
+  }, [searchQuery, selectedCategory]);
+
+  const paginatedCatalogProducts = useMemo(() => {
+    const start = (catalogPage - 1) * catalogPageSize;
+    return filteredProducts.slice(start, start + catalogPageSize);
+  }, [filteredProducts, catalogPage, catalogPageSize]);
 
   // Add to cart
   const addToCart = (product: Product) => {
@@ -336,6 +456,71 @@ export function PosTerminal({ onSaleCompleted }: PosTerminalProps) {
       paymentMethod,
     };
 
+    const receiptObjItems = cart.map((i) => {
+      const rate = Number(i.product.sellingPrice ?? i.product.price ?? 0);
+      const discType = i.discountType || "none";
+      const discVal = Number(i.discountValue || 0);
+      let itemDiscount = 0;
+      if (discType === "fixed" && discVal > 0) {
+        itemDiscount = Math.min(rate * i.quantity, discVal * i.quantity);
+      } else if (discType === "percentage" && discVal > 0) {
+        itemDiscount = Math.round((rate * i.quantity) * (discVal / 100));
+      }
+      return {
+        name: i.product.name,
+        quantity: i.quantity,
+        price: rate,
+        total: (rate * i.quantity) - itemDiscount,
+        discountAmount: itemDiscount,
+        discountType: discType,
+        discountValue: discVal,
+      };
+    });
+
+    const isCurrentlyOnline = isBrowserOnline();
+
+    if (!isCurrentlyOnline) {
+      // 18. Offline Support: Complete checkout locally and queue for cloud sync
+      const queued = recordOfflineSale(
+        activeBusiness?.id || 1,
+        payload,
+        {
+          customerName,
+          customerMobile,
+          items: receiptObjItems,
+          subtotal: grossSubtotal,
+          discountAmount: totalDiscount,
+          discountType,
+          totalAmount: grandTotal,
+          paymentMethod,
+          cashTendered: Number(parseCurrencyInput(cashTendered)) || undefined,
+          changeDue: paymentMethod === "cash" ? changeDue : undefined,
+        }
+      );
+
+      const receiptObj: DetailedSaleReceipt = {
+        id: queued.id,
+        invoiceNumber: queued.offlineInvoiceNumber,
+        createdAt: queued.createdAt,
+        customerName,
+        customerMobile,
+        items: receiptObjItems,
+        subtotal: grossSubtotal,
+        discountAmount: totalDiscount,
+        discountType,
+        totalAmount: grandTotal,
+        paymentMethod,
+        cashTendered: Number(parseCurrencyInput(cashTendered)) || undefined,
+        changeDue: paymentMethod === "cash" ? changeDue : undefined,
+      };
+
+      setReceipt(receiptObj);
+      clearCart();
+      setPendingSyncCount(getPendingOfflineSales(activeBusiness?.id || 1).length);
+      showToast(`⚡ Offline Sale #${queued.offlineInvoiceNumber} recorded! It will sync to cloud when connected.`, "success");
+      return;
+    }
+
     setCheckingOut(true);
     try {
       const res = await api<{
@@ -355,26 +540,7 @@ export function PosTerminal({ onSaleCompleted }: PosTerminalProps) {
         createdAt: res.createdAt || new Date().toISOString(),
         customerName,
         customerMobile,
-        items: cart.map((i) => {
-          const rate = Number(i.product.sellingPrice ?? i.product.price ?? 0);
-          const discType = i.discountType || "none";
-          const discVal = Number(i.discountValue || 0);
-          let itemDiscount = 0;
-          if (discType === "fixed" && discVal > 0) {
-            itemDiscount = Math.min(rate * i.quantity, discVal * i.quantity);
-          } else if (discType === "percentage" && discVal > 0) {
-            itemDiscount = Math.round((rate * i.quantity) * (discVal / 100));
-          }
-          return {
-            name: i.product.name,
-            quantity: i.quantity,
-            price: rate,
-            total: (rate * i.quantity) - itemDiscount,
-            discountAmount: itemDiscount,
-            discountType: discType,
-            discountValue: discVal,
-          };
-        }),
+        items: receiptObjItems,
         subtotal: grossSubtotal,
         discountAmount: totalDiscount,
         discountType,
@@ -403,6 +569,54 @@ export function PosTerminal({ onSaleCompleted }: PosTerminalProps) {
         onSaleCompleted();
       }
     } catch (err: any) {
+      const isNetErr =
+        !isBrowserOnline() ||
+        err?.message?.toLowerCase().includes("fetch") ||
+        err?.message?.toLowerCase().includes("network") ||
+        err?.message?.toLowerCase().includes("failed to fetch");
+
+      if (isNetErr) {
+        // Network dropped during checkout: save offline
+        const queued = recordOfflineSale(
+          activeBusiness?.id || 1,
+          payload,
+          {
+            customerName,
+            customerMobile,
+            items: receiptObjItems,
+            subtotal: grossSubtotal,
+            discountAmount: totalDiscount,
+            discountType,
+            totalAmount: grandTotal,
+            paymentMethod,
+            cashTendered: Number(parseCurrencyInput(cashTendered)) || undefined,
+            changeDue: paymentMethod === "cash" ? changeDue : undefined,
+          }
+        );
+
+        const receiptObj: DetailedSaleReceipt = {
+          id: queued.id,
+          invoiceNumber: queued.offlineInvoiceNumber,
+          createdAt: queued.createdAt,
+          customerName,
+          customerMobile,
+          items: receiptObjItems,
+          subtotal: grossSubtotal,
+          discountAmount: totalDiscount,
+          discountType,
+          totalAmount: grandTotal,
+          paymentMethod,
+          cashTendered: Number(parseCurrencyInput(cashTendered)) || undefined,
+          changeDue: paymentMethod === "cash" ? changeDue : undefined,
+        };
+
+        setReceipt(receiptObj);
+        clearCart();
+        setPendingSyncCount(getPendingOfflineSales(activeBusiness?.id || 1).length);
+        showToast(`⚡ Network dropped! Sale #${queued.offlineInvoiceNumber} saved offline and queued for auto-sync.`, "success");
+        return;
+      }
+
       console.error("POS Checkout error:", err);
       showToast(err.message || "Failed to complete checkout.", "error");
     } finally {
@@ -412,6 +626,42 @@ export function PosTerminal({ onSaleCompleted }: PosTerminalProps) {
 
   return (
     <>
+      {/* 18. Offline Connection Status & Auto-Sync Banner */}
+      <div className="flex items-center justify-between px-4 py-2.5 rounded-2xl bg-white border border-slate-200/90 shadow-xs mb-4">
+        <div className="flex items-center gap-2.5">
+          <span
+            className={`inline-block size-2.5 rounded-full ${
+              isOnline ? "bg-emerald-500 animate-pulse" : "bg-amber-500"
+            }`}
+          />
+          <span className="font-extrabold text-xs text-slate-800">
+            {isOnline ? "Cloud Connected" : "Offline Mode Active"}
+          </span>
+          <span className="hidden sm:inline text-[11px] text-slate-500">
+            {isOnline
+              ? "All sales sync directly with cloud database"
+              : "Local billing, product search, and barcode scanning active"}
+          </span>
+          {pendingSyncCount > 0 && (
+            <span className="px-2 py-0.5 rounded-full bg-amber-100 text-amber-900 font-extrabold text-[10px]">
+              {pendingSyncCount} {pendingSyncCount === 1 ? "Sale" : "Sales"} Pending Sync
+            </span>
+          )}
+        </div>
+
+        {pendingSyncCount > 0 && isOnline && (
+          <button
+            type="button"
+            onClick={handleManualSync}
+            disabled={isSyncing}
+            className="px-3 py-1 rounded-xl bg-[#00875a] hover:bg-[#00704a] text-white font-extrabold text-xs transition flex items-center gap-1.5 shadow-xs cursor-pointer"
+          >
+            <span>🔄</span>
+            <span>{isSyncing ? "Syncing..." : "Sync Offline Sales"}</span>
+          </button>
+        )}
+      </div>
+
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
         {/* Left Side: Product Search, Categories & Catalog Grid (7 Cols) */}
         <div className="lg:col-span-7 space-y-4">
@@ -498,78 +748,96 @@ export function PosTerminal({ onSaleCompleted }: PosTerminalProps) {
               </p>
             </div>
           ) : (
-            <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 max-h-[600px] overflow-y-auto pr-1">
-              {filteredProducts.map((p) => {
-                const price = Number(p.sellingPrice ?? p.price ?? 0);
-                const stock = Number(p.stock || 0);
-                const low = stock <= Number(p.lowStockThreshold || 5);
-                const isOutOfStock = stock <= 0;
+            <>
+              <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+                {paginatedCatalogProducts.map((p) => {
+                  const price = Number(p.sellingPrice ?? p.price ?? 0);
+                  const stock = Number(p.stock || 0);
+                  const low = stock <= Number(p.lowStockThreshold || 5);
+                  const isOutOfStock = stock <= 0;
 
-                return (
-                  <button
-                    key={p.id}
-                    type="button"
-                    onClick={() => addToCart(p)}
-                    className="p-3.5 bg-white rounded-2xl border border-slate-200/80 hover:border-[#00875a] hover:shadow-md text-left transition group cursor-pointer flex flex-col justify-between"
-                  >
-                    <div>
-                      <div className="flex items-start justify-between gap-1 mb-1.5">
-                        <span className="text-[10px] font-bold text-slate-400 truncate uppercase">
-                          {p.category || "General"}
-                        </span>
-                        <span
-                          className={`text-[9px] font-black px-1.5 py-0.5 rounded-md ${
-                            isOutOfStock
-                              ? "bg-red-100 text-red-700"
-                              : low
-                              ? "bg-amber-100 text-amber-800"
-                              : "bg-emerald-50 text-[#00875a]"
-                          }`}
-                        >
-                          {isOutOfStock ? "Out of Stock" : `${stock} in stock`}
-                        </span>
-                      </div>
-                      <strong className="block text-xs font-extrabold text-slate-900 group-hover:text-[#00875a] transition line-clamp-2 leading-snug">
-                        {p.name}
-                      </strong>
-                    </div>
-
-                    <div className="mt-3 pt-2 border-t border-slate-100 flex items-center justify-between">
+                  return (
+                    <button
+                      key={p.id}
+                      type="button"
+                      onClick={() => addToCart(p)}
+                      className="p-3.5 bg-white rounded-2xl border border-slate-200/80 hover:border-[#00875a] hover:shadow-md text-left transition group cursor-pointer flex flex-col justify-between"
+                    >
                       <div>
-                        {p.discountType && p.discountType !== "none" && Number(p.discountValue || 0) > 0 ? (
-                          <div>
-                            <span className="block text-[10px] line-through text-slate-400">
+                        <div className="flex items-start justify-between gap-1 mb-1.5">
+                          <span className="text-[10px] font-bold text-slate-400 truncate uppercase">
+                            {p.category || "General"}
+                          </span>
+                          <span
+                            className={`text-[9px] font-black px-1.5 py-0.5 rounded-md ${
+                              isOutOfStock
+                                ? "bg-red-100 text-red-700"
+                                : low
+                                ? "bg-amber-100 text-amber-800"
+                                : "bg-emerald-50 text-[#00875a]"
+                            }`}
+                          >
+                            {isOutOfStock ? "Out of Stock" : `${stock} in stock`}
+                          </span>
+                        </div>
+                        <strong className="block text-xs font-extrabold text-slate-900 group-hover:text-[#00875a] transition line-clamp-2 leading-snug">
+                          {p.name}
+                        </strong>
+                      </div>
+
+                      <div className="mt-3 pt-2 border-t border-slate-100 flex items-center justify-between">
+                        <div>
+                          {p.discountType && p.discountType !== "none" && Number(p.discountValue || 0) > 0 ? (
+                            <div>
+                              <span className="block text-[10px] line-through text-slate-400">
+                                ₨ {price.toLocaleString()}
+                              </span>
+                              <div className="flex items-center gap-1">
+                                <span className="text-xs font-black text-[#00875a]">
+                                  ₨{" "}
+                                  {Math.max(
+                                    0,
+                                    p.discountType === "percentage"
+                                      ? Math.round(price * (1 - Number(p.discountValue) / 100))
+                                      : price - Number(p.discountValue)
+                                  ).toLocaleString()}
+                                </span>
+                                <span className="text-[9px] font-extrabold px-1 rounded bg-emerald-100 text-emerald-800">
+                                  {p.discountType === "percentage" ? `-${p.discountValue}%` : `-₨${p.discountValue}`}
+                                </span>
+                              </div>
+                            </div>
+                          ) : (
+                            <span className="text-xs font-black text-slate-900">
                               ₨ {price.toLocaleString()}
                             </span>
-                            <div className="flex items-center gap-1">
-                              <span className="text-xs font-black text-[#00875a]">
-                                ₨{" "}
-                                {Math.max(
-                                  0,
-                                  p.discountType === "percentage"
-                                    ? Math.round(price * (1 - Number(p.discountValue) / 100))
-                                    : price - Number(p.discountValue)
-                                ).toLocaleString()}
-                              </span>
-                              <span className="text-[9px] font-extrabold px-1 rounded bg-emerald-100 text-emerald-800">
-                                {p.discountType === "percentage" ? `-${p.discountValue}%` : `-₨${p.discountValue}`}
-                              </span>
-                            </div>
-                          </div>
-                        ) : (
-                          <span className="text-xs font-black text-slate-900">
-                            ₨ {price.toLocaleString()}
-                          </span>
-                        )}
+                          )}
+                        </div>
+                        <span className="size-6 rounded-lg bg-emerald-50 group-hover:bg-[#00875a] text-[#00875a] group-hover:text-white flex items-center justify-center text-xs font-black transition">
+                          +
+                        </span>
                       </div>
-                      <span className="size-6 rounded-lg bg-emerald-50 group-hover:bg-[#00875a] text-[#00875a] group-hover:text-white flex items-center justify-center text-xs font-black transition">
-                        +
-                      </span>
-                    </div>
-                  </button>
-                );
-              })}
-            </div>
+                    </button>
+                  );
+                })}
+              </div>
+
+              {filteredProducts.length > 0 && (
+                <PaginationControls
+                  currentPage={catalogPage}
+                  totalItems={filteredProducts.length}
+                  pageSize={catalogPageSize}
+                  onPageChange={setCatalogPage}
+                  onPageSizeChange={(newSize) => {
+                    setCatalogPageSize(newSize);
+                    setCatalogPage(1);
+                  }}
+                  pageSizeOptions={[6, 9, 12, 18, 24, 36]}
+                  itemLabel={t("term.products", "products")}
+                  className="rounded-2xl border border-slate-200/80 shadow-xs"
+                />
+              )}
+            </>
           )}
         </div>
 

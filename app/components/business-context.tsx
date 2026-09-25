@@ -103,6 +103,9 @@ export function BusinessProvider({ children }: { children: React.ReactNode }) {
       const res = await api<{ success: boolean; businesses: Business[] }>("/business/my-businesses");
       const list = res.businesses || [];
       setBusinesses(list);
+      if (typeof window !== "undefined") {
+        localStorage.setItem("almadel_cached_businesses", JSON.stringify(list));
+      }
 
       const savedId = typeof window !== "undefined" ? localStorage.getItem(ACTIVE_BIZ_KEY) : null;
       let target: Business | null = null;
@@ -117,6 +120,7 @@ export function BusinessProvider({ children }: { children: React.ReactNode }) {
       setActiveBusiness(target);
       if (target) {
         localStorage.setItem(ACTIVE_BIZ_KEY, String(target.id));
+        localStorage.setItem("almadel_cached_active_business", JSON.stringify(target));
         const resolvedMode: WorkspaceMode =
           target.workspaceMode === "financial" ? "financial" : "pos";
         setWorkspaceModeState(resolvedMode);
@@ -128,6 +132,23 @@ export function BusinessProvider({ children }: { children: React.ReactNode }) {
       setIsLoading(false);
       return list;
     } catch {
+      // Offline fallback: restore cached active business & list
+      if (typeof window !== "undefined") {
+        try {
+          const cachedBizStr = localStorage.getItem("almadel_cached_active_business");
+          const cachedListStr = localStorage.getItem("almadel_cached_businesses");
+          if (cachedBizStr) {
+            const cachedBiz = JSON.parse(cachedBizStr) as Business;
+            setActiveBusiness(cachedBiz);
+          }
+          if (cachedListStr) {
+            const cachedList = JSON.parse(cachedListStr) as Business[];
+            setBusinesses(cachedList);
+          }
+        } catch (e) {
+          console.warn("Failed to load cached offline business:", e);
+        }
+      }
       setIsLoading(false);
       return [];
     }
