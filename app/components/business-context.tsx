@@ -46,7 +46,6 @@ export type Business = {
   trialDaysRemaining?: number;
 };
 
-
 export type WorkspaceMode = "pos" | "financial";
 
 interface BusinessContextValue {
@@ -63,6 +62,29 @@ const BusinessContext = createContext<BusinessContextValue | null>(null);
 const ACTIVE_BIZ_KEY = "almadel_active_business_id";
 const WORKSPACE_MODE_KEY = "almadel_workspace_mode";
 
+// Helper to purge legacy offline and caching keys from browser localStorage
+function purgeLegacyOfflineCache() {
+  if (typeof window === "undefined") return;
+  try {
+    const keysToRemove: string[] = [];
+    for (let i = 0; i < localStorage.length; i++) {
+      const key = localStorage.key(i);
+      if (
+        key &&
+        (key.startsWith("almadel_pos_cache_") ||
+          key.startsWith("almadel_offline_sales_queue_") ||
+          key.startsWith("almadel_cached_") ||
+          key.startsWith("almadel_custom_categories"))
+      ) {
+        keysToRemove.push(key);
+      }
+    }
+    keysToRemove.forEach((k) => localStorage.removeItem(k));
+  } catch (err) {
+    console.warn("Could not clean legacy cache keys:", err);
+  }
+}
+
 export function BusinessProvider({ children }: { children: React.ReactNode }) {
   const { user, isAuthenticated, isLoading: authLoading } = useAuth();
   const router = useRouter();
@@ -73,8 +95,9 @@ export function BusinessProvider({ children }: { children: React.ReactNode }) {
   const [workspaceMode, setWorkspaceModeState] = useState<WorkspaceMode>("financial");
   const [isLoading, setIsLoading] = useState(true);
 
-  // Initialize workspace mode from localStorage
+  // Initialize and clear any stale cache
   useEffect(() => {
+    purgeLegacyOfflineCache();
     if (typeof window !== "undefined") {
       const savedMode = localStorage.getItem(WORKSPACE_MODE_KEY) as WorkspaceMode | null;
       if (savedMode === "pos" || savedMode === "financial") {
@@ -103,9 +126,6 @@ export function BusinessProvider({ children }: { children: React.ReactNode }) {
       const res = await api<{ success: boolean; businesses: Business[] }>("/business/my-businesses");
       const list = res.businesses || [];
       setBusinesses(list);
-      if (typeof window !== "undefined") {
-        localStorage.setItem("almadel_cached_businesses", JSON.stringify(list));
-      }
 
       const savedId = typeof window !== "undefined" ? localStorage.getItem(ACTIVE_BIZ_KEY) : null;
       let target: Business | null = null;
@@ -120,7 +140,6 @@ export function BusinessProvider({ children }: { children: React.ReactNode }) {
       setActiveBusiness(target);
       if (target) {
         localStorage.setItem(ACTIVE_BIZ_KEY, String(target.id));
-        localStorage.setItem("almadel_cached_active_business", JSON.stringify(target));
         const resolvedMode: WorkspaceMode =
           target.workspaceMode === "financial" ? "financial" : "pos";
         setWorkspaceModeState(resolvedMode);
@@ -131,24 +150,10 @@ export function BusinessProvider({ children }: { children: React.ReactNode }) {
 
       setIsLoading(false);
       return list;
-    } catch {
-      // Offline fallback: restore cached active business & list
-      if (typeof window !== "undefined") {
-        try {
-          const cachedBizStr = localStorage.getItem("almadel_cached_active_business");
-          const cachedListStr = localStorage.getItem("almadel_cached_businesses");
-          if (cachedBizStr) {
-            const cachedBiz = JSON.parse(cachedBizStr) as Business;
-            setActiveBusiness(cachedBiz);
-          }
-          if (cachedListStr) {
-            const cachedList = JSON.parse(cachedListStr) as Business[];
-            setBusinesses(cachedList);
-          }
-        } catch (e) {
-          console.warn("Failed to load cached offline business:", e);
-        }
-      }
+    } catch (err) {
+      console.error("Failed to load businesses from server:", err);
+      setBusinesses([]);
+      setActiveBusiness(null);
       setIsLoading(false);
       return [];
     }
