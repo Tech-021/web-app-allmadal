@@ -4,7 +4,6 @@ import { FormEvent, useCallback, useEffect, useMemo, useState } from "react";
 import { WorkspaceShell } from "@/app/components/workspace-shell";
 import { api, Product } from "@/app/lib/api";
 import { useToast } from "@/app/components/toast-context";
-import { useBusiness } from "@/app/components/business-context";
 import { logActivity } from "@/app/lib/logger";
 import { PaginationControls } from "@/app/components/pagination-controls";
 import ui from "@/app/components/workspace-ui.module.css";
@@ -12,41 +11,20 @@ import ui from "@/app/components/workspace-ui.module.css";
 export type Category = {
   id: string | number;
   name: string;
-  description?: string;
+  description?: string | null;
   productCount?: number;
   totalStock?: number;
   totalValue?: number;
+  createdAt?: string;
+  updatedAt?: string;
 };
-
-function getStorageKey(businessId?: number | string | null): string {
-  return businessId ? `almadel_custom_categories_${businessId}` : "almadel_custom_categories";
-}
-
-function getStoredCategories(businessId?: number | string | null): Category[] {
-  if (typeof window === "undefined") return [];
-  try {
-    const key = getStorageKey(businessId);
-    const data = localStorage.getItem(key);
-    return data ? JSON.parse(data) : [];
-  } catch {
-    return [];
-  }
-}
-
-function saveStoredCategories(categories: Category[], businessId?: number | string | null) {
-  if (typeof window === "undefined") return;
-  const key = getStorageKey(businessId);
-  localStorage.setItem(key, JSON.stringify(categories));
-}
 
 const money = (n: number) => `Rs ${Math.round(n).toLocaleString()}`;
 
 export default function CategoriesPage() {
   const { showToast, confirmDialog } = useToast();
-  const { activeBusiness } = useBusiness();
+  const [categories, setCategories] = useState<Category[]>([]);
   const [products, setProducts] = useState<Product[]>([]);
-  const [customCategories, setCustomCategories] = useState<Category[]>([]);
-  const [serverCategories, setServerCategories] = useState<Category[]>([]);
   const [loading, setLoading] = useState(true);
   const [query, setQuery] = useState("");
   const [page, setPage] = useState(1);
@@ -62,20 +40,12 @@ export default function CategoriesPage() {
     setLoading(true);
     setError("");
     try {
-      // 1. Load products to extract existing categories and calculate stats
-      const prods = await api<Product[]>("/products").catch(() => []);
-      setProducts(prods);
-
-      // 2. Try loading categories from backend if endpoint exists
-      try {
-        const res = await api<Category[]>("/categories");
-        if (Array.isArray(res)) setServerCategories(res);
-      } catch {
-        // Backend may not have dedicated /categories table, fallback to stored + product derived
-      }
-
-      // 3. Load locally saved categories scoped to active business
-      setCustomCategories(getStoredCategories(activeBusiness?.id));
+      const [cats, prods] = await Promise.all([
+        api<Category[]>("/categories"),
+        api<Product[]>("/products").catch(() => []),
+      ]);
+      setCategories(Array.isArray(cats) ? cats : []);
+      setProducts(Array.isArray(prods) ? prods : []);
     } catch (e) {
       const msg = e instanceof Error ? e.message : "Could not load categories.";
       setError(msg);
@@ -83,77 +53,18 @@ export default function CategoriesPage() {
     } finally {
       setLoading(false);
     }
-  }, [showToast, activeBusiness?.id]);
+  }, [showToast]);
 
   useEffect(() => {
     void load();
   }, [load]);
 
-  // Merge server categories, custom stored categories, and categories currently used by products
-  const categories = useMemo(() => {
-    const map = new Map<string, Category>();
-
-    // Add server categories
-    serverCategories.forEach((c) => {
-      if (c.name) {
-        map.set(c.name.toLowerCase().trim(), {
-          id: c.id || c.name,
-          name: c.name.trim(),
-          description: c.description || "",
-        });
-      }
-    });
-
-    // Add stored categories
-    customCategories.forEach((c) => {
-      const key = c.name.toLowerCase().trim();
-      if (!map.has(key)) {
-        map.set(key, c);
-      } else {
-        const existing = map.get(key)!;
-        map.set(key, { ...existing, description: c.description || existing.description });
-      }
-    });
-
-    // Add categories derived from products
-    products.forEach((p) => {
-      if (p.category && p.category.trim()) {
-        const key = p.category.toLowerCase().trim();
-        if (!map.has(key)) {
-          map.set(key, {
-            id: `prod-cat-${key}`,
-            name: p.category.trim(),
-            description: "",
-          });
-        }
-      }
-    });
-
-    // Compute live stats for each category
-    const list = Array.from(map.values()).map((cat) => {
-      const catProducts = products.filter(
-        (p) => String(p.category || "").toLowerCase().trim() === cat.name.toLowerCase().trim()
-      );
-      const productCount = catProducts.length;
-      const totalStock = catProducts.reduce((sum, p) => sum + Number(p.stock || 0), 0);
-      const totalValue = catProducts.reduce(
-        (sum, p) => sum + Number(p.stock || 0) * Number(p.sellingPrice || p.price || 0),
-        0
-      );
-
-      return {
-        ...cat,
-        productCount,
-        totalStock,
-        totalValue,
-      };
-    });
-
-    return list.sort((a, b) => a.name.localeCompare(b.name));
-  }, [serverCategories, customCategories, products]);
-
   const uncategorizedCount = useMemo(() => {
     return products.filter((p) => !p.category || !p.category.trim()).length;
+  }, [products]);
+
+  const totalCategorizedProducts = useMemo(() => {
+    return products.filter((p) => p.category && p.category.trim()).length;
   }, [products]);
 
   const shown = useMemo(() => {
@@ -180,22 +91,6 @@ export default function CategoriesPage() {
     setError("");
   }
 
-  function formatProductUpdate(p: Product, newCategory: string) {
-    return {
-      name: p.name,
-      barcode: p.barcode,
-      sku: p.sku ?? "",
-      category: newCategory,
-      costPrice: String(p.costPrice ?? 0),
-      sellingPrice: String(p.sellingPrice || p.price || 0),
-      price: String(p.sellingPrice || p.price || 0),
-      stock: String(p.stock ?? 0),
-      lowStockThreshold: String(p.lowStockThreshold ?? 5),
-      qrCode: p.qrCode ?? "",
-      imageUrl: p.imageUrl ?? "",
-    };
-  }
-
   async function submit(e: FormEvent) {
     e.preventDefault();
     const cleanName = name.trim();
@@ -215,45 +110,10 @@ export default function CategoriesPage() {
       if (editing) {
         const oldName = editing.name;
 
-        // 1. Try updating via API if backend /categories endpoint exists
         await api(`/categories/${editing.id}`, {
           method: "PATCH",
           body: JSON.stringify({ name: cleanName, description }),
-        }).catch(() => null);
-
-        // 2. Update all products that were assigned to the old category name
-        if (oldName.toLowerCase() !== cleanName.toLowerCase()) {
-          const prodsToUpdate = products.filter(
-            (p) => String(p.category || "").toLowerCase().trim() === oldName.toLowerCase().trim()
-          );
-
-          if (prodsToUpdate.length > 0) {
-            const results = await Promise.allSettled(
-              prodsToUpdate.map((p) =>
-                api(`/products/${p.id}`, {
-                  method: "PATCH",
-                  body: JSON.stringify(formatProductUpdate(p, cleanName)),
-                })
-              )
-            );
-
-            const failures = results.filter((r) => r.status === "rejected");
-            if (failures.length > 0) {
-              const reason = (failures[0] as PromiseRejectedResult).reason;
-              const errMsg = reason instanceof Error ? reason.message : "Failed to update category on some products.";
-              throw new Error(errMsg);
-            }
-          }
-        }
-
-        // 3. Update local storage
-        const nextCustom = customCategories.map((c) =>
-          String(c.id) === String(editing.id) || c.name.toLowerCase() === oldName.toLowerCase()
-            ? { ...c, name: cleanName, description }
-            : c
-        );
-        setCustomCategories(nextCustom);
-        saveStoredCategories(nextCustom, activeBusiness?.id);
+        });
 
         showToast(`Category "${cleanName}" updated successfully.`, "success");
         setNotice(`Category "${cleanName}" updated.`);
@@ -266,23 +126,10 @@ export default function CategoriesPage() {
           { oldName, newName: cleanName, description }
         );
       } else {
-        // Create new category
         await api("/categories", {
           method: "POST",
           body: JSON.stringify({ name: cleanName, description }),
-        }).catch(() => null);
-
-        const newCat: Category = {
-          id: `cat-${Date.now()}`,
-          name: cleanName,
-          description,
-        };
-        const nextCustom = [
-          ...customCategories.filter((c) => c.name.toLowerCase() !== cleanName.toLowerCase()),
-          newCat,
-        ];
-        setCustomCategories(nextCustom);
-        saveStoredCategories(nextCustom, activeBusiness?.id);
+        });
 
         showToast(`Category "${cleanName}" added successfully.`, "success");
         setNotice(`Category "${cleanName}" added.`);
@@ -311,46 +158,19 @@ export default function CategoriesPage() {
     const affectedCount = cat.productCount || 0;
     const confirmed = await confirmDialog({
       title: "Delete Category",
-      message: affectedCount > 0
-        ? `Are you sure you want to delete "${cat.name}"? ${affectedCount} product${affectedCount > 1 ? "s" : ""} will become uncategorized.`
-        : `Are you sure you want to delete category "${cat.name}"?`,
+      message:
+        affectedCount > 0
+          ? `Are you sure you want to delete "${cat.name}"? ${affectedCount} product${
+              affectedCount > 1 ? "s" : ""
+            } will become uncategorized.`
+          : `Are you sure you want to delete category "${cat.name}"?`,
       confirmLabel: "Delete Category",
       danger: true,
     });
     if (!confirmed) return;
 
     try {
-      // 1. Try backend DELETE
-      await api(`/categories/${cat.id}`, { method: "DELETE" }).catch(() => null);
-
-      // 2. Unassign from products if any
-      const prodsToUnassign = products.filter(
-        (p) => String(p.category || "").toLowerCase().trim() === cat.name.toLowerCase().trim()
-      );
-      if (prodsToUnassign.length > 0) {
-        const results = await Promise.allSettled(
-          prodsToUnassign.map((p) =>
-            api(`/products/${p.id}`, {
-              method: "PATCH",
-              body: JSON.stringify(formatProductUpdate(p, "")),
-            })
-          )
-        );
-
-        const failures = results.filter((r) => r.status === "rejected");
-        if (failures.length > 0) {
-          const reason = (failures[0] as PromiseRejectedResult).reason;
-          const errMsg = reason instanceof Error ? reason.message : "Failed to unassign category from some products.";
-          throw new Error(errMsg);
-        }
-      }
-
-      // 3. Remove from custom storage
-      const nextCustom = customCategories.filter(
-        (c) => String(c.id) !== String(cat.id) && c.name.toLowerCase() !== cat.name.toLowerCase()
-      );
-      setCustomCategories(nextCustom);
-      saveStoredCategories(nextCustom, activeBusiness?.id);
+      await api(`/categories/${cat.id}`, { method: "DELETE" });
 
       showToast(`Category "${cat.name}" deleted.`, "success");
       setNotice(`Category "${cat.name}" deleted.`);
@@ -394,7 +214,7 @@ export default function CategoriesPage() {
         </div>
         <div className={ui.metric}>
           <span>Categorized Products</span>
-          <strong>{products.length - uncategorizedCount}</strong>
+          <strong>{totalCategorizedProducts}</strong>
         </div>
         <div className={ui.metric}>
           <span>Uncategorized Products</span>
@@ -492,7 +312,9 @@ export default function CategoriesPage() {
               {!loading && !shown.length && (
                 <tr>
                   <td colSpan={6} className={ui.empty}>
-                    {query ? "No categories match your search." : "No categories found. Click '+ Add category' to create one."}
+                    {query
+                      ? "No categories match your search."
+                      : "No categories found. Click '+ Add category' to create one."}
                   </td>
                 </tr>
               )}
