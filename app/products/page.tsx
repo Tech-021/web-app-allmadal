@@ -12,6 +12,7 @@ import { ProductCsvModal } from "@/app/components/product-csv-modal";
 import { CameraBarcodeScannerModal } from "@/app/components/camera-barcode-scanner-modal";
 import { BarcodeStickerModal } from "@/app/components/barcode-sticker-modal";
 import { useLanguage } from "@/app/components/language-context";
+import { PaginationControls } from "@/app/components/pagination-controls";
 import ui from "@/app/components/workspace-ui.module.css";
 
 type Draft = {
@@ -40,6 +41,8 @@ export default function ProductsPage() {
   const [query, setQuery] = useState("");
   const debouncedQuery = useDebounce(query, 250);
   const [statusFilter, setStatusFilter] = useState<"All" | "Healthy" | "Low Stock" | "Out of Stock">("All");
+  const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState(25);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
@@ -117,6 +120,16 @@ export default function ProductsPage() {
     }
     return result;
   }, [products, debouncedQuery, statusFilter]);
+
+  // Reset pagination to page 1 on filter or search changes
+  useEffect(() => {
+    setPage(1);
+  }, [debouncedQuery, statusFilter]);
+
+  const paginatedShown = useMemo(() => {
+    const start = (page - 1) * pageSize;
+    return shown.slice(start, start + pageSize);
+  }, [shown, page, pageSize]);
 
   const allShownSelected = useMemo(() => {
     return shown.length > 0 && shown.every((p) => selectedIds.includes(p.id));
@@ -674,7 +687,7 @@ export default function ProductsPage() {
               </tr>
             </thead>
             <tbody>
-              {shown.map((p) => {
+              {paginatedShown.map((p) => {
                 const isSelected = selectedIds.includes(p.id);
                 return (
                   <tr
@@ -822,6 +835,21 @@ export default function ProductsPage() {
             </tbody>
           </table>
         </div>
+
+        {shown.length > 0 && (
+          <PaginationControls
+            currentPage={page}
+            totalItems={shown.length}
+            pageSize={pageSize}
+            onPageChange={setPage}
+            onPageSizeChange={(newSize) => {
+              setPageSize(newSize);
+              setPage(1);
+            }}
+            pageSizeOptions={[10, 25, 50, 100]}
+            itemLabel={t("term.products", "products")}
+          />
+        )}
       </section>
 
       {editing !== undefined && (

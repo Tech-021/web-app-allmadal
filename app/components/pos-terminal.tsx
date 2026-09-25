@@ -18,6 +18,7 @@ import {
   syncOfflineSales,
   listenConnectionStatus,
 } from "@/app/lib/offline-sync";
+import { PaginationControls } from "@/app/components/pagination-controls";
 
 interface PosCartItem {
   product: Product;
@@ -50,9 +51,11 @@ export function PosTerminal({ onSaleCompleted }: PosTerminalProps) {
   const [pendingSyncCount, setPendingSyncCount] = useState<number>(0);
   const [isSyncing, setIsSyncing] = useState<boolean>(false);
 
-  // Filters
+  // Filters & Catalog Pagination
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedCategory, setSelectedCategory] = useState("all");
+  const [catalogPage, setCatalogPage] = useState<number>(1);
+  const [catalogPageSize, setCatalogPageSize] = useState<number>(12);
 
   // Camera Barcode Scanner
   const [scannerOpen, setScannerOpen] = useState(false);
@@ -226,6 +229,16 @@ export function PosTerminal({ onSaleCompleted }: PosTerminalProps) {
       return name.includes(q) || barcode.includes(q) || sku.includes(q) || cat.includes(q);
     });
   }, [products, searchQuery, selectedCategory]);
+
+  // Reset catalog pagination to page 1 on search or category filter change
+  useEffect(() => {
+    setCatalogPage(1);
+  }, [searchQuery, selectedCategory]);
+
+  const paginatedCatalogProducts = useMemo(() => {
+    const start = (catalogPage - 1) * catalogPageSize;
+    return filteredProducts.slice(start, start + catalogPageSize);
+  }, [filteredProducts, catalogPage, catalogPageSize]);
 
   // Add to cart
   const addToCart = (product: Product) => {
@@ -735,78 +748,96 @@ export function PosTerminal({ onSaleCompleted }: PosTerminalProps) {
               </p>
             </div>
           ) : (
-            <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 max-h-[600px] overflow-y-auto pr-1">
-              {filteredProducts.map((p) => {
-                const price = Number(p.sellingPrice ?? p.price ?? 0);
-                const stock = Number(p.stock || 0);
-                const low = stock <= Number(p.lowStockThreshold || 5);
-                const isOutOfStock = stock <= 0;
+            <>
+              <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+                {paginatedCatalogProducts.map((p) => {
+                  const price = Number(p.sellingPrice ?? p.price ?? 0);
+                  const stock = Number(p.stock || 0);
+                  const low = stock <= Number(p.lowStockThreshold || 5);
+                  const isOutOfStock = stock <= 0;
 
-                return (
-                  <button
-                    key={p.id}
-                    type="button"
-                    onClick={() => addToCart(p)}
-                    className="p-3.5 bg-white rounded-2xl border border-slate-200/80 hover:border-[#00875a] hover:shadow-md text-left transition group cursor-pointer flex flex-col justify-between"
-                  >
-                    <div>
-                      <div className="flex items-start justify-between gap-1 mb-1.5">
-                        <span className="text-[10px] font-bold text-slate-400 truncate uppercase">
-                          {p.category || "General"}
-                        </span>
-                        <span
-                          className={`text-[9px] font-black px-1.5 py-0.5 rounded-md ${
-                            isOutOfStock
-                              ? "bg-red-100 text-red-700"
-                              : low
-                              ? "bg-amber-100 text-amber-800"
-                              : "bg-emerald-50 text-[#00875a]"
-                          }`}
-                        >
-                          {isOutOfStock ? "Out of Stock" : `${stock} in stock`}
-                        </span>
-                      </div>
-                      <strong className="block text-xs font-extrabold text-slate-900 group-hover:text-[#00875a] transition line-clamp-2 leading-snug">
-                        {p.name}
-                      </strong>
-                    </div>
-
-                    <div className="mt-3 pt-2 border-t border-slate-100 flex items-center justify-between">
+                  return (
+                    <button
+                      key={p.id}
+                      type="button"
+                      onClick={() => addToCart(p)}
+                      className="p-3.5 bg-white rounded-2xl border border-slate-200/80 hover:border-[#00875a] hover:shadow-md text-left transition group cursor-pointer flex flex-col justify-between"
+                    >
                       <div>
-                        {p.discountType && p.discountType !== "none" && Number(p.discountValue || 0) > 0 ? (
-                          <div>
-                            <span className="block text-[10px] line-through text-slate-400">
+                        <div className="flex items-start justify-between gap-1 mb-1.5">
+                          <span className="text-[10px] font-bold text-slate-400 truncate uppercase">
+                            {p.category || "General"}
+                          </span>
+                          <span
+                            className={`text-[9px] font-black px-1.5 py-0.5 rounded-md ${
+                              isOutOfStock
+                                ? "bg-red-100 text-red-700"
+                                : low
+                                ? "bg-amber-100 text-amber-800"
+                                : "bg-emerald-50 text-[#00875a]"
+                            }`}
+                          >
+                            {isOutOfStock ? "Out of Stock" : `${stock} in stock`}
+                          </span>
+                        </div>
+                        <strong className="block text-xs font-extrabold text-slate-900 group-hover:text-[#00875a] transition line-clamp-2 leading-snug">
+                          {p.name}
+                        </strong>
+                      </div>
+
+                      <div className="mt-3 pt-2 border-t border-slate-100 flex items-center justify-between">
+                        <div>
+                          {p.discountType && p.discountType !== "none" && Number(p.discountValue || 0) > 0 ? (
+                            <div>
+                              <span className="block text-[10px] line-through text-slate-400">
+                                ₨ {price.toLocaleString()}
+                              </span>
+                              <div className="flex items-center gap-1">
+                                <span className="text-xs font-black text-[#00875a]">
+                                  ₨{" "}
+                                  {Math.max(
+                                    0,
+                                    p.discountType === "percentage"
+                                      ? Math.round(price * (1 - Number(p.discountValue) / 100))
+                                      : price - Number(p.discountValue)
+                                  ).toLocaleString()}
+                                </span>
+                                <span className="text-[9px] font-extrabold px-1 rounded bg-emerald-100 text-emerald-800">
+                                  {p.discountType === "percentage" ? `-${p.discountValue}%` : `-₨${p.discountValue}`}
+                                </span>
+                              </div>
+                            </div>
+                          ) : (
+                            <span className="text-xs font-black text-slate-900">
                               ₨ {price.toLocaleString()}
                             </span>
-                            <div className="flex items-center gap-1">
-                              <span className="text-xs font-black text-[#00875a]">
-                                ₨{" "}
-                                {Math.max(
-                                  0,
-                                  p.discountType === "percentage"
-                                    ? Math.round(price * (1 - Number(p.discountValue) / 100))
-                                    : price - Number(p.discountValue)
-                                ).toLocaleString()}
-                              </span>
-                              <span className="text-[9px] font-extrabold px-1 rounded bg-emerald-100 text-emerald-800">
-                                {p.discountType === "percentage" ? `-${p.discountValue}%` : `-₨${p.discountValue}`}
-                              </span>
-                            </div>
-                          </div>
-                        ) : (
-                          <span className="text-xs font-black text-slate-900">
-                            ₨ {price.toLocaleString()}
-                          </span>
-                        )}
+                          )}
+                        </div>
+                        <span className="size-6 rounded-lg bg-emerald-50 group-hover:bg-[#00875a] text-[#00875a] group-hover:text-white flex items-center justify-center text-xs font-black transition">
+                          +
+                        </span>
                       </div>
-                      <span className="size-6 rounded-lg bg-emerald-50 group-hover:bg-[#00875a] text-[#00875a] group-hover:text-white flex items-center justify-center text-xs font-black transition">
-                        +
-                      </span>
-                    </div>
-                  </button>
-                );
-              })}
-            </div>
+                    </button>
+                  );
+                })}
+              </div>
+
+              {filteredProducts.length > 0 && (
+                <PaginationControls
+                  currentPage={catalogPage}
+                  totalItems={filteredProducts.length}
+                  pageSize={catalogPageSize}
+                  onPageChange={setCatalogPage}
+                  onPageSizeChange={(newSize) => {
+                    setCatalogPageSize(newSize);
+                    setCatalogPage(1);
+                  }}
+                  pageSizeOptions={[6, 9, 12, 18, 24, 36]}
+                  itemLabel={t("term.products", "products")}
+                  className="rounded-2xl border border-slate-200/80 shadow-xs"
+                />
+              )}
+            </>
           )}
         </div>
 

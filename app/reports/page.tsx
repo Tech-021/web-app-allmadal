@@ -8,6 +8,7 @@ import { api } from "@/app/lib/api";
 import { useToast } from "@/app/components/toast-context";
 import { useBusiness } from "@/app/components/business-context";
 import { useLanguage } from "@/app/components/language-context";
+import { PaginationControls } from "@/app/components/pagination-controls";
 import ui from "@/app/components/workspace-ui.module.css";
 
 // --- TYPES ---
@@ -150,11 +151,54 @@ export default function ReportsPage() {
   const [productType, setProductType] = useState<"best" | "least">("best");
   const [stockFilter, setStockFilter] = useState<"all" | "low" | "out">("all");
 
+  // Pagination states
+  const [salesPage, setSalesPage] = useState(1);
+  const [salesPageSize, setSalesPageSize] = useState(25);
+  const [productPage, setProductPage] = useState(1);
+  const [productPageSize, setProductPageSize] = useState(25);
+  const [stockPage, setStockPage] = useState(1);
+  const [stockPageSize, setStockPageSize] = useState(25);
+
   // Data states
   const [salesData, setSalesData] = useState<SalesReportData | null>(null);
   const [productData, setProductData] = useState<ProductReportData | null>(null);
   const [stockData, setStockData] = useState<StockReportData | null>(null);
   const [loading, setLoading] = useState(true);
+
+  // Reset page when sub-tabs change
+  useEffect(() => { setSalesPage(1); }, [salesPeriod]);
+  useEffect(() => { setProductPage(1); }, [productType]);
+  useEffect(() => { setStockPage(1); }, [stockFilter]);
+
+  const paginatedSales = useMemo(() => {
+    const list = salesData?.sales || [];
+    const start = (salesPage - 1) * salesPageSize;
+    return list.slice(start, start + salesPageSize);
+  }, [salesData?.sales, salesPage, salesPageSize]);
+
+  const currentProductList = useMemo(() => {
+    return productType === "best"
+      ? productData?.bestSelling || []
+      : productData?.leastSelling || [];
+  }, [productType, productData]);
+
+  const paginatedProducts = useMemo(() => {
+    const start = (productPage - 1) * productPageSize;
+    return currentProductList.slice(start, start + productPageSize);
+  }, [currentProductList, productPage, productPageSize]);
+
+  const currentStockList = useMemo(() => {
+    return stockFilter === "low"
+      ? stockData?.lowStock || []
+      : stockFilter === "out"
+      ? stockData?.outOfStock || []
+      : stockData?.inventory || [];
+  }, [stockFilter, stockData]);
+
+  const paginatedStock = useMemo(() => {
+    const start = (stockPage - 1) * stockPageSize;
+    return currentStockList.slice(start, start + stockPageSize);
+  }, [currentStockList, stockPage, stockPageSize]);
 
   // Active receipt modal preview
   const [activeReceipt, setActiveReceipt] = useState<ReceiptSale | null>(null);
@@ -546,7 +590,7 @@ export default function ReportsPage() {
                         </td>
                       </tr>
                     ) : (
-                      salesData?.sales.map((s) => (
+                      paginatedSales.map((s) => (
                         <tr
                           key={s.id}
                           onClick={() =>
@@ -601,6 +645,22 @@ export default function ReportsPage() {
                   </tbody>
                 </table>
               </div>
+
+              {(salesData?.sales.length || 0) > 0 && (
+                <PaginationControls
+                  currentPage={salesPage}
+                  totalItems={salesData?.sales.length || 0}
+                  pageSize={salesPageSize}
+                  onPageChange={setSalesPage}
+                  onPageSizeChange={(newSize) => {
+                    setSalesPageSize(newSize);
+                    setSalesPage(1);
+                  }}
+                  pageSizeOptions={[10, 25, 50, 100]}
+                  itemLabel="invoices"
+                  className="no-print"
+                />
+              )}
             </div>
           )}
         </div>
@@ -725,10 +785,8 @@ export default function ReportsPage() {
                       </td>
                     </tr>
                   ) : (
-                    (productType === "best"
-                      ? productData?.bestSelling || []
-                      : productData?.leastSelling || []
-                    ).map((prod, idx) => {
+                    paginatedProducts.map((prod, idx) => {
+                      const globalRank = (productPage - 1) * productPageSize + idx + 1;
                       const maxUnits = Math.max(
                         ...(productData?.bestSelling.map((x) => x.quantitySold) || [1]),
                         1
@@ -741,19 +799,19 @@ export default function ReportsPage() {
                             {productType === "best" ? (
                               <span
                                 className={`inline-block size-6 leading-6 rounded-md text-[11px] font-black ${
-                                  idx === 0
+                                  globalRank === 1
                                     ? "bg-amber-100 text-amber-800"
-                                    : idx === 1
+                                    : globalRank === 2
                                     ? "bg-slate-200 text-slate-800"
-                                    : idx === 2
+                                    : globalRank === 3
                                     ? "bg-orange-100 text-orange-800"
                                     : "bg-slate-100 text-slate-600"
                                 }`}
                               >
-                                #{idx + 1}
+                                #{globalRank}
                               </span>
                             ) : (
-                              <span className="text-slate-400 font-semibold">{idx + 1}</span>
+                              <span className="text-slate-400 font-semibold">{globalRank}</span>
                             )}
                           </td>
                           <td className="py-3 px-4">
@@ -820,6 +878,22 @@ export default function ReportsPage() {
                 </tbody>
               </table>
             </div>
+
+            {currentProductList.length > 0 && (
+              <PaginationControls
+                currentPage={productPage}
+                totalItems={currentProductList.length}
+                pageSize={productPageSize}
+                onPageChange={setProductPage}
+                onPageSizeChange={(newSize) => {
+                  setProductPageSize(newSize);
+                  setProductPage(1);
+                }}
+                pageSizeOptions={[10, 25, 50, 100]}
+                itemLabel={productType === "best" ? "top sellers" : "slow sellers"}
+                className="no-print"
+              />
+            )}
           </div>
         </div>
       )}
@@ -972,12 +1046,7 @@ export default function ReportsPage() {
                       </td>
                     </tr>
                   ) : (
-                    (stockFilter === "low"
-                      ? stockData?.lowStock || []
-                      : stockFilter === "out"
-                      ? stockData?.outOfStock || []
-                      : stockData?.inventory || []
-                    ).map((prod) => (
+                    paginatedStock.map((prod) => (
                       <tr key={prod.id} className="hover:bg-slate-50 transition">
                         <td className="py-3 px-4">
                           <strong className="block text-slate-900 text-sm font-bold">{prod.name}</strong>
@@ -1038,6 +1107,22 @@ export default function ReportsPage() {
                 </tbody>
               </table>
             </div>
+
+            {currentStockList.length > 0 && (
+              <PaginationControls
+                currentPage={stockPage}
+                totalItems={currentStockList.length}
+                pageSize={stockPageSize}
+                onPageChange={setStockPage}
+                onPageSizeChange={(newSize) => {
+                  setStockPageSize(newSize);
+                  setStockPage(1);
+                }}
+                pageSizeOptions={[10, 25, 50, 100]}
+                itemLabel="inventory items"
+                className="no-print"
+              />
+            )}
           </div>
         </div>
       )}

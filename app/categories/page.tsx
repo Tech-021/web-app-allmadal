@@ -6,6 +6,7 @@ import { api, Product } from "@/app/lib/api";
 import { useToast } from "@/app/components/toast-context";
 import { useBusiness } from "@/app/components/business-context";
 import { logActivity } from "@/app/lib/logger";
+import { PaginationControls } from "@/app/components/pagination-controls";
 import ui from "@/app/components/workspace-ui.module.css";
 
 export type Category = {
@@ -48,6 +49,8 @@ export default function CategoriesPage() {
   const [serverCategories, setServerCategories] = useState<Category[]>([]);
   const [loading, setLoading] = useState(true);
   const [query, setQuery] = useState("");
+  const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState(10);
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
   const [editing, setEditing] = useState<Category | null | undefined>(undefined);
@@ -160,6 +163,15 @@ export default function CategoriesPage() {
       [c.name, c.description].some((v) => String(v ?? "").toLowerCase().includes(q))
     );
   }, [categories, query]);
+
+  useEffect(() => {
+    setPage(1);
+  }, [query]);
+
+  const paginatedShown = useMemo(() => {
+    const start = (page - 1) * pageSize;
+    return shown.slice(start, start + pageSize);
+  }, [shown, page, pageSize]);
 
   function open(cat?: Category) {
     setEditing(cat ?? null);
@@ -416,7 +428,7 @@ export default function CategoriesPage() {
               </tr>
             </thead>
             <tbody>
-              {shown.map((c) => {
+              {paginatedShown.map((c) => {
                 const initial = c.name[0]?.toUpperCase() || "C";
                 return (
                   <tr key={String(c.id)}>
@@ -494,6 +506,21 @@ export default function CategoriesPage() {
             </tbody>
           </table>
         </div>
+
+        {shown.length > 0 && (
+          <PaginationControls
+            currentPage={page}
+            totalItems={shown.length}
+            pageSize={pageSize}
+            onPageChange={setPage}
+            onPageSizeChange={(newSize) => {
+              setPageSize(newSize);
+              setPage(1);
+            }}
+            pageSizeOptions={[5, 10, 25, 50]}
+            itemLabel="categories"
+          />
+        )}
       </section>
 
       {editing !== undefined && (

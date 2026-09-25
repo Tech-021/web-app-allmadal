@@ -10,6 +10,7 @@ import { api } from "@/app/lib/api";
 import { useBusiness } from "@/app/components/business-context";
 import { useToast } from "@/app/components/toast-context";
 import { useLanguage } from "@/app/components/language-context";
+import { PaginationControls } from "@/app/components/pagination-controls";
 import styles from "./dashboard.module.css";
 
 type Sale = { id: number | string; total_amount?: number; total_items?: number; created_at?: string };
@@ -264,6 +265,29 @@ function DashboardContent() {
     supplierPayable: Number(activeBusiness?.supplierPayable || 0),
   }), [activeBusiness]);
 
+  // Dashboard Widget Pagination
+  const [topSellerPage, setTopSellerPage] = useState(1);
+  const [topSellerPageSize, setTopSellerPageSize] = useState(5);
+  const [lowStockPage, setLowStockPage] = useState(1);
+  const [lowStockPageSize, setLowStockPageSize] = useState(5);
+  const [recentSalesPage, setRecentSalesPage] = useState(1);
+  const [recentSalesPageSize, setRecentSalesPageSize] = useState(5);
+
+  const paginatedTopSellers = useMemo(() => {
+    const start = (topSellerPage - 1) * topSellerPageSize;
+    return topSellingList.slice(start, start + topSellerPageSize);
+  }, [topSellingList, topSellerPage, topSellerPageSize]);
+
+  const paginatedLowStock = useMemo(() => {
+    const start = (lowStockPage - 1) * lowStockPageSize;
+    return lowStockProductsList.slice(start, start + lowStockPageSize);
+  }, [lowStockProductsList, lowStockPage, lowStockPageSize]);
+
+  const paginatedRecentSales = useMemo(() => {
+    const start = (recentSalesPage - 1) * recentSalesPageSize;
+    return sales.slice(start, start + recentSalesPageSize);
+  }, [sales, recentSalesPage, recentSalesPageSize]);
+
   if (isLoading || !user) {
     return (
       <main className={styles.loadingPage}>
@@ -413,22 +437,23 @@ function DashboardContent() {
               </div>
             ) : (
               <div className={styles.topSellerList}>
-                {topSellingList.map((item, index) => {
+                {paginatedTopSellers.map((item, index) => {
+                  const globalRank = (topSellerPage - 1) * topSellerPageSize + index + 1;
                   const maxQty = Math.max(...topSellingList.map((i) => i.quantitySold), 1);
                   const pct = Math.min(100, Math.round((item.quantitySold / maxQty) * 100));
                   const rankClass =
-                    index === 0
+                    globalRank === 1
                       ? styles.rank1
-                      : index === 1
+                      : globalRank === 2
                       ? styles.rank2
-                      : index === 2
+                      : globalRank === 3
                       ? styles.rank3
                       : styles.rankOther;
 
                   return (
                     <article key={item.productId || index} className={styles.topSellerItem}>
                       <div className={styles.topSellerLeft}>
-                        <span className={`${styles.rankBadge} ${rankClass}`}>#{index + 1}</span>
+                        <span className={`${styles.rankBadge} ${rankClass}`}>#{globalRank}</span>
                         <div className={styles.sellerDetails}>
                           <strong>{item.name}</strong>
                           <div className={styles.sellerMeta}>
@@ -448,6 +473,23 @@ function DashboardContent() {
                     </article>
                   );
                 })}
+
+                {topSellingList.length > 0 && (
+                  <PaginationControls
+                    currentPage={topSellerPage}
+                    totalItems={topSellingList.length}
+                    pageSize={topSellerPageSize}
+                    onPageChange={setTopSellerPage}
+                    onPageSizeChange={(newSize) => {
+                      setTopSellerPageSize(newSize);
+                      setTopSellerPage(1);
+                    }}
+                    pageSizeOptions={[2, 5, 10, 20]}
+                    itemLabel="items"
+                    compact
+                    className="border-t border-slate-100 pt-2"
+                  />
+                )}
               </div>
             )}
           </section>
@@ -480,7 +522,7 @@ function DashboardContent() {
               </div>
             ) : (
               <div className={styles.lowStockList}>
-                {lowStockProductsList.slice(0, 5).map((prod) => {
+                {paginatedLowStock.map((prod) => {
                   const isOut = prod.stock <= 0;
                   const isCritical = prod.stock > 0 && prod.stock <= 2;
                   return (
@@ -508,13 +550,22 @@ function DashboardContent() {
                     </article>
                   );
                 })}
-                {lowStockProductsList.length > 5 && (
-                  <Link
-                    href="/products"
-                    className="block text-center text-xs font-bold text-emerald-700 hover:underline pt-1"
-                  >
-                    View all {lowStockProductsList.length} low stock products →
-                  </Link>
+
+                {lowStockProductsList.length > 0 && (
+                  <PaginationControls
+                    currentPage={lowStockPage}
+                    totalItems={lowStockProductsList.length}
+                    pageSize={lowStockPageSize}
+                    onPageChange={setLowStockPage}
+                    onPageSizeChange={(newSize) => {
+                      setLowStockPageSize(newSize);
+                      setLowStockPage(1);
+                    }}
+                    pageSizeOptions={[2, 5, 10, 20]}
+                    itemLabel="alerts"
+                    compact
+                    className="border-t border-slate-100 pt-2"
+                  />
                 )}
               </div>
             )}
@@ -536,29 +587,48 @@ function DashboardContent() {
                   <p>{t("dashboard.no_sales", "No sales recorded yet.")}</p>
                 </div>
               ) : (
-                sales.slice(0, 5).map((sale) => (
-                  <article
-                    className={styles.saleRow}
-                    key={sale.id}
-                    onClick={() =>
-                      setActiveReceipt({
-                        id: String(sale.id),
-                        total: Number(sale.total_amount || 0),
-                        itemsCount: Number(sale.total_items || 1),
-                        createdByName: user.name,
-                        createdAt: sale.created_at || new Date().toISOString(),
-                      })
-                    }
-                    style={{ cursor: "pointer" }}
-                    title="Click to view printable invoice receipt"
-                  >
-                    <span>
-                      <strong>Sale #{sale.id}</strong>
-                      <small>{sale.total_items ?? 1} items</small>
-                    </span>
-                    <strong>{money(Number(sale.total_amount || 0))}</strong>
-                  </article>
-                ))
+                <>
+                  {paginatedRecentSales.map((sale) => (
+                    <article
+                      className={styles.saleRow}
+                      key={sale.id}
+                      onClick={() =>
+                        setActiveReceipt({
+                          id: String(sale.id),
+                          total: Number(sale.total_amount || 0),
+                          itemsCount: Number(sale.total_items || 1),
+                          createdByName: user.name,
+                          createdAt: sale.created_at || new Date().toISOString(),
+                        })
+                      }
+                      style={{ cursor: "pointer" }}
+                      title="Click to view printable invoice receipt"
+                    >
+                      <span>
+                        <strong>Sale #{sale.id}</strong>
+                        <small>{sale.total_items ?? 1} items</small>
+                      </span>
+                      <strong>{money(Number(sale.total_amount || 0))}</strong>
+                    </article>
+                  ))}
+
+                  {sales.length > 0 && (
+                    <PaginationControls
+                      currentPage={recentSalesPage}
+                      totalItems={sales.length}
+                      pageSize={recentSalesPageSize}
+                      onPageChange={setRecentSalesPage}
+                      onPageSizeChange={(newSize) => {
+                        setRecentSalesPageSize(newSize);
+                        setRecentSalesPage(1);
+                      }}
+                      pageSizeOptions={[2, 5, 10, 20]}
+                      itemLabel="invoices"
+                      compact
+                      className="border-t border-slate-100 pt-2"
+                    />
+                  )}
+                </>
               )}
             </div>
           </section>

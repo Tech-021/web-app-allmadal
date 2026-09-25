@@ -9,6 +9,7 @@ import { useDebounce } from "@/hooks/useDebounce";
 import { PosTerminal } from "@/app/components/pos-terminal";
 import { AddSaleModal } from "@/app/components/add-sale-modal";
 import { PosReceiptModal, ReceiptSale } from "@/app/components/pos-receipt-modal";
+import { PaginationControls } from "@/app/components/pagination-controls";
 
 interface SaleListItem {
   id: number;
@@ -38,6 +39,7 @@ export default function SalesPage() {
   const [sales, setSales] = useState<SaleListItem[]>([]);
   const [totalSalesCount, setTotalSalesCount] = useState(0);
   const [currentPage, setCurrentPage] = useState(1);
+  const [pageSize, setPageSize] = useState(25);
   const [loadingHistory, setLoadingHistory] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
   const debouncedSearch = useDebounce(searchQuery, 350);
@@ -58,7 +60,7 @@ export default function SalesPage() {
         total: number;
         page: number;
         limit: number;
-      }>(`/sales?page=${currentPage}&limit=25`);
+      }>(`/sales?page=${currentPage}&limit=${pageSize}`);
 
       setSales(data.sales || []);
       setTotalSalesCount(data.total || 0);
@@ -68,7 +70,7 @@ export default function SalesPage() {
     } finally {
       setLoadingHistory(false);
     }
-  }, [activeBusiness, currentPage, showToast]);
+  }, [activeBusiness, currentPage, pageSize, showToast]);
 
   useEffect(() => {
     loadSalesHistory();
@@ -493,30 +495,19 @@ export default function SalesPage() {
               )}
 
               {/* Pagination Footer */}
-              {totalSalesCount > 25 && (
-                <div className="flex items-center justify-between px-4 py-3 border-t border-slate-200 dark:border-slate-800 text-xs text-slate-500">
-                  <div>
-                    Page {currentPage} of {Math.ceil(totalSalesCount / 25)} ({totalSalesCount} total sales)
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <button
-                      type="button"
-                      disabled={currentPage <= 1}
-                      onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
-                      className="px-3 py-1.5 rounded border border-slate-200 dark:border-slate-700 disabled:opacity-40 hover:bg-slate-50 dark:hover:bg-slate-800"
-                    >
-                      Previous
-                    </button>
-                    <button
-                      type="button"
-                      disabled={currentPage >= Math.ceil(totalSalesCount / 25)}
-                      onClick={() => setCurrentPage((p) => p + 1)}
-                      className="px-3 py-1.5 rounded border border-slate-200 dark:border-slate-700 disabled:opacity-40 hover:bg-slate-50 dark:hover:bg-slate-800"
-                    >
-                      Next
-                    </button>
-                  </div>
-                </div>
+              {totalSalesCount > 0 && (
+                <PaginationControls
+                  currentPage={currentPage}
+                  totalItems={totalSalesCount}
+                  pageSize={pageSize}
+                  onPageChange={setCurrentPage}
+                  onPageSizeChange={(newSize) => {
+                    setPageSize(newSize);
+                    setCurrentPage(1);
+                  }}
+                  pageSizeOptions={[10, 25, 50, 100]}
+                  itemLabel="sales"
+                />
               )}
             </div>
           </div>

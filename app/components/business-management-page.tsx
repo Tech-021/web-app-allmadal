@@ -10,6 +10,7 @@ import { logActivity } from "@/app/lib/logger";
 import { validatePhone, validateEmail, validateText, validateNumber, sanitizePhoneInput } from "@/app/lib/validators";
 import { useLanguage } from "./language-context";
 import { DetailedSaleReceipt, PosReceiptModal } from "./pos-receipt-modal";
+import { PaginationControls } from "./pagination-controls";
 import ui from "./workspace-ui.module.css";
 
 type Mode = "customers" | "suppliers" | "expenses" | "accounts" | "sales";
@@ -147,6 +148,7 @@ export function BusinessManagementPage({ mode }: { mode: Mode }) {
   const [query, setQuery] = useState("");
   const debouncedQuery = useDebounce(query, 300);
   const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState(25);
   const [total, setTotal] = useState(0);
 
   // Customer Purchase History modal state
@@ -162,7 +164,7 @@ export function BusinessManagementPage({ mode }: { mode: Mode }) {
         ? `&search=${encodeURIComponent(debouncedQuery)}`
         : "";
       const res = await api<Record<string, unknown> | Row[]>(
-        `${c.endpoint}?page=${page}&limit=25${searchParam}`
+        `${c.endpoint}?page=${page}&limit=${pageSize}${searchParam}`
       );
       const data = Array.isArray(res)
         ? res
@@ -170,6 +172,8 @@ export function BusinessManagementPage({ mode }: { mode: Mode }) {
             res.accounts ||
             res.expenses ||
             res.sales ||
+            res.customers ||
+            res.suppliers ||
             []) as Row[]);
       setRows(data);
       setTotal(Number((!Array.isArray(res) && res.total) || data.length));
@@ -181,7 +185,7 @@ export function BusinessManagementPage({ mode }: { mode: Mode }) {
     } finally {
       setLoading(false);
     }
-  }, [c.endpoint, mode, page, debouncedQuery, showToast, activeBusiness?.id]);
+  }, [c.endpoint, mode, page, pageSize, debouncedQuery, showToast, activeBusiness?.id]);
 
   useEffect(() => {
     void load();
@@ -528,26 +532,19 @@ export function BusinessManagementPage({ mode }: { mode: Mode }) {
           </table>
         </div>
 
-        {total > 25 && (
-          <div className="flex justify-between items-center p-4 text-xs font-bold border-t border-slate-100">
-            <button
-              className={ui.secondary}
-              disabled={page <= 1}
-              onClick={() => setPage((p) => p - 1)}
-            >
-              {t("table.previous")}
-            </button>
-            <span className="text-slate-600">
-              {t("table.page")} {page} {t("table.of")} {Math.ceil(total / 25)}
-            </span>
-            <button
-              className={ui.secondary}
-              disabled={page * 25 >= total}
-              onClick={() => setPage((p) => p + 1)}
-            >
-              {t("table.next")}
-            </button>
-          </div>
+        {total > 0 && (
+          <PaginationControls
+            currentPage={page}
+            totalItems={total}
+            pageSize={pageSize}
+            onPageChange={setPage}
+            onPageSizeChange={(newSize) => {
+              setPageSize(newSize);
+              setPage(1);
+            }}
+            pageSizeOptions={[10, 25, 50, 100]}
+            itemLabel={modeTitle.toLowerCase()}
+          />
         )}
       </section>
 

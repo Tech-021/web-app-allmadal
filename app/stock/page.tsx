@@ -7,6 +7,7 @@ import { useToast } from "@/app/components/toast-context";
 import { useBusiness } from "@/app/components/business-context";
 import { logActivity } from "@/app/lib/logger";
 import { CameraBarcodeScannerModal } from "@/app/components/camera-barcode-scanner-modal";
+import { PaginationControls } from "@/app/components/pagination-controls";
 import ui from "@/app/components/workspace-ui.module.css";
 
 const money = (n: number) => `Rs ${Number(n).toLocaleString()}`;
@@ -39,6 +40,8 @@ export default function StockPage() {
   const [products, setProducts] = useState<Product[]>([]);
   const [activeTab, setActiveTab] = useState<"all" | "low" | "out">("all");
   const [query, setQuery] = useState("");
+  const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState(25);
   const [modalOpen, setModalOpen] = useState(false);
   const [scannerOpen, setScannerOpen] = useState(false);
 
@@ -97,6 +100,16 @@ export default function StockPage() {
 
     return result;
   }, [products, activeTab, query]);
+
+  // Reset pagination to page 1 on tab or query change
+  useEffect(() => {
+    setPage(1);
+  }, [activeTab, query]);
+
+  const paginatedStockProducts = useMemo(() => {
+    const start = (page - 1) * pageSize;
+    return displayedProducts.slice(start, start + pageSize);
+  }, [displayedProducts, page, pageSize]);
 
   const selectedProduct = products.find((p) => p.barcode === barcode);
 
@@ -386,7 +399,7 @@ export default function StockPage() {
               </tr>
             </thead>
             <tbody>
-              {displayedProducts.map((p) => (
+              {paginatedStockProducts.map((p) => (
                 <tr key={p.id}>
                   <td>
                     <div className="flex items-center gap-3">
@@ -448,6 +461,21 @@ export default function StockPage() {
             </tbody>
           </table>
         </div>
+
+        {displayedProducts.length > 0 && (
+          <PaginationControls
+            currentPage={page}
+            totalItems={displayedProducts.length}
+            pageSize={pageSize}
+            onPageChange={setPage}
+            onPageSizeChange={(newSize) => {
+              setPageSize(newSize);
+              setPage(1);
+            }}
+            pageSizeOptions={[10, 25, 50, 100]}
+            itemLabel="items"
+          />
+        )}
       </section>
 
       {/* Stock Update Modal Sheet */}

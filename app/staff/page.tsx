@@ -8,6 +8,7 @@ import { useAuth } from "@/hooks/useAuth";
 import { useBusiness } from "@/app/components/business-context";
 import { useToast } from "@/app/components/toast-context";
 import { logActivity } from "@/app/lib/logger";
+import { PaginationControls } from "@/app/components/pagination-controls";
 import ui from "@/app/components/workspace-ui.module.css";
 
 type Draft = { fullName: string; email: string; password: string; confirm: string; role: "staff" | "accountant" };
@@ -188,6 +189,8 @@ export default function StaffPage() {
   }
 
   const [query, setQuery] = useState("");
+  const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState(10);
 
   const shown = useMemo(() => {
     const q = query.toLowerCase().trim();
@@ -198,6 +201,11 @@ export default function StaffPage() {
       )
     );
   }, [staff, query]);
+
+  const paginatedShown = useMemo(() => {
+    const start = (page - 1) * pageSize;
+    return shown.slice(start, start + pageSize);
+  }, [shown, page, pageSize]);
 
   return (
     <WorkspaceShell>
@@ -239,7 +247,10 @@ export default function StaffPage() {
           className={`${ui.input} ${ui.search}`}
           placeholder="Search team members by name, email, or role…"
           value={query}
-          onChange={(e) => setQuery(e.target.value)}
+          onChange={(e) => {
+            setQuery(e.target.value);
+            setPage(1);
+          }}
         />
         <button className={ui.secondary} onClick={() => void load()}>
           Refresh
@@ -261,7 +272,7 @@ export default function StaffPage() {
               </tr>
             </thead>
             <tbody>
-              {shown.map((item) => {
+              {paginatedShown.map((item) => {
                 const name = item.user.fullName || "Unnamed member";
                 const initial = name[0]?.toUpperCase() || "M";
                 const isAccountant = item.user.role === "accountant";
@@ -368,6 +379,21 @@ export default function StaffPage() {
             </tbody>
           </table>
         </div>
+
+        {shown.length > 0 && (
+          <PaginationControls
+            currentPage={page}
+            totalItems={shown.length}
+            pageSize={pageSize}
+            onPageChange={setPage}
+            onPageSizeChange={(newSize) => {
+              setPageSize(newSize);
+              setPage(1);
+            }}
+            pageSizeOptions={[5, 10, 25, 50]}
+            itemLabel="team members"
+          />
+        )}
       </section>
 
       {modal && (
