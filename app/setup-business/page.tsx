@@ -46,7 +46,7 @@ const PROVINCES = [
 export default function SetupBusinessPage() {
   const router = useRouter();
   const { user, isAuthenticated, isLoading: authLoading } = useAuth();
-  const { reloadBusinesses, switchBusiness, setWorkspaceMode } = useBusiness();
+  const { reloadBusinesses, switchBusiness, setWorkspaceMode, activeBusiness, businesses, isLoading: bizLoading } = useBusiness();
   const { showToast } = useToast();
 
   const [businessName, setBusinessName] = useState("");
@@ -74,8 +74,13 @@ export default function SetupBusinessPage() {
   useEffect(() => {
     if (!authLoading && !isAuthenticated) {
       router.replace("/login");
+      return;
     }
-  }, [authLoading, isAuthenticated, router]);
+    // 1-Admin = 1-Business Rule: Redirect to dashboard if user already owns or belongs to a business
+    if (!bizLoading && (activeBusiness || (businesses && businesses.length > 0))) {
+      router.replace("/dashboard");
+    }
+  }, [authLoading, isAuthenticated, activeBusiness, businesses, bizLoading, router]);
 
   // Validation functions using validators.ts
   const validateBusinessName = (name: string): string => {

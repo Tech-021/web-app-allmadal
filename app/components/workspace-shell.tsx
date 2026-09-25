@@ -99,14 +99,12 @@ function StoreIcon() {
 
 export function WorkspaceShell({ children }: { children: React.ReactNode }) {
   const { user, isLoading: authLoading, logout } = useAuth();
-  const { activeBusiness, businesses, switchBusiness, workspaceMode } = useBusiness();
+  const { activeBusiness, workspaceMode } = useBusiness();
   const { language, t } = useLanguage();
   const router = useRouter();
   const pathname = usePathname();
 
-  const [bizDropdownOpen, setBizDropdownOpen] = useState(false);
   const [mobileDrawerOpen, setMobileDrawerOpen] = useState(false);
-  const dropdownRef = useRef<HTMLDivElement>(null);
   const resolvedLogo = resolveImageUrl(activeBusiness?.logoUrl);
 
   const allLinks = workspaceMode === "pos" ? posLinks : financialLinks;
@@ -170,29 +168,16 @@ export function WorkspaceShell({ children }: { children: React.ReactNode }) {
     }
   }, [user, authLoading, pathname, router]);
 
-  // Close dropdown / drawer on navigation
+  // Close drawer on navigation
   useEffect(() => {
     setMobileDrawerOpen(false);
-    setBizDropdownOpen(false);
   }, [pathname]);
-
-  // Close dropdown on outside click
-  useEffect(() => {
-    function handleClickOutside(e: MouseEvent) {
-      if (dropdownRef.current && !dropdownRef.current.contains(e.target as Node)) {
-        setBizDropdownOpen(false);
-      }
-    }
-    document.addEventListener("mousedown", handleClickOutside);
-    return () => document.removeEventListener("mousedown", handleClickOutside);
-  }, []);
 
   // Close drawer on ESC
   useEffect(() => {
     function handleKeyDown(e: KeyboardEvent) {
       if (e.key === "Escape") {
         setMobileDrawerOpen(false);
-        setBizDropdownOpen(false);
       }
     }
     window.addEventListener("keydown", handleKeyDown);
@@ -251,76 +236,36 @@ export function WorkspaceShell({ children }: { children: React.ReactNode }) {
           </div>
         </Link>
 
-        {/* Business Selector / Active Store Badge */}
-        <div ref={dropdownRef} className="relative px-2 mb-3">
+        {/* Active Store Badge (Strict 1 Store per Admin) */}
+        <div className="px-2 mb-3">
           {activeBusiness ? (
-            <div className="relative">
-              <button
-                type="button"
-                onClick={() => setBizDropdownOpen(!bizDropdownOpen)}
-                className="w-full flex items-center justify-between gap-2 p-2.5 rounded-2xl bg-white border border-gray-200/80 hover:border-[#00875a] shadow-xs transition text-left group cursor-pointer"
-                title="Click to switch or manage businesses"
-                aria-expanded={bizDropdownOpen}
-              >
-                <div className="flex items-center gap-2.5 overflow-hidden">
-                  <span className="size-8 rounded-xl bg-[#e6f4ed] text-[#00875a] grid place-items-center shrink-0 overflow-hidden border border-emerald-100/60 shadow-xs">
-                    {resolvedLogo ? (
-                      <img
-                        src={resolvedLogo}
-                        alt={activeBusiness.name}
-                        className="size-full object-cover rounded-xl"
-                      />
-                    ) : (
-                      <StoreIcon />
-                    )}
+            <Link
+              href="/settings"
+              className="w-full flex items-center justify-between gap-2 p-2.5 rounded-2xl bg-white border border-gray-200/80 hover:border-[#00875a] shadow-xs transition text-left group"
+              title="Store Settings"
+            >
+              <div className="flex items-center gap-2.5 overflow-hidden">
+                <span className="size-8 rounded-xl bg-[#e6f4ed] text-[#00875a] grid place-items-center shrink-0 overflow-hidden border border-emerald-100/60 shadow-xs">
+                  {resolvedLogo ? (
+                    <img
+                      src={resolvedLogo}
+                      alt={activeBusiness.name}
+                      className="size-full object-cover rounded-xl"
+                    />
+                  ) : (
+                    <StoreIcon />
+                  )}
+                </span>
+                <div className="overflow-hidden">
+                  <strong className="block text-xs font-extrabold text-gray-900 truncate leading-tight group-hover:text-[#00875a] transition">
+                    {activeBusiness.name}
+                  </strong>
+                  <span className="inline-block text-[10px] font-bold text-gray-500 capitalize truncate">
+                    {activeBusiness.businessType}
                   </span>
-                  <div className="overflow-hidden">
-                    <strong className="block text-xs font-extrabold text-gray-900 truncate leading-tight group-hover:text-[#00875a] transition">
-                      {activeBusiness.name}
-                    </strong>
-                    <span className="inline-block text-[10px] font-bold text-gray-500 capitalize">
-                      {activeBusiness.businessType}
-                    </span>
-                  </div>
                 </div>
-                <span className="text-[10px] text-gray-400 font-bold shrink-0">▼</span>
-              </button>
-
-              {/* Dropdown Menu */}
-              {bizDropdownOpen && (
-                <div className="absolute top-full left-2 right-2 mt-1.5 z-50 bg-white rounded-2xl shadow-2xl border border-gray-100 p-2 space-y-1">
-                  <div className="px-2.5 py-1 text-[10px] font-extrabold text-gray-400 uppercase tracking-wider">
-                    My Businesses
-                  </div>
-                  {businesses.map((b) => (
-                    <button
-                      key={b.id}
-                      onClick={() => {
-                        switchBusiness(b.id);
-                        setBizDropdownOpen(false);
-                      }}
-                      className={`w-full flex items-center justify-between p-2 rounded-xl text-left text-xs font-bold transition ${
-                        b.id === activeBusiness.id
-                          ? "bg-[#e6f4ed] text-[#00875a]"
-                          : "text-gray-700 hover:bg-gray-50"
-                      }`}
-                    >
-                      <div className="flex items-center gap-2 truncate">
-                        <span className="size-5 rounded-md bg-[#e6f4ed] text-[#00875a] grid place-items-center shrink-0 overflow-hidden text-[10px] font-bold">
-                          {b.logoUrl ? (
-                            <img src={resolveImageUrl(b.logoUrl) || ""} alt="" className="size-full object-cover rounded-md" />
-                          ) : (
-                            b.name[0]?.toUpperCase()
-                          )}
-                        </span>
-                        <span className="truncate">{b.name}</span>
-                      </div>
-                      {b.id === activeBusiness.id && <span className="text-[11px]">✓</span>}
-                    </button>
-                  ))}
-                </div>
-              )}
-            </div>
+              </div>
+            </Link>
           ) : (
             <div className="p-2.5 rounded-2xl bg-amber-50 border border-amber-200 text-amber-800 text-xs font-bold">
               <p>No active business</p>
