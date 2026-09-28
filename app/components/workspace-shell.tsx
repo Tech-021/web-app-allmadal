@@ -11,15 +11,15 @@ import { logActivity } from "@/app/lib/logger";
 import { resolveImageUrl } from "@/app/lib/api";
 import { useLanguage } from "./language-context";
 import { LanguageSwitcher } from "./language-switcher";
-import { effectiveNavRole } from "@/app/lib/access";
+import { effectiveNavRole, type NavRole } from "@/app/lib/access";
 
 type NavLink = {
   href: string;
   label: string;
   key: string;
   icon: string;
-  allowedRoles: Array<"admin" | "staff" | "accountant">;
-  subItems?: Array<{ href: string; label: string; key?: string; allowedRoles?: Array<"admin" | "staff" | "accountant"> }>;
+  allowedRoles: NavRole[];
+  subItems?: Array<{ href: string; label: string; key?: string; allowedRoles?: NavRole[] }>;
 };
 
 const posLinks: NavLink[] = [
