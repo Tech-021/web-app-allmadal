@@ -1,7 +1,6 @@
 "use client";
 
 import React, { createContext, useCallback, useContext, useEffect, useMemo, useState } from "react";
-import { useRouter, usePathname } from "next/navigation";
 import { useAuth } from "@/hooks/useAuth";
 import { api } from "@/app/lib/api";
 
@@ -60,10 +59,13 @@ interface BusinessContextValue {
 
 const BusinessContext = createContext<BusinessContextValue | null>(null);
 const ACTIVE_BIZ_KEY = "almadel_active_business_id";
-const WORKSPACE_MODE_KEY = "almadel_workspace_mode";
 
-// Helper to purge legacy offline and caching keys from browser localStorage
-function purgeLegacyOfflineCache() {
+function modeFromBusiness(business: Business | null | undefined): WorkspaceMode {
+  return business?.workspaceMode === "financial" ? "financial" : "pos";
+}
+
+/** Remove legacy client caches that used to fight the server (especially workspace mode). */
+function purgeClientCaches() {
   if (typeof window === "undefined") return;
   try {
     const keysToRemove: string[] = [];
@@ -71,7 +73,8 @@ function purgeLegacyOfflineCache() {
       const key = localStorage.key(i);
       if (
         key &&
-        (key.startsWith("almadel_pos_cache_") ||
+        (key === "almadel_workspace_mode" ||
+          key.startsWith("almadel_pos_cache_") ||
           key.startsWith("almadel_offline_sales_queue_") ||
           key.startsWith("almadel_cached_") ||
           key.startsWith("almadel_custom_categories"))
@@ -86,95 +89,99 @@ function purgeLegacyOfflineCache() {
 }
 
 export function BusinessProvider({ children }: { children: React.ReactNode }) {
-  const { user, isAuthenticated, isLoading: authLoading } = useAuth();
-  const router = useRouter();
-  const pathname = usePathname();
+  const { isAuthenticated, isLoading: authLoading } = useAuth();
 
   const [businesses, setBusinesses] = useState<Business[]>([]);
   const [activeBusiness, setActiveBusiness] = useState<Business | null>(null);
-  // Default matches Prisma Business.workspaceMode default ("pos") until server/localStorage resolves.
   const [workspaceMode, setWorkspaceModeState] = useState<WorkspaceMode>("pos");
   const [isLoading, setIsLoading] = useState(true);
   const businessesRef = React.useRef<Business[]>([]);
   businessesRef.current = businesses;
 
-  // Initialize and clear any stale cache
   useEffect(() => {
-    purgeLegacyOfflineCache();
-    if (typeof window !== "undefined") {
-      const savedMode = localStorage.getItem(WORKSPACE_MODE_KEY) as WorkspaceMode | null;
-      if (savedMode === "pos" || savedMode === "financial") {
-        setWorkspaceModeState(savedMode);
-      }
-    }
+    purgeClientCaches();
   }, []);
 
-  const setWorkspaceMode = useCallback((mode: WorkspaceMode) => {
+  const applyBusinessMode = useCallback((business: Business | null) => {
+    const mode = modeFromBusiness(business);
     setWorkspaceModeState(mode);
-    if (typeof window !== "undefined") {
-      localStorage.setItem(WORKSPACE_MODE_KEY, mode);
-      window.dispatchEvent(new CustomEvent("almadel_mode_switched", { detail: mode }));
-    }
+    return mode;
   }, []);
 
-  const reloadBusinesses = useCallback(async (options?: { skipWorkspaceModeSync?: boolean }): Promise<Business[]> => {
-    if (!isAuthenticated) {
-      setBusinesses([]);
-      setActiveBusiness(null);
-      setIsLoading(false);
-      return [];
-    }
+  const setWorkspaceMode = useCallback(
+    (mode: WorkspaceMode) => {
+      setWorkspaceModeState(mode);
 
-    try {
-      const res = await api<{ success: boolean; businesses: Business[] }>("/business/my-businesses");
-      const list = res.businesses || [];
-      setBusinesses(list);
-      businessesRef.current = list;
-
-      const savedId = typeof window !== "undefined" ? localStorage.getItem(ACTIVE_BIZ_KEY) : null;
-      let target: Business | null = null;
-
-      if (savedId) {
-        target = list.find((b) => String(b.id) === savedId) || null;
-      }
-      if (!target && list.length > 0) {
-        target = list[0];
+      const businessId = activeBusiness?.id;
+      if (businessId) {
+        setActiveBusiness((prev) => (prev ? { ...prev, workspaceMode: mode } : prev));
+        setBusinesses((prev) =>
+          prev.map((b) => (b.id === businessId ? { ...b, workspaceMode: mode } : b)),
+        );
+        void api(`/business/${businessId}`, {
+          method: "PATCH",
+          body: JSON.stringify({ workspaceMode: mode }),
+        }).catch((err) => {
+          console.warn("Failed to persist workspaceMode:", err);
+        });
       }
 
-      setActiveBusiness(target);
-      if (target) {
-        localStorage.setItem(ACTIVE_BIZ_KEY, String(target.id));
+      if (typeof window !== "undefined") {
+        window.dispatchEvent(new CustomEvent("almadel_mode_switched", { detail: mode }));
+      }
+    },
+    [activeBusiness?.id],
+  );
 
-        if (!options?.skipWorkspaceModeSync) {
-          // Prefer an explicit user choice in localStorage (e.g. post-setup POS/Financial click).
-          // Only fall back to the server value when no local preference exists.
-          const savedMode =
-            typeof window !== "undefined"
-              ? (localStorage.getItem(WORKSPACE_MODE_KEY) as WorkspaceMode | null)
-              : null;
-          if (savedMode === "pos" || savedMode === "financial") {
-            setWorkspaceModeState(savedMode);
-          } else {
-            const resolvedMode: WorkspaceMode =
-              target.workspaceMode === "financial" ? "financial" : "pos";
-            setWorkspaceModeState(resolvedMode);
-            localStorage.setItem(WORKSPACE_MODE_KEY, resolvedMode);
-          }
+  const reloadBusinesses = useCallback(
+    async (options?: { skipWorkspaceModeSync?: boolean }): Promise<Business[]> => {
+      if (!isAuthenticated) {
+        setBusinesses([]);
+        setActiveBusiness(null);
+        setWorkspaceModeState("pos");
+        setIsLoading(false);
+        return [];
+      }
+
+      try {
+        const res = await api<{ success: boolean; businesses: Business[] }>("/business/my-businesses");
+        const list = res.businesses || [];
+        setBusinesses(list);
+        businessesRef.current = list;
+
+        const savedId = typeof window !== "undefined" ? localStorage.getItem(ACTIVE_BIZ_KEY) : null;
+        let target: Business | null = null;
+
+        if (savedId) {
+          target = list.find((b) => String(b.id) === savedId) || null;
         }
-      } else {
-        localStorage.removeItem(ACTIVE_BIZ_KEY);
-      }
+        if (!target && list.length > 0) {
+          target = list[0];
+        }
 
-      setIsLoading(false);
-      return list;
-    } catch (err) {
-      console.error("Failed to load businesses from server:", err);
-      setBusinesses([]);
-      setActiveBusiness(null);
-      setIsLoading(false);
-      return [];
-    }
-  }, [isAuthenticated]);
+        setActiveBusiness(target);
+        if (target) {
+          localStorage.setItem(ACTIVE_BIZ_KEY, String(target.id));
+          if (!options?.skipWorkspaceModeSync) {
+            applyBusinessMode(target);
+          }
+        } else {
+          localStorage.removeItem(ACTIVE_BIZ_KEY);
+          setWorkspaceModeState("pos");
+        }
+
+        setIsLoading(false);
+        return list;
+      } catch (err) {
+        console.error("Failed to load businesses from server:", err);
+        setBusinesses([]);
+        setActiveBusiness(null);
+        setIsLoading(false);
+        return [];
+      }
+    },
+    [isAuthenticated, applyBusinessMode],
+  );
 
   useEffect(() => {
     if (!authLoading) {
@@ -182,29 +189,20 @@ export function BusinessProvider({ children }: { children: React.ReactNode }) {
     }
   }, [authLoading, reloadBusinesses]);
 
-  const switchBusiness = useCallback((businessId: number) => {
-    const selected = businessesRef.current.find((b) => b.id === businessId);
-    if (!selected) {
-      return;
-    }
+  const switchBusiness = useCallback(
+    (businessId: number) => {
+      const selected = businessesRef.current.find((b) => b.id === businessId);
+      if (!selected) {
+        return;
+      }
 
-    setActiveBusiness(selected);
-    localStorage.setItem(ACTIVE_BIZ_KEY, String(selected.id));
-
-    // Keep an explicit mode the user already chose (e.g. post-setup modal).
-    const savedMode =
-      typeof window !== "undefined"
-        ? (localStorage.getItem(WORKSPACE_MODE_KEY) as WorkspaceMode | null)
-        : null;
-    if (savedMode !== "pos" && savedMode !== "financial") {
-      const resolvedMode: WorkspaceMode =
-        selected.workspaceMode === "financial" ? "financial" : "pos";
-      setWorkspaceModeState(resolvedMode);
-      localStorage.setItem(WORKSPACE_MODE_KEY, resolvedMode);
-    }
-
-    window.dispatchEvent(new CustomEvent("almadel_business_switched", { detail: selected }));
-  }, []);
+      setActiveBusiness(selected);
+      localStorage.setItem(ACTIVE_BIZ_KEY, String(selected.id));
+      applyBusinessMode(selected);
+      window.dispatchEvent(new CustomEvent("almadel_business_switched", { detail: selected }));
+    },
+    [applyBusinessMode],
+  );
 
   const value = useMemo(
     () => ({
@@ -216,7 +214,7 @@ export function BusinessProvider({ children }: { children: React.ReactNode }) {
       switchBusiness,
       reloadBusinesses,
     }),
-    [businesses, activeBusiness, workspaceMode, setWorkspaceMode, isLoading, switchBusiness, reloadBusinesses]
+    [businesses, activeBusiness, workspaceMode, setWorkspaceMode, isLoading, switchBusiness, reloadBusinesses],
   );
 
   return <BusinessContext.Provider value={value}>{children}</BusinessContext.Provider>;

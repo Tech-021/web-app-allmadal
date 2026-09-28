@@ -92,16 +92,7 @@ export default function SetupBusinessPage() {
   }, [authLoading, isAuthenticated, activeBusiness, businesses, bizLoading, router, showSuccessModal, showStripeModal]);
 
   const applyWorkspaceMode = (mode: "pos" | "financial") => {
-    const bId = createdBusiness?.id;
     setWorkspaceMode(mode);
-    if (bId) {
-      void api(`/business/${bId}`, {
-        method: "PATCH",
-        body: JSON.stringify({ workspaceMode: mode }),
-      }).catch(() => {
-        /* mode is already set locally */
-      });
-    }
   };
 
   const handleActivateStripeTrial = async () => {
