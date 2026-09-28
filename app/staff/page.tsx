@@ -10,6 +10,7 @@ import { useToast } from "@/app/components/toast-context";
 import { logActivity } from "@/app/lib/logger";
 import { PaginationControls } from "@/app/components/pagination-controls";
 import ui from "@/app/components/workspace-ui.module.css";
+import { canManageStore } from "@/app/lib/access";
 
 type Draft = { fullName: string; email: string; password: string; confirm: string; role: "staff" | "accountant" };
 const blank: Draft = { fullName: "", email: "", password: "", confirm: "", role: "staff" };
@@ -44,8 +45,8 @@ export default function StaffPage() {
   }, [showToast, activeBusiness?.id]);
 
   useEffect(() => {
-    if (user && user.role !== "admin") router.replace("/dashboard");
-  }, [user, router]);
+    if (user && !canManageStore(activeBusiness?.membershipRole)) router.replace("/dashboard");
+  }, [user, activeBusiness?.membershipRole, router]);
 
   useEffect(() => {
     void load();

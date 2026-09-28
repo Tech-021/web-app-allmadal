@@ -71,7 +71,7 @@ export default function SetupBusinessPage() {
   const [showSuccessModal, setShowSuccessModal] = useState(false);
   const [showStripeModal, setShowStripeModal] = useState(false);
   const [activatingStripe, setActivatingStripe] = useState(false);
-  const [createdBusiness, setCreatedBusiness] = useState<{ id: number; name: string } | null>(null);
+  const [pendingActivation, setPendingActivation] = useState<{ name: string; workspaceMode: "pos" | "financial" } | null>(null);
   // Sync flag: blocks the "already has business → dashboard" redirect while the choice modal is in play.
   // Must be a ref because reloadBusinesses() updates business state before React commits showSuccessModal.
   const holdForModeChoiceRef = useRef(false);
@@ -91,52 +91,65 @@ export default function SetupBusinessPage() {
     }
   }, [authLoading, isAuthenticated, activeBusiness, businesses, bizLoading, router, showSuccessModal, showStripeModal]);
 
+  // Resume onboarding if user saved a draft but has not finished Stripe yet
+  useEffect(() => {
+    if (!isAuthenticated || authLoading || bizLoading || activeBusiness) return;
+    if (showSuccessModal || showStripeModal) return;
+
+    void (async () => {
+      try {
+        const status = await api<{
+          hasDraft?: boolean;
+          hasBusiness?: boolean;
+          draft?: { businessName?: string; workspaceMode?: "pos" | "financial" };
+        }>("/business/onboarding/status");
+
+        if (status.hasBusiness || !status.hasDraft || !status.draft?.businessName) return;
+
+        holdForModeChoiceRef.current = true;
+        setBusinessName(status.draft.businessName);
+        setPendingActivation({
+          name: status.draft.businessName,
+          workspaceMode: status.draft.workspaceMode === "financial" ? "financial" : "pos",
+        });
+        setShowSuccessModal(true);
+      } catch {
+        /* ignore */
+      }
+    })();
+  }, [isAuthenticated, authLoading, bizLoading, activeBusiness, showSuccessModal, showStripeModal]);
+
   const applyWorkspaceMode = (mode: "pos" | "financial") => {
     setWorkspaceMode(mode);
   };
 
   const handleActivateStripeTrial = async () => {
-    const bId = createdBusiness?.id;
-    if (!bId) {
-      router.push("/sales");
-      return;
-    }
-
     try {
       setActivatingStripe(true);
       const successUrl = `${window.location.origin}/dashboard?payment=success`;
-      const cancelUrl = `${window.location.origin}/sales?payment=trial_started`;
+      const cancelUrl = `${window.location.origin}/setup-business?payment=canceled`;
 
-      const response = await api<{ success: boolean; url: string }>(
-        "/billing/create-checkout-session",
-        {
-          method: "POST",
-          body: JSON.stringify({
-            businessId: bId,
-            successUrl,
-            cancelUrl,
-          }),
-        }
-      );
+      const response = await api<{ success: boolean; url: string }>("/billing/onboarding-checkout", {
+        method: "POST",
+        body: JSON.stringify({ successUrl, cancelUrl }),
+      });
 
       if (response.url) {
         logActivity(
           "STRIPE_TRIAL_CHECKOUT_INITIATED",
           "Billing",
-          `Initiated Stripe 30-day trial subscription for store '${createdBusiness?.name || businessName}'`,
-          createdBusiness?.name || businessName,
-          { businessId: bId, workspaceMode: "pos" }
+          `Initiated Stripe 30-day trial to activate store '${pendingActivation?.name || businessName}'`,
+          pendingActivation?.name || businessName,
+          { workspaceMode: pendingActivation?.workspaceMode || "pos" }
         );
         window.location.href = response.url;
         return;
       }
 
-      showToast("Unable to open Stripe. Continuing to POS.", "info");
-      router.push("/sales");
+      showToast("Unable to open Stripe checkout.", "error");
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : "Failed to start Stripe checkout.";
       showToast(msg, "error");
-      router.push("/sales");
     } finally {
       setActivatingStripe(false);
     }
@@ -256,7 +269,11 @@ export default function SetupBusinessPage() {
 
     setSaving(true);
     try {
-      const res = await api<{ success: boolean; business: { id: number; name: string } }>("/business/setup", {
+      const res = await api<{
+        success: boolean;
+        requiresStripe?: boolean;
+        draft?: { businessName: string; workspaceMode: "pos" | "financial" };
+      }>("/business/setup", {
         method: "POST",
         body: JSON.stringify({
           name: businessName.trim(),
@@ -274,32 +291,24 @@ export default function SetupBusinessPage() {
         }),
       });
 
-      showToast(`Business '${businessName}' created successfully!`, "success");
+      showToast("Business details saved. Activate your 30-day trial with Stripe to go live.", "success");
 
       logActivity(
         "PAGE_VISIT",
         "Visit",
-        `Owner completed business setup for '${businessName}'`,
-        "/setup-business",
-        { businessId: res.business.id }
+        `Owner saved onboarding draft for '${businessName}'`,
+        "/setup-business"
       );
 
-      // Arm before reload — otherwise "has business" redirect races the modal open.
       holdForModeChoiceRef.current = true;
-      setCreatedBusiness(res.business);
+      setPendingActivation({
+        name: res.draft?.businessName || businessName.trim(),
+        workspaceMode: res.draft?.workspaceMode === "financial" ? "financial" : "pos",
+      });
       setShowSuccessModal(true);
 
-      // Clear any stale mode from a previous session so the modal choice is authoritative.
       if (typeof window !== "undefined") {
         localStorage.removeItem("almadel_workspace_mode");
-      }
-
-      const list = await reloadBusinesses({ skipWorkspaceModeSync: true });
-      if (res.business?.id) {
-        const created = list.find((b) => b.id === res.business.id);
-        if (created) {
-          switchBusiness(res.business.id);
-        }
       }
     } catch (err: any) {
       const msg = err?.message || "Failed to set up business. Please check your details.";
@@ -659,18 +668,27 @@ export default function SetupBusinessPage() {
             </span>
 
             <h2 className="text-xl sm:text-2xl font-extrabold tracking-tight text-gray-900">
-              {createdBusiness?.name || businessName}
+              {pendingActivation?.name || businessName}
             </h2>
             <p className="text-xs font-semibold text-gray-500 mt-1.5 mb-6">
-              Your business workspace is live and ready. Select where you would like to proceed:
+              Choose your workspace, then activate your store with Stripe (30-day free trial).
             </p>
 
             <div className="space-y-3">
               {/* POS Navigation Button */}
               <button
                 type="button"
-                onClick={() => {
+                onClick={async () => {
                   applyWorkspaceMode("pos");
+                  try {
+                    await api("/business/onboarding/workspace-mode", {
+                      method: "PATCH",
+                      body: JSON.stringify({ workspaceMode: "pos" }),
+                    });
+                  } catch {
+                    /* draft already saved */
+                  }
+                  setPendingActivation((p) => (p ? { ...p, workspaceMode: "pos" } : p));
                   setShowSuccessModal(false);
                   setShowStripeModal(true);
                 }}
@@ -691,10 +709,19 @@ export default function SetupBusinessPage() {
               {/* Financial Starting Point (FPS) Navigation Button */}
               <button
                 type="button"
-                onClick={() => {
+                onClick={async () => {
                   applyWorkspaceMode("financial");
-                  const bId = createdBusiness?.id;
-                  router.push(bId ? `/setup-business/financial?businessId=${bId}` : "/setup-business/financial");
+                  try {
+                    await api("/business/onboarding/workspace-mode", {
+                      method: "PATCH",
+                      body: JSON.stringify({ workspaceMode: "financial" }),
+                    });
+                  } catch {
+                    /* draft already saved */
+                  }
+                  setPendingActivation((p) => (p ? { ...p, workspaceMode: "financial" } : p));
+                  setShowSuccessModal(false);
+                  setShowStripeModal(true);
                 }}
                 className="w-full py-4 px-6 rounded-2xl bg-gradient-to-r from-emerald-600 to-teal-700 hover:from-emerald-700 hover:to-teal-800 active:scale-[0.98] text-white font-extrabold text-sm shadow-lg shadow-emerald-700/20 transition flex items-center justify-between cursor-pointer"
               >
@@ -727,13 +754,16 @@ export default function SetupBusinessPage() {
             </span>
 
             <h3 className="text-xl sm:text-2xl font-black text-gray-900 tracking-tight">
-              POS Workspace Selected
+              {pendingActivation?.workspaceMode === "financial" ? "Financial workspace selected" : "POS workspace selected"}
             </h3>
 
             <p className="text-xs sm:text-sm font-medium text-gray-600 leading-relaxed">
-              Your business <strong className="text-gray-900">{createdBusiness?.name || businessName}</strong> is
-              ready. Activate billing with Stripe to start your{" "}
-              <strong className="text-gray-900">30-day free trial</strong>, or continue straight into POS.
+              Activate <strong className="text-gray-900">{pendingActivation?.name || businessName}</strong> with Stripe
+              to create your owner account and start your{" "}
+              <strong className="text-gray-900">30-day free trial</strong>.
+              {pendingActivation?.workspaceMode === "financial"
+                ? " You will continue to Financial Starting Point (FPS) right after checkout."
+                : " You will land in POS right after checkout."}
             </p>
 
             <div className="pt-2 space-y-3">
@@ -756,10 +786,14 @@ export default function SetupBusinessPage() {
               <button
                 type="button"
                 disabled={activatingStripe}
-                onClick={() => router.push("/sales")}
+                onClick={() => {
+                  setShowStripeModal(false);
+                  holdForModeChoiceRef.current = false;
+                  setShowSuccessModal(true);
+                }}
                 className="w-full py-3 px-6 rounded-2xl border border-gray-200 bg-white hover:bg-gray-50 text-gray-700 text-sm font-bold transition cursor-pointer disabled:opacity-60"
               >
-                Skip for now — open POS
+                Back — change workspace
               </button>
             </div>
 

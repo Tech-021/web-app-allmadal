@@ -9,6 +9,7 @@ import { useToast } from "@/app/components/toast-context";
 import { ActivityCategory, ActivityLog, clearAllLogs } from "@/app/lib/logger";
 import { api } from "@/app/lib/api";
 import ui from "@/app/components/workspace-ui.module.css";
+import { effectiveNavRole } from "@/app/lib/access";
 
 function timeAgo(dateString: string): string {
   const seconds = Math.floor((Date.now() - new Date(dateString).getTime()) / 1000);
@@ -169,9 +170,10 @@ export default function LogsPage() {
   }, [activeBusiness?.id]);
 
   useEffect(() => {
-    if (user && user.role !== "admin") {
-      showToast("Access restricted. Activity logs are available to system administrators only.", "error");
-      router.replace(user.role === "accountant" ? "/accounts" : "/sales");
+    const navRole = user ? effectiveNavRole(user.role, activeBusiness?.membershipRole) : "staff";
+    if (user && navRole !== "admin") {
+      showToast("Access restricted. Activity logs are available to store owners only.", "error");
+      router.replace(navRole === "accountant" ? "/accounts" : "/sales");
       return;
     }
     loadLogs();
@@ -192,7 +194,7 @@ export default function LogsPage() {
       window.removeEventListener("almadel_log_added", handleLogAdded);
       window.removeEventListener("almadel_logs_cleared", handleLogsCleared);
     };
-  }, [user, router, showToast, loadLogs]);
+  }, [user, activeBusiness?.membershipRole, router, showToast, loadLogs]);
 
   // Reset to first page when filtering or searching
   useEffect(() => {
