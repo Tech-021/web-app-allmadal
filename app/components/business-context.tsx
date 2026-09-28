@@ -55,7 +55,7 @@ interface BusinessContextValue {
   setWorkspaceMode: (mode: WorkspaceMode) => void;
   isLoading: boolean;
   switchBusiness: (businessId: number) => void;
-  reloadBusinesses: () => Promise<Business[]>;
+  reloadBusinesses: (options?: { skipWorkspaceModeSync?: boolean }) => Promise<Business[]>;
 }
 
 const BusinessContext = createContext<BusinessContextValue | null>(null);
@@ -92,8 +92,11 @@ export function BusinessProvider({ children }: { children: React.ReactNode }) {
 
   const [businesses, setBusinesses] = useState<Business[]>([]);
   const [activeBusiness, setActiveBusiness] = useState<Business | null>(null);
-  const [workspaceMode, setWorkspaceModeState] = useState<WorkspaceMode>("financial");
+  // Default matches Prisma Business.workspaceMode default ("pos") until server/localStorage resolves.
+  const [workspaceMode, setWorkspaceModeState] = useState<WorkspaceMode>("pos");
   const [isLoading, setIsLoading] = useState(true);
+  const businessesRef = React.useRef<Business[]>([]);
+  businessesRef.current = businesses;
 
   // Initialize and clear any stale cache
   useEffect(() => {
@@ -114,7 +117,7 @@ export function BusinessProvider({ children }: { children: React.ReactNode }) {
     }
   }, []);
 
-  const reloadBusinesses = useCallback(async (): Promise<Business[]> => {
+  const reloadBusinesses = useCallback(async (options?: { skipWorkspaceModeSync?: boolean }): Promise<Business[]> => {
     if (!isAuthenticated) {
       setBusinesses([]);
       setActiveBusiness(null);
@@ -126,6 +129,7 @@ export function BusinessProvider({ children }: { children: React.ReactNode }) {
       const res = await api<{ success: boolean; businesses: Business[] }>("/business/my-businesses");
       const list = res.businesses || [];
       setBusinesses(list);
+      businessesRef.current = list;
 
       const savedId = typeof window !== "undefined" ? localStorage.getItem(ACTIVE_BIZ_KEY) : null;
       let target: Business | null = null;
@@ -140,10 +144,23 @@ export function BusinessProvider({ children }: { children: React.ReactNode }) {
       setActiveBusiness(target);
       if (target) {
         localStorage.setItem(ACTIVE_BIZ_KEY, String(target.id));
-        const resolvedMode: WorkspaceMode =
-          target.workspaceMode === "financial" ? "financial" : "pos";
-        setWorkspaceModeState(resolvedMode);
-        localStorage.setItem(WORKSPACE_MODE_KEY, resolvedMode);
+
+        if (!options?.skipWorkspaceModeSync) {
+          // Prefer an explicit user choice in localStorage (e.g. post-setup POS/Financial click).
+          // Only fall back to the server value when no local preference exists.
+          const savedMode =
+            typeof window !== "undefined"
+              ? (localStorage.getItem(WORKSPACE_MODE_KEY) as WorkspaceMode | null)
+              : null;
+          if (savedMode === "pos" || savedMode === "financial") {
+            setWorkspaceModeState(savedMode);
+          } else {
+            const resolvedMode: WorkspaceMode =
+              target.workspaceMode === "financial" ? "financial" : "pos";
+            setWorkspaceModeState(resolvedMode);
+            localStorage.setItem(WORKSPACE_MODE_KEY, resolvedMode);
+          }
+        }
       } else {
         localStorage.removeItem(ACTIVE_BIZ_KEY);
       }
@@ -165,21 +182,29 @@ export function BusinessProvider({ children }: { children: React.ReactNode }) {
     }
   }, [authLoading, reloadBusinesses]);
 
-  const switchBusiness = useCallback(
-    (businessId: number) => {
-      const selected = businesses.find((b) => b.id === businessId);
-      if (selected) {
-        setActiveBusiness(selected);
-        localStorage.setItem(ACTIVE_BIZ_KEY, String(selected.id));
-        const resolvedMode: WorkspaceMode =
-          selected.workspaceMode === "financial" ? "financial" : "pos";
-        setWorkspaceModeState(resolvedMode);
-        localStorage.setItem(WORKSPACE_MODE_KEY, resolvedMode);
-        window.dispatchEvent(new CustomEvent("almadel_business_switched", { detail: selected }));
-      }
-    },
-    [businesses]
-  );
+  const switchBusiness = useCallback((businessId: number) => {
+    const selected = businessesRef.current.find((b) => b.id === businessId);
+    if (!selected) {
+      return;
+    }
+
+    setActiveBusiness(selected);
+    localStorage.setItem(ACTIVE_BIZ_KEY, String(selected.id));
+
+    // Keep an explicit mode the user already chose (e.g. post-setup modal).
+    const savedMode =
+      typeof window !== "undefined"
+        ? (localStorage.getItem(WORKSPACE_MODE_KEY) as WorkspaceMode | null)
+        : null;
+    if (savedMode !== "pos" && savedMode !== "financial") {
+      const resolvedMode: WorkspaceMode =
+        selected.workspaceMode === "financial" ? "financial" : "pos";
+      setWorkspaceModeState(resolvedMode);
+      localStorage.setItem(WORKSPACE_MODE_KEY, resolvedMode);
+    }
+
+    window.dispatchEvent(new CustomEvent("almadel_business_switched", { detail: selected }));
+  }, []);
 
   const value = useMemo(
     () => ({
