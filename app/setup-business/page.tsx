@@ -1,6 +1,6 @@
 "use client";
 
-import { FormEvent, useState, useEffect } from "react";
+import { FormEvent, useState, useEffect, useRef } from "react";
 import { useRouter } from "next/navigation";
 import { useAuth } from "@/hooks/useAuth";
 import { useBusiness } from "@/app/components/business-context";
@@ -69,18 +69,78 @@ export default function SetupBusinessPage() {
   const [saving, setSaving] = useState(false);
   const [generalError, setGeneralError] = useState("");
   const [showSuccessModal, setShowSuccessModal] = useState(false);
+  const [showStripeModal, setShowStripeModal] = useState(false);
+  const [activatingStripe, setActivatingStripe] = useState(false);
   const [createdBusiness, setCreatedBusiness] = useState<{ id: number; name: string } | null>(null);
+  // Sync flag: blocks the "already has business → dashboard" redirect while the choice modal is in play.
+  // Must be a ref because reloadBusinesses() updates business state before React commits showSuccessModal.
+  const holdForModeChoiceRef = useRef(false);
 
   useEffect(() => {
     if (!authLoading && !isAuthenticated) {
       router.replace("/login");
       return;
     }
+    // Keep the POS vs Financial / Stripe choice visible after setup — do not auto-redirect away.
+    if (showSuccessModal || showStripeModal || holdForModeChoiceRef.current) {
+      return;
+    }
     // 1-Admin = 1-Business Rule: Redirect to dashboard if user already owns or belongs to a business
     if (!bizLoading && (activeBusiness || (businesses && businesses.length > 0))) {
       router.replace("/dashboard");
     }
-  }, [authLoading, isAuthenticated, activeBusiness, businesses, bizLoading, router]);
+  }, [authLoading, isAuthenticated, activeBusiness, businesses, bizLoading, router, showSuccessModal, showStripeModal]);
+
+  const applyWorkspaceMode = (mode: "pos" | "financial") => {
+    setWorkspaceMode(mode);
+  };
+
+  const handleActivateStripeTrial = async () => {
+    const bId = createdBusiness?.id;
+    if (!bId) {
+      router.push("/sales");
+      return;
+    }
+
+    try {
+      setActivatingStripe(true);
+      const successUrl = `${window.location.origin}/dashboard?payment=success`;
+      const cancelUrl = `${window.location.origin}/sales?payment=trial_started`;
+
+      const response = await api<{ success: boolean; url: string }>(
+        "/billing/create-checkout-session",
+        {
+          method: "POST",
+          body: JSON.stringify({
+            businessId: bId,
+            successUrl,
+            cancelUrl,
+          }),
+        }
+      );
+
+      if (response.url) {
+        logActivity(
+          "STRIPE_TRIAL_CHECKOUT_INITIATED",
+          "Billing",
+          `Initiated Stripe 30-day trial subscription for store '${createdBusiness?.name || businessName}'`,
+          createdBusiness?.name || businessName,
+          { businessId: bId, workspaceMode: "pos" }
+        );
+        window.location.href = response.url;
+        return;
+      }
+
+      showToast("Unable to open Stripe. Continuing to POS.", "info");
+      router.push("/sales");
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : "Failed to start Stripe checkout.";
+      showToast(msg, "error");
+      router.push("/sales");
+    } finally {
+      setActivatingStripe(false);
+    }
+  };
 
   // Validation functions using validators.ts
   const validateBusinessName = (name: string): string => {
@@ -224,13 +284,23 @@ export default function SetupBusinessPage() {
         { businessId: res.business.id }
       );
 
-      await reloadBusinesses();
-      if (res.business?.id) {
-        switchBusiness(res.business.id);
-      }
-
+      // Arm before reload — otherwise "has business" redirect races the modal open.
+      holdForModeChoiceRef.current = true;
       setCreatedBusiness(res.business);
       setShowSuccessModal(true);
+
+      // Clear any stale mode from a previous session so the modal choice is authoritative.
+      if (typeof window !== "undefined") {
+        localStorage.removeItem("almadel_workspace_mode");
+      }
+
+      const list = await reloadBusinesses({ skipWorkspaceModeSync: true });
+      if (res.business?.id) {
+        const created = list.find((b) => b.id === res.business.id);
+        if (created) {
+          switchBusiness(res.business.id);
+        }
+      }
     } catch (err: any) {
       const msg = err?.message || "Failed to set up business. Please check your details.";
       setGeneralError(msg);
@@ -600,8 +670,9 @@ export default function SetupBusinessPage() {
               <button
                 type="button"
                 onClick={() => {
-                  setWorkspaceMode("pos");
-                  router.push("/dashboard");
+                  applyWorkspaceMode("pos");
+                  setShowSuccessModal(false);
+                  setShowStripeModal(true);
                 }}
                 className="w-full py-4 px-6 rounded-2xl bg-[#00875a] hover:bg-[#006b3f] active:scale-[0.98] text-white font-extrabold text-sm shadow-lg shadow-[#00875a]/25 transition flex items-center justify-between cursor-pointer"
               >
@@ -621,6 +692,7 @@ export default function SetupBusinessPage() {
               <button
                 type="button"
                 onClick={() => {
+                  applyWorkspaceMode("financial");
                   const bId = createdBusiness?.id;
                   router.push(bId ? `/setup-business/financial?businessId=${bId}` : "/setup-business/financial");
                 }}
@@ -638,6 +710,62 @@ export default function SetupBusinessPage() {
                 <span className="text-base font-bold text-white">➔</span>
               </button>
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* Stripe trial activation (same step financial setup shows after FPS) */}
+      {showStripeModal && (
+        <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4">
+          <div className="bg-white rounded-3xl p-6 sm:p-8 max-w-md w-full shadow-2xl border border-gray-100 text-center space-y-4 animate-in fade-in zoom-in-95 duration-200">
+            <div className="size-16 rounded-3xl bg-[#e6f4ed] text-[#00875a] mx-auto flex items-center justify-center text-3xl shadow-md shadow-[#00875a]/10">
+              🎉
+            </div>
+
+            <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-[11px] font-extrabold uppercase tracking-wider bg-emerald-100 text-emerald-800">
+              ✨ 30-Day Free Trial Ready
+            </span>
+
+            <h3 className="text-xl sm:text-2xl font-black text-gray-900 tracking-tight">
+              POS Workspace Selected
+            </h3>
+
+            <p className="text-xs sm:text-sm font-medium text-gray-600 leading-relaxed">
+              Your business <strong className="text-gray-900">{createdBusiness?.name || businessName}</strong> is
+              ready. Activate billing with Stripe to start your{" "}
+              <strong className="text-gray-900">30-day free trial</strong>, or continue straight into POS.
+            </p>
+
+            <div className="pt-2 space-y-3">
+              <button
+                type="button"
+                onClick={() => void handleActivateStripeTrial()}
+                disabled={activatingStripe}
+                className="w-full py-4 px-6 rounded-2xl bg-gradient-to-r from-[#00875a] to-[#006644] hover:from-[#00744e] hover:to-[#005236] text-white text-sm font-extrabold shadow-lg shadow-[#00875a]/25 transition flex items-center justify-center gap-2 cursor-pointer disabled:opacity-60"
+              >
+                {activatingStripe ? (
+                  <span>Opening Stripe Gateway...</span>
+                ) : (
+                  <>
+                    <span>Activate via Stripe (30-Day Trial)</span>
+                    <span>💳 ➔</span>
+                  </>
+                )}
+              </button>
+
+              <button
+                type="button"
+                disabled={activatingStripe}
+                onClick={() => router.push("/sales")}
+                className="w-full py-3 px-6 rounded-2xl border border-gray-200 bg-white hover:bg-gray-50 text-gray-700 text-sm font-bold transition cursor-pointer disabled:opacity-60"
+              >
+                Skip for now — open POS
+              </button>
+            </div>
+
+            <p className="text-[11px] text-gray-400 font-semibold">
+              🔒 Secure checkout powered by Stripe
+            </p>
           </div>
         </div>
       )}

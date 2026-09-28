@@ -26,20 +26,16 @@ const posLinks: NavLink[] = [
   { href: "/sales", label: "Sales", key: "nav.sales", icon: "🛒", allowedRoles: ["admin", "staff"] },
   {
     href: "/products",
-    label: "Products",
-    key: "nav.products",
+    label: "Products / Inventory",
+    key: "nav.products_inventory",
     icon: "📦",
     allowedRoles: ["admin", "staff"],
     subItems: [
       { href: "/products", label: "All Products", key: "nav.all_products" },
       { href: "/categories", label: "Categories", key: "nav.categories" },
+      { href: "/stock", label: "Stock Levels", key: "nav.stock_levels", allowedRoles: ["admin"] },
     ],
   },
-  { href: "/stock", label: "Stock", key: "nav.stock", icon: "📥", allowedRoles: ["admin"] },
-  { href: "/customers", label: "Customers", key: "nav.customers", icon: "👥", allowedRoles: ["admin", "staff", "accountant"] },
-  { href: "/accounts", label: "Cash / Accounts", key: "nav.accounts", icon: "💵", allowedRoles: ["admin", "accountant"] },
-  { href: "/reports", label: "Reports & Balance Sheet", key: "nav.reports", icon: "📈", allowedRoles: ["admin", "accountant"] },
-  { href: "/expenses", label: "Expenses", key: "nav.expenses", icon: "💸", allowedRoles: ["admin", "accountant"] },
   { href: "/payments", label: "Payments / Billing", key: "nav.payments", icon: "💳", allowedRoles: ["admin", "accountant"] },
   { href: "/staff", label: "Staff & Permissions", key: "nav.staff", icon: "👥", allowedRoles: ["admin"] },
   { href: "/logs", label: "Activity Logs", key: "nav.logs", icon: "📋", allowedRoles: ["admin"] },
@@ -129,16 +125,20 @@ export function WorkspaceShell({ children }: { children: React.ReactNode }) {
   // Primary mobile navigation bar links (max 3-4 items)
   const mobilePrimaryLinks = useMemo(() => {
     if (user?.role === "staff") return accessibleLinks;
-    if (user?.role === "accountant") return accessibleLinks.slice(0, 4); // Dashboard, Accounts, Customers, Suppliers
-    return accessibleLinks.slice(0, 3); // Dashboard, Sales, Products
-  }, [accessibleLinks, user?.role]);
+    if (workspaceMode === "financial") {
+      // Dashboard, Sales, Products, Accounts
+      return accessibleLinks.slice(0, 4);
+    }
+    // POS: Dashboard, Sales, Products
+    return accessibleLinks.slice(0, 3);
+  }, [accessibleLinks, user?.role, workspaceMode]);
 
   // Secondary links for mobile "More" drawer
   const mobileDrawerLinks = useMemo(() => {
     if (user?.role === "staff") return [];
-    if (user?.role === "accountant") return accessibleLinks.slice(4);
-    return accessibleLinks.slice(3); // All financial / admin links
-  }, [accessibleLinks, user?.role]);
+    if (workspaceMode === "financial") return accessibleLinks.slice(4);
+    return accessibleLinks.slice(3);
+  }, [accessibleLinks, user?.role, workspaceMode]);
 
   // Check if current route belongs to the "More" drawer
   const isDrawerRouteActive = useMemo(() => {
