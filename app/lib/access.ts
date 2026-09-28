@@ -1,10 +1,13 @@
 import type { UserRole } from "@/hooks/useAuth";
 
+/** Sidebar / route guard roles (subset of account types shown in the UI). */
+export type NavRole = "admin" | "staff" | "accountant";
+
 /** Nav/UI permission role derived from business membership (not global User.role). */
 export function effectiveNavRole(
   userRole: UserRole,
   membershipRole?: string | null,
-): UserRole {
+): NavRole {
   if (membershipRole === "owner" || membershipRole === "admin") {
     return "admin";
   }
