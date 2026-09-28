@@ -11,6 +11,7 @@ import { logActivity } from "@/app/lib/logger";
 import { resolveImageUrl } from "@/app/lib/api";
 import { useLanguage } from "./language-context";
 import { LanguageSwitcher } from "./language-switcher";
+import { effectiveNavRole } from "@/app/lib/access";
 
 type NavLink = {
   href: string;
@@ -104,41 +105,46 @@ export function WorkspaceShell({ children }: { children: React.ReactNode }) {
   const resolvedLogo = resolveImageUrl(activeBusiness?.logoUrl);
 
   const allLinks = workspaceMode === "pos" ? posLinks : financialLinks;
-  
-  // Filter links by user role and translate labels dynamically
+
+  const navRole = useMemo(
+    () => (user ? effectiveNavRole(user.role, activeBusiness?.membershipRole) : "staff"),
+    [user, activeBusiness?.membershipRole],
+  );
+
+  // Filter links by membership-aware role and translate labels dynamically
   const accessibleLinks = useMemo(() => {
     if (!user) return [];
     return allLinks
-      .filter((x) => x.allowedRoles.includes(user.role))
+      .filter((x) => x.allowedRoles.includes(navRole))
       .map((x) => ({
         ...x,
         label: t(x.key, x.label),
         subItems: x.subItems
-          ?.filter((s) => !s.allowedRoles || s.allowedRoles.includes(user.role))
+          ?.filter((s) => !s.allowedRoles || s.allowedRoles.includes(navRole))
           .map((s) => ({
             ...s,
             label: s.key ? t(s.key, s.label) : s.label,
           })),
       }));
-  }, [allLinks, user, language, t]);
+  }, [allLinks, user, navRole, language, t]);
 
   // Primary mobile navigation bar links (max 3-4 items)
   const mobilePrimaryLinks = useMemo(() => {
-    if (user?.role === "staff") return accessibleLinks;
+    if (navRole === "staff") return accessibleLinks;
     if (workspaceMode === "financial") {
       // Dashboard, Sales, Products, Accounts
       return accessibleLinks.slice(0, 4);
     }
     // POS: Dashboard, Sales, Products
     return accessibleLinks.slice(0, 3);
-  }, [accessibleLinks, user?.role, workspaceMode]);
+  }, [accessibleLinks, navRole, workspaceMode]);
 
   // Secondary links for mobile "More" drawer
   const mobileDrawerLinks = useMemo(() => {
-    if (user?.role === "staff") return [];
+    if (navRole === "staff") return [];
     if (workspaceMode === "financial") return accessibleLinks.slice(4);
     return accessibleLinks.slice(3);
-  }, [accessibleLinks, user?.role, workspaceMode]);
+  }, [accessibleLinks, navRole, workspaceMode]);
 
   // Check if current route belongs to the "More" drawer
   const isDrawerRouteActive = useMemo(() => {
@@ -155,18 +161,18 @@ export function WorkspaceShell({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     if (!user || authLoading) return;
 
-    if (user.role === "accountant") {
+    if (navRole === "accountant") {
       const restrictedForAccountant = ["/sales", "/products", "/categories", "/stock", "/imei", "/staff", "/logs", "/settings"];
       if (restrictedForAccountant.some((r) => pathname === r || pathname.startsWith(r + "/"))) {
         router.replace("/accounts");
       }
-    } else if (user.role === "staff") {
+    } else if (navRole === "staff") {
       const restrictedForStaff = ["/accounts", "/reports", "/expenses", "/daily-closing", "/staff", "/logs", "/settings", "/suppliers", "/customers", "/imei", "/stock"];
       if (restrictedForStaff.some((r) => pathname === r || pathname.startsWith(r + "/"))) {
         router.replace("/sales");
       }
     }
-  }, [user, authLoading, pathname, router]);
+  }, [user, navRole, authLoading, pathname, router]);
 
   // Close drawer on navigation
   useEffect(() => {
@@ -377,9 +383,9 @@ export function WorkspaceShell({ children }: { children: React.ReactNode }) {
           <span>
             <strong>{user.name}</strong>
             <small>
-              {user.role === "admin"
+              {navRole === "admin"
                 ? t("role.owner", "Store Owner")
-                : user.role === "accountant"
+                : navRole === "accountant"
                 ? t("role.accountant", "Accountant")
                 : t("role.staff", "Staff Member")}
             </small>
@@ -438,7 +444,7 @@ export function WorkspaceShell({ children }: { children: React.ReactNode }) {
         })}
 
         {/* Mobile "More" Drawer Button (Admin Only) */}
-        {user.role === "admin" && mobileDrawerLinks.length > 0 && (
+        {navRole === "admin" && mobileDrawerLinks.length > 0 && (
           <button
             type="button"
             onClick={() => setMobileDrawerOpen(true)}

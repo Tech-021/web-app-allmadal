@@ -12,6 +12,7 @@ import { useToast } from "@/app/components/toast-context";
 import { useLanguage } from "@/app/components/language-context";
 import { PaginationControls } from "@/app/components/pagination-controls";
 import styles from "./dashboard.module.css";
+import { effectiveNavRole } from "@/app/lib/access";
 
 type Sale = { id: number | string; total_amount?: number; total_items?: number; created_at?: string };
 
@@ -147,8 +148,8 @@ function SalesChart({ sales }: { sales: Sale[] }) {
 }
 
 function DashboardContent() {
-  const { user, isLoading } = useAuth();
-  const { activeBusiness, workspaceMode } = useBusiness();
+  const { user, isLoading, updateUser } = useAuth();
+  const { activeBusiness, workspaceMode, reloadBusinesses, switchBusiness } = useBusiness();
   const { t, language } = useLanguage();
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -159,12 +160,17 @@ function DashboardContent() {
   const [error, setError] = useState("");
   const [activeReceipt, setActiveReceipt] = useState<ReceiptSale | null>(null);
 
+  const navRole = useMemo(
+    () => (user ? effectiveNavRole(user.role, activeBusiness?.membershipRole) : "staff"),
+    [user, activeBusiness?.membershipRole],
+  );
+
   const fetchDashboard = useCallback(async () => {
     if (!user) return;
     setLoading(true);
     setError("");
     try {
-      const endpoint = user.role === "admin" || user.role === "accountant" ? "/dashboard" : "/dashboard/me";
+      const endpoint = navRole === "admin" || navRole === "accountant" ? "/dashboard" : "/dashboard/me";
       const payload = await api<AdminPayload>(endpoint);
       setData(payload);
     } catch (reason) {
@@ -172,24 +178,62 @@ function DashboardContent() {
     } finally {
       setLoading(false);
     }
-  }, [user, activeBusiness?.id]);
+  }, [user, navRole, activeBusiness?.id]);
 
   const sessionId = searchParams.get("session_id");
 
   useEffect(() => {
-    if (paymentSuccess && sessionId) {
-      api("/billing/verify-session", {
-        method: "POST",
-        body: JSON.stringify({ sessionId }),
-      }).catch((err) => {
+    if (!paymentSuccess || !sessionId) return;
+
+    void (async () => {
+      try {
+        const result = await api<{
+          verified?: boolean;
+          onboarding?: boolean;
+          workspaceMode?: string;
+          business?: { id: number; workspaceMode?: string };
+        }>("/billing/verify-session", {
+          method: "POST",
+          body: JSON.stringify({ sessionId }),
+        });
+
+        if (!result.verified || !result.business?.id) return;
+
+        if (user) {
+          updateUser({ ...user, role: "owner" });
+        }
+
+        const list = await reloadBusinesses();
+        switchBusiness(result.business.id);
+
+        const mode =
+          result.workspaceMode ||
+          result.business.workspaceMode ||
+          list.find((b) => b.id === result.business?.id)?.workspaceMode;
+
+        if (mode === "financial") {
+          router.replace(`/setup-business/financial?businessId=${result.business.id}`);
+        } else {
+          router.replace("/sales");
+        }
+      } catch (err) {
         console.warn("Session auto-verification notice:", err);
-      });
-    }
-  }, [paymentSuccess, sessionId]);
+      }
+    })();
+  }, [paymentSuccess, sessionId, reloadBusinesses, switchBusiness, router, user, updateUser]);
 
   useEffect(() => {
     if (!isLoading && !user) router.replace("/login");
   }, [isLoading, user, router]);
+
+  useEffect(() => {
+    if (isLoading || !user) return;
+    // Stripe return URL lands here first — verify-session must run before pending redirect.
+    if (paymentSuccess && sessionId) return;
+    if (user.role === "pending" && !activeBusiness) {
+      router.replace("/setup-business");
+    }
+  }, [isLoading, user, activeBusiness, paymentSuccess, sessionId, router]);
 
   useEffect(() => {
     if (user) {
@@ -323,7 +367,7 @@ function DashboardContent() {
         <div>
           <div className="flex items-center gap-2 mb-1">
             <span className={styles.eyebrow}>
-              {user.role === "admin" ? t("role.owner", "Store Owner") : user.role === "accountant" ? t("role.accountant", "Accountant") : t("role.staff", "Staff Member")}
+              {navRole === "admin" ? t("role.owner", "Store Owner") : navRole === "accountant" ? t("role.accountant", "Accountant") : t("role.staff", "Staff Member")}
             </span>
             <span className="px-2 py-0.5 rounded-md text-[10px] font-extrabold uppercase tracking-wide bg-slate-100 text-slate-700">
               {workspaceMode === "financial" ? `📊 ${t("nav.dashboard", "Financial Workspace")}` : `🛒 ${t("nav.sales", "POS Workspace")}`}
@@ -333,7 +377,7 @@ function DashboardContent() {
           <p>
             {workspaceMode === "financial"
               ? (language === "ur" ? "Dukaan ka mukammal hisab kitab, rokarr, grahak udhaar aur stock valuation." : "Comprehensive financial standing, accounts, receivables, and inventory valuation.")
-              : user.role === "admin"
+              : navRole === "admin"
               ? (language === "ur" ? "Aaj ki bikri, orders, kam stock aur ziyada bikne wala samaan ek jagah." : "Today's sales, order volume, low stock alerts, and top selling products at a glance.")
               : (language === "ur" ? "Aapke account ki zati bikri ki karkardagi." : "Your private sales performance for this account.")}
           </p>
@@ -346,7 +390,7 @@ function DashboardContent() {
       {error && <div className={styles.error} role="alert"><span>{error}</span><button onClick={() => void fetchDashboard()}>Try again</button></div>}
 
       {/* METRIC GRID: Section 16 Core Requirements */}
-      {user.role === "admin" && workspaceMode === "financial" ? (
+      {navRole === "admin" && workspaceMode === "financial" ? (
         <section className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3 mb-6">
           <article className="p-4 rounded-2xl bg-white border border-slate-200/80 shadow-xs space-y-1">
             <span className="text-[11px] font-bold text-slate-500 uppercase tracking-wide">{t("dashboard.cash_in_hand", "Cash in Hand")}</span>
@@ -575,7 +619,7 @@ function DashboardContent() {
           <section className={`${styles.panel} ${styles.recent}`}>
             <div className={styles.panelHeading}>
               <div>
-                <h2>{t("dashboard.recent_sales", user.role === "admin" ? "Recent sales" : "My recent sales")}</h2>
+                <h2>{t("dashboard.recent_sales", navRole === "admin" ? "Recent sales" : "My recent sales")}</h2>
                 <p>{t("dashboard.last_7_days", "Latest activity")}</p>
               </div>
               <span className="text-[11px] font-bold text-slate-500">Invoices</span>

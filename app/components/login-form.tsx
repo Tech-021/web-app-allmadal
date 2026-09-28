@@ -25,7 +25,11 @@ export function LoginForm() {
         email: String(form.get("email")),
         password: String(form.get("password")),
       });
-      router.push(`/dashboard?role=${user.role}`);
+      if (user.role === "pending") {
+        router.push("/setup-business");
+      } else {
+        router.push(`/dashboard?role=${user.role}`);
+      }
     } catch (e) {
       setError(e instanceof Error ? e.message : "Unable to sign in.");
     } finally {

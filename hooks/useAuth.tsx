@@ -2,7 +2,7 @@
 
 import { createContext, useCallback, useContext, useEffect, useMemo, useState } from "react";
 
-export type UserRole = "admin" | "staff" | "accountant";
+export type UserRole = "admin" | "staff" | "accountant" | "pending" | "owner";
 export type AuthUser = { id?: string | number; name: string; email: string; role: UserRole };
 type Credentials = { email: string; password: string; role?: UserRole };
 type SignupData = { name: string; email: string; password: string };
@@ -56,6 +56,8 @@ function normalizeUser(data: Record<string, unknown>): AuthUser {
   let role: UserRole = "staff";
   if (rawRole === "admin") role = "admin";
   else if (rawRole === "accountant") role = "accountant";
+  else if (rawRole === "pending") role = "pending";
+  else if (rawRole === "owner") role = "owner";
 
   return {
     id: source.id as string | number | undefined,
