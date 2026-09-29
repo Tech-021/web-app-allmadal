@@ -1,3 +1,4 @@
+import { businessKey, getAuthItem, tokenKey } from "@/app/lib/auth-session";
 import { devError, devLog, devWarn } from "@/app/lib/dev-console";
 
 export type ActivityAction =
@@ -104,7 +105,7 @@ export async function logActivity(
     lastVisitTime = now;
   }
 
-  const token = localStorage.getItem("almadel_access_token");
+  const token = getAuthItem(tokenKey);
   const baseUrl = process.env.NEXT_PUBLIC_BACKEND_URL?.replace(/\/$/, "");
 
   if (!baseUrl) {
@@ -125,7 +126,7 @@ export async function logActivity(
     meta: meta || {},
   };
 
-  const activeBusinessId = localStorage.getItem("almadel_active_business_id");
+  const activeBusinessId = getAuthItem(businessKey);
   const headers: Record<string, string> = {
     "Content-Type": "application/json",
     Authorization: `Bearer ${token}`,
@@ -193,13 +194,13 @@ export async function logActivity(
  */
 export async function clearAllLogs(): Promise<void> {
   if (typeof window === "undefined") return;
-  const token = localStorage.getItem("almadel_access_token");
+  const token = getAuthItem(tokenKey);
   const baseUrl = process.env.NEXT_PUBLIC_BACKEND_URL?.replace(/\/$/, "");
 
   devLog("%c[Almadel Logger] 🗑️ Requesting DELETE /admin/logs from database...", "color: #e11d48; font-weight: bold");
 
   if (baseUrl && token) {
-    const activeBusinessId = localStorage.getItem("almadel_active_business_id");
+    const activeBusinessId = getAuthItem(businessKey);
     const headers: Record<string, string> = {
       Authorization: `Bearer ${token}`,
     };

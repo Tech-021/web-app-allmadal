@@ -1,4 +1,4 @@
-import { businessKey, handleApiUnauthorizedStatus, tokenKey } from "@/app/lib/auth-session";
+import { businessKey, getAuthItem, handleApiUnauthorizedStatus, tokenKey } from "@/app/lib/auth-session";
 
 const baseUrl = process.env.NEXT_PUBLIC_BACKEND_URL?.replace(/\/$/, "") ?? "";
 
@@ -31,9 +31,9 @@ export async function publicApi<T>(path: string, options: RequestInit = {}): Pro
 }
 
 export async function api<T>(path: string, options: RequestInit = {}): Promise<T> {
-  const token = typeof window !== "undefined" ? localStorage.getItem(tokenKey) : null;
+  const token = getAuthItem(tokenKey);
   if (!baseUrl || !token) throw new Error("Your session is not available. Please sign in again.");
-  const activeBusinessId = typeof window !== "undefined" ? localStorage.getItem(businessKey) : null;
+  const activeBusinessId = getAuthItem(businessKey);
   const headers: Record<string, string> = {
     "Content-Type": "application/json",
     Authorization: `Bearer ${token}`,
@@ -55,8 +55,8 @@ export async function api<T>(path: string, options: RequestInit = {}): Promise<T
 }
 
 export async function uploadProductImage(file: File): Promise<{ url: string }> {
-  const token = typeof window !== "undefined" ? localStorage.getItem(tokenKey) : null;
-  const businessId = typeof window !== "undefined" ? localStorage.getItem(businessKey) : null;
+  const token = getAuthItem(tokenKey);
+  const businessId = getAuthItem(businessKey);
   if (!baseUrl || !token) throw new Error("Your session is not available. Please sign in again.");
   const form = new FormData(); form.append("image", file);
   const response = await fetch(`${baseUrl}/products/images`, { method: "POST", body: form, headers: { Authorization: `Bearer ${token}`, ...(businessId ? { "x-business-id": businessId } : {}) } });

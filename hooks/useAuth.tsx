@@ -4,7 +4,10 @@ import { createContext, useCallback, useContext, useEffect, useMemo, useState } 
 import {
   SESSION_EXPIRED_EVENT,
   clearAuthStorage,
+  getAuthItem,
+  persistAuthCredentials,
   redirectToLoginAfterAuthFailure,
+  setAuthItem,
   teardownSessionOnUnauthorized,
   tokenKey,
   userKey,
@@ -13,7 +16,7 @@ import { logActivity } from "@/app/lib/logger";
 
 export type UserRole = "admin" | "staff" | "accountant" | "pending" | "owner";
 export type AuthUser = { id?: string | number; name: string; email: string; role: UserRole };
-type Credentials = { email: string; password: string; role?: UserRole };
+type Credentials = { email: string; password: string; role?: UserRole; rememberMe?: boolean };
 type SignupData = { name: string; email: string; password: string };
 type ProfilePatch = { name?: string; email?: string; id?: string | number };
 
@@ -36,11 +39,11 @@ function endpoint(path: string) {
 }
 
 function getToken() {
-  return typeof window === "undefined" ? null : localStorage.getItem(tokenKey);
+  return getAuthItem(tokenKey);
 }
 
 function storeUser(user: AuthUser) {
-  localStorage.setItem(userKey, JSON.stringify(user));
+  setAuthItem(userKey, JSON.stringify(user));
 }
 
 function decodeJwtPayload(token: string): { exp?: number } | null {
@@ -149,9 +152,13 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(credentials),
     }));
     const token = data.access_token || data.accessToken || data.token;
-    if (token) localStorage.setItem(tokenKey, String(token));
     const nextUser = normalizeUser(data);
-    storeUser(nextUser);
+    const remember = credentials.rememberMe !== false;
+    if (token) {
+      persistAuthCredentials(String(token), JSON.stringify(nextUser), remember);
+    } else {
+      storeUser(nextUser);
+    }
     setUser(nextUser);
 
     logActivity(
@@ -169,9 +176,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ fullName: details.name, email: details.email, password: details.password }),
     }));
     const token = data.access_token || data.accessToken || data.token;
-    if (token) localStorage.setItem(tokenKey, String(token));
     const nextUser = normalizeUser(data);
-    storeUser(nextUser);
+    if (token) {
+      persistAuthCredentials(String(token), JSON.stringify(nextUser), true);
+    } else {
+      storeUser(nextUser);
+    }
     setUser(nextUser);
 
     logActivity(
