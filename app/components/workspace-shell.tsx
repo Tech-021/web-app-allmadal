@@ -11,68 +11,15 @@ import { logActivity } from "@/app/lib/logger";
 import { resolveImageUrl } from "@/app/lib/api";
 import { useLanguage } from "./language-context";
 import { LanguageSwitcher } from "./language-switcher";
-import { isFinancialWorkspacePath, type NavRole } from "@/app/lib/access";
+import { isFinancialWorkspacePath } from "@/app/lib/access";
+import {
+  financialLinks,
+  isPathAllowedForNavRole,
+  navRoleFallbackPath,
+  posLinks,
+} from "@/app/lib/workspace-nav";
 import { useNavRole } from "@/hooks/useNavRole";
 import { useToast } from "@/app/components/toast-context";
-
-type NavLink = {
-  href: string;
-  label: string;
-  key: string;
-  icon: string;
-  allowedRoles: NavRole[];
-  subItems?: Array<{ href: string; label: string; key?: string; allowedRoles?: NavRole[] }>;
-};
-
-const posLinks: NavLink[] = [
-  { href: "/dashboard", label: "Dashboard", key: "nav.dashboard", icon: "📊", allowedRoles: ["admin", "staff", "accountant"] },
-  { href: "/sales", label: "Sales", key: "nav.sales", icon: "🛒", allowedRoles: ["admin", "staff"] },
-  {
-    href: "/products",
-    label: "Products / Inventory",
-    key: "nav.products_inventory",
-    icon: "📦",
-    allowedRoles: ["admin", "staff"],
-    subItems: [
-      { href: "/products", label: "All Products", key: "nav.all_products" },
-      { href: "/categories", label: "Categories", key: "nav.categories" },
-      { href: "/stock", label: "Stock Levels", key: "nav.stock_levels", allowedRoles: ["admin"] },
-    ],
-  },
-  { href: "/payments", label: "Payments / Billing", key: "nav.payments", icon: "💳", allowedRoles: ["admin", "accountant"] },
-  { href: "/staff", label: "Staff & Permissions", key: "nav.staff", icon: "👥", allowedRoles: ["admin"] },
-  { href: "/logs", label: "Activity Logs", key: "nav.logs", icon: "📋", allowedRoles: ["admin"] },
-  { href: "/settings", label: "Settings", key: "nav.settings", icon: "⚙️", allowedRoles: ["admin"] },
-];
-
-const financialLinks: NavLink[] = [
-  { href: "/dashboard", label: "Dashboard", key: "nav.dashboard", icon: "📊", allowedRoles: ["admin", "staff", "accountant"] },
-  { href: "/sales", label: "Sales", key: "nav.sales", icon: "🛒", allowedRoles: ["admin", "staff"] },
-  {
-    href: "/products",
-    label: "Products / Inventory",
-    key: "nav.products_inventory",
-    icon: "📦",
-    allowedRoles: ["admin", "staff"],
-    subItems: [
-      { href: "/products", label: "All Products", key: "nav.all_products" },
-      { href: "/categories", label: "Categories", key: "nav.categories" },
-      { href: "/stock", label: "Stock Levels", key: "nav.stock_levels", allowedRoles: ["admin"] },
-    ],
-  },
-  { href: "/accounts", label: "Cash / Accounts", key: "nav.accounts", icon: "💵", allowedRoles: ["admin", "accountant"] },
-  { href: "/customers", label: "Customers / Khata", key: "nav.customers", icon: "👥", allowedRoles: ["admin", "accountant"] },
-  { href: "/suppliers", label: "Suppliers", key: "nav.suppliers", icon: "🏢", allowedRoles: ["admin", "accountant"] },
-  { href: "/expenses", label: "Expenses", key: "nav.expenses", icon: "💸", allowedRoles: ["admin", "accountant"] },
-  { href: "/imei", label: "IMEI Management", key: "nav.imei", icon: "📱", allowedRoles: ["admin"] },
-  { href: "/payments", label: "Payments / Billing", key: "nav.payments", icon: "💳", allowedRoles: ["admin", "accountant"] },
-  { href: "/invoices", label: "Invoices / Receipts", key: "nav.invoices", icon: "🧾", allowedRoles: ["admin", "accountant"] },
-  { href: "/daily-closing", label: "Daily Closing", key: "nav.daily_closing", icon: "🔒", allowedRoles: ["admin", "accountant"] },
-  { href: "/reports", label: "Reports & Balance Sheet", key: "nav.reports", icon: "📈", allowedRoles: ["admin", "accountant"] },
-  { href: "/staff", label: "Staff & Permissions", key: "nav.staff", icon: "👤", allowedRoles: ["admin"] },
-  { href: "/logs", label: "Activity Logs", key: "nav.logs", icon: "📋", allowedRoles: ["admin"] },
-  { href: "/settings", label: "Settings", key: "nav.settings", icon: "⚙️", allowedRoles: ["admin"] },
-];
 
 function ShoppingBagIcon() {
   return (
@@ -170,22 +117,15 @@ export function WorkspaceShell({ children }: { children: React.ReactNode }) {
     router.replace("/sales");
   }, [user, authLoading, businessLoading, workspaceMode, pathname, router, showToast]);
 
-  // Role-based route guard
+  // Role-based route guard — same rules as sidebar `allowedRoles` (no URL bypass).
   useEffect(() => {
     if (!user || authLoading || businessLoading) return;
+    if (navRole === "admin") return;
 
-    if (navRole === "accountant") {
-      const restrictedForAccountant = ["/sales", "/products", "/categories", "/stock", "/imei", "/staff", "/logs", "/settings"];
-      if (restrictedForAccountant.some((r) => pathname === r || pathname.startsWith(r + "/"))) {
-        router.replace("/accounts");
-      }
-    } else if (navRole === "staff") {
-      const restrictedForStaff = ["/accounts", "/reports", "/expenses", "/daily-closing", "/staff", "/logs", "/settings", "/suppliers", "/customers", "/imei", "/stock"];
-      if (restrictedForStaff.some((r) => pathname === r || pathname.startsWith(r + "/"))) {
-        router.replace("/sales");
-      }
-    }
-  }, [user, navRole, authLoading, businessLoading, pathname, router]);
+    if (isPathAllowedForNavRole(pathname, allLinks, navRole)) return;
+
+    router.replace(navRoleFallbackPath(navRole));
+  }, [user, navRole, authLoading, businessLoading, pathname, router, allLinks]);
 
   // Close drawer on navigation
   useEffect(() => {
