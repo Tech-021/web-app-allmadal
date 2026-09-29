@@ -255,3 +255,33 @@ export function parseCurrencyInput(value: string): string {
   return clean;
 }
 
+export const LOGO_IMAGE_MIME_TYPES = ["image/jpeg", "image/png", "image/webp", "image/gif"] as const;
+export const LOGO_MAX_BYTES = 3 * 1024 * 1024;
+
+/** Validates a logo file before upload (type + size). */
+export function validateLogoImageFile(file: File): ValidationResult {
+  if (!LOGO_IMAGE_MIME_TYPES.includes(file.type as (typeof LOGO_IMAGE_MIME_TYPES)[number])) {
+    return { valid: false, error: "Logo must be a PNG, JPG, WEBP, or GIF image." };
+  }
+  if (file.size > LOGO_MAX_BYTES) {
+    return { valid: false, error: "Logo file size must be under 3MB." };
+  }
+  return { valid: true, error: null };
+}
+
+/** Rejects inline data-URLs — logos must be stored as server URLs only. */
+export function validateStoredLogoUrl(url: string | null | undefined): ValidationResult {
+  const trimmed = String(url ?? "").trim();
+  if (!trimmed) return { valid: true, error: null };
+  if (trimmed.toLowerCase().startsWith("data:")) {
+    return {
+      valid: false,
+      error: "Logo must be uploaded to the server. Please choose your logo file again.",
+    };
+  }
+  if (trimmed.length > 2048) {
+    return { valid: false, error: "Logo URL is invalid. Please upload the logo again." };
+  }
+  return { valid: true, error: null };
+}
+
