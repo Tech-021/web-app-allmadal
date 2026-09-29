@@ -68,7 +68,7 @@ export function PosTerminal({ onSaleCompleted }: PosTerminalProps) {
 
   // Payment
   const [paymentMethod, setPaymentMethod] = useState<"cash" | "online">("cash");
-  const [cashTendered, setCashTendered] = useState<string>("0");
+  const [cashTendered, setCashTendered] = useState<string>("");
 
   // Submit & Receipt
   const [checkingOut, setCheckingOut] = useState(false);
@@ -89,7 +89,7 @@ export function PosTerminal({ onSaleCompleted }: PosTerminalProps) {
     setDiscountType("none");
     setDiscountValue("0");
     setPaymentMethod("cash");
-    setCashTendered("0");
+    setCashTendered("");
     setReceipt(null);
     setSearchQuery("");
     setSelectedCategory("all");
@@ -237,7 +237,7 @@ export function PosTerminal({ onSaleCompleted }: PosTerminalProps) {
     setCart([]);
     setDiscountType("none");
     setDiscountValue("0");
-    setCashTendered("0");
+    setCashTendered("");
   };
 
   // Barcode quick-scanner listener on search input (Enter key)
@@ -341,11 +341,25 @@ export function PosTerminal({ onSaleCompleted }: PosTerminalProps) {
     return Math.max(0, grossSubtotal - totalDiscount);
   }, [grossSubtotal, totalDiscount]);
 
+  const cashTenderedAmount = useMemo(
+    () => Number(parseCurrencyInput(cashTendered)) || 0,
+    [cashTendered],
+  );
+
+  const isCashTenderSufficient = useMemo(() => {
+    if (paymentMethod !== "cash") return true;
+    return cashTenderedAmount >= grandTotal;
+  }, [cashTenderedAmount, grandTotal, paymentMethod]);
+
   const changeDue = useMemo(() => {
     if (paymentMethod !== "cash") return 0;
-    const tendered = Number(parseCurrencyInput(cashTendered)) || 0;
-    return Math.max(0, tendered - grandTotal);
-  }, [cashTendered, grandTotal, paymentMethod]);
+    return Math.max(0, cashTenderedAmount - grandTotal);
+  }, [cashTenderedAmount, grandTotal, paymentMethod]);
+
+  useEffect(() => {
+    if (paymentMethod !== "cash" || cart.length === 0) return;
+    setCashTendered((prev) => (prev.trim() === "" ? String(grandTotal) : prev));
+  }, [paymentMethod, cart.length, grandTotal]);
 
   // Checkout
   const handleCheckout = async () => {
@@ -356,6 +370,14 @@ export function PosTerminal({ onSaleCompleted }: PosTerminalProps) {
     try {
       if (cart.length === 0) {
         showToast("Cart is empty. Add products to create a bill.", "error");
+        return;
+      }
+
+      if (paymentMethod === "cash" && cashTenderedAmount < grandTotal) {
+        showToast(
+          `Cash received must be at least ₨ ${grandTotal.toLocaleString()} (currently ₨ ${cashTenderedAmount.toLocaleString()}).`,
+          "error",
+        );
         return;
       }
 
@@ -429,7 +451,7 @@ export function PosTerminal({ onSaleCompleted }: PosTerminalProps) {
         discountType,
         totalAmount: res.totalAmount ?? grandTotal,
         paymentMethod,
-        cashTendered: Number(parseCurrencyInput(cashTendered)) || undefined,
+        cashTendered: paymentMethod === "cash" ? cashTenderedAmount : undefined,
         changeDue: paymentMethod === "cash" ? changeDue : undefined,
       };
 
@@ -909,7 +931,10 @@ export function PosTerminal({ onSaleCompleted }: PosTerminalProps) {
             <div className="grid grid-cols-2 gap-2">
               <button
                 type="button"
-                onClick={() => setPaymentMethod("cash")}
+                onClick={() => {
+                  setPaymentMethod("cash");
+                  if (cart.length > 0) setCashTendered(String(grandTotal));
+                }}
                 className={`py-2 px-3 rounded-xl border font-bold text-xs flex items-center justify-center gap-1.5 transition ${
                   paymentMethod === "cash"
                     ? "bg-[#e6f4ed] text-[#00875a] border-[#00875a]"
@@ -938,11 +963,20 @@ export function PosTerminal({ onSaleCompleted }: PosTerminalProps) {
                   <input
                     type="text"
                     inputMode="numeric"
-                    placeholder="e.g. 5,000"
+                    placeholder={grandTotal > 0 ? `Min ₨ ${grandTotal.toLocaleString()}` : "e.g. 5,000"}
                     value={formatCurrencyInput(cashTendered)}
                     onChange={(e) => setCashTendered(e.target.value)}
-                    className="w-full px-2 py-1 rounded bg-white border border-slate-200 text-xs font-black text-slate-900 outline-none"
+                    className={`w-full px-2 py-1 rounded bg-white border text-xs font-black text-slate-900 outline-none ${
+                      cart.length > 0 && !isCashTenderSufficient
+                        ? "border-rose-400 ring-1 ring-rose-200"
+                        : "border-slate-200"
+                    }`}
                   />
+                  {cart.length > 0 && !isCashTenderSufficient && (
+                    <p className="mt-0.5 text-[10px] font-bold text-rose-600">
+                      Need at least ₨ {grandTotal.toLocaleString()}
+                    </p>
+                  )}
                 </div>
                 {changeDue > 0 && (
                   <div className="text-right">
@@ -984,7 +1018,7 @@ export function PosTerminal({ onSaleCompleted }: PosTerminalProps) {
           <button
             type="button"
             onClick={handleCheckout}
-            disabled={checkingOut || cart.length === 0}
+            disabled={checkingOut || cart.length === 0 || !isCashTenderSufficient}
             className="w-full py-4 px-6 rounded-2xl bg-gradient-to-r from-[#00875a] to-[#006644] hover:from-[#00744e] hover:to-[#005236] text-white font-black text-sm sm:text-base shadow-lg shadow-[#00875a]/25 transition flex items-center justify-center gap-2 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed active:scale-[0.99]"
           >
             {checkingOut ? (
