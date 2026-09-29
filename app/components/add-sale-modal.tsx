@@ -32,6 +32,7 @@ interface AddSaleModalProps {
 export function AddSaleModal({ isOpen, onClose, onSaleCompleted }: AddSaleModalProps) {
   const { showToast } = useToast();
   const { activeBusiness } = useBusiness();
+  const activeBusinessId = activeBusiness?.id ?? null;
 
   const [products, setProducts] = useState<Product[]>([]);
   const [customers, setCustomers] = useState<CustomerOption[]>([]);
@@ -58,9 +59,35 @@ export function AddSaleModal({ isOpen, onClose, onSaleCompleted }: AddSaleModalP
   const [submitting, setSubmitting] = useState(false);
   const [createdReceipt, setCreatedReceipt] = useState<DetailedSaleReceipt | null>(null);
 
-  // Load products & customers
+  // Reset form and load catalog when modal opens or active business changes.
   useEffect(() => {
     if (!isOpen) return;
+
+    setLines([
+      {
+        productId: 0,
+        productName: "",
+        price: 0,
+        quantity: 1,
+        maxStock: 0,
+      },
+    ]);
+    setCustomerMode("walkin");
+    setSelectedCustomerId("");
+    setWalkinName("");
+    setWalkinMobile("");
+    setDiscountType("none");
+    setDiscountValue("0");
+    setPaymentMethod("cash");
+    setCashTendered("");
+    setCreatedReceipt(null);
+
+    if (!activeBusinessId) {
+      setProducts([]);
+      setCustomers([]);
+      setLoadingData(false);
+      return;
+    }
 
     let mounted = true;
     async function fetchData() {
@@ -85,31 +112,7 @@ export function AddSaleModal({ isOpen, onClose, onSaleCompleted }: AddSaleModalP
     return () => {
       mounted = false;
     };
-  }, [isOpen, activeBusiness?.id]);
-
-  // Reset form on open
-  useEffect(() => {
-    if (isOpen) {
-      setLines([
-        {
-          productId: 0,
-          productName: "",
-          price: 0,
-          quantity: 1,
-          maxStock: 0,
-        },
-      ]);
-      setCustomerMode("walkin");
-      setSelectedCustomerId("");
-      setWalkinName("");
-      setWalkinMobile("");
-      setDiscountType("none");
-      setDiscountValue("0");
-      setPaymentMethod("cash");
-      setCashTendered("");
-      setCreatedReceipt(null);
-    }
-  }, [isOpen]);
+  }, [isOpen, activeBusinessId]);
 
   // Handle line change
   const handleProductSelect = (index: number, productId: number) => {

@@ -76,8 +76,35 @@ export function PosTerminal({ onSaleCompleted }: PosTerminalProps) {
 
   const searchInputRef = useRef<HTMLInputElement>(null);
 
-  // Fetch products and customers directly from API (no local caching)
+  const businessId = activeBusiness?.id;
+
+  const resetCheckoutState = useCallback(() => {
+    setCart([]);
+    setEditingDiscountProductId(null);
+    setCustomerMode("walkin");
+    setWalkinName("");
+    setWalkinMobile("");
+    setSelectedCustomerId("");
+    setDiscountType("none");
+    setDiscountValue("0");
+    setPaymentMethod("cash");
+    setCashTendered("0");
+    setReceipt(null);
+    setSearchQuery("");
+    setSelectedCategory("all");
+    setCatalogPage(1);
+    setScannerLastScanned(null);
+  }, []);
+
+  // Fetch products and customers for the active business (x-business-id from context).
   const loadData = useCallback(async () => {
+    if (!businessId) {
+      setProducts([]);
+      setCustomers([]);
+      setLoading(false);
+      return;
+    }
+
     setLoading(true);
     try {
       const [prodRes, custRes] = await Promise.all([
@@ -92,11 +119,12 @@ export function PosTerminal({ onSaleCompleted }: PosTerminalProps) {
     } finally {
       setLoading(false);
     }
-  }, [showToast]);
+  }, [businessId, showToast]);
 
   useEffect(() => {
+    resetCheckoutState();
     void loadData();
-  }, [loadData]);
+  }, [businessId, loadData, resetCheckoutState]);
 
 
   // Categories extraction
