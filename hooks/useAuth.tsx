@@ -1,6 +1,7 @@
 "use client";
 
 import { createContext, useCallback, useContext, useEffect, useMemo, useState } from "react";
+import { logActivity } from "@/app/lib/logger";
 
 export type UserRole = "admin" | "staff" | "accountant" | "pending" | "owner";
 export type AuthUser = { id?: string | number; name: string; email: string; role: UserRole };
@@ -18,6 +19,8 @@ const AuthContext = createContext<AuthContextValue | null>(null);
 const backendUrl = process.env.NEXT_PUBLIC_BACKEND_URL?.replace(/\/$/, "") ?? "";
 const tokenKey = "almadel_access_token";
 const userKey = "almadel_auth_user";
+const businessKey = "almadel_active_business_id";
+const TOKEN_EXPIRY_SKEW_SEC = 30;
 
 function endpoint(path: string) {
   if (!backendUrl) throw new Error("BACKEND_URL is not configured.");
@@ -32,16 +35,29 @@ function storeUser(user: AuthUser) {
   localStorage.setItem(userKey, JSON.stringify(user));
 }
 
-function getStoredUser() {
-  if (typeof window === "undefined") return null;
+function clearAuthStorage() {
+  localStorage.removeItem(tokenKey);
+  localStorage.removeItem(userKey);
+  localStorage.removeItem(businessKey);
+}
 
+function decodeJwtPayload(token: string): { exp?: number } | null {
   try {
-    const value = localStorage.getItem(userKey);
-    return value ? (JSON.parse(value) as AuthUser) : null;
+    const segment = token.split(".")[1];
+    if (!segment) return null;
+    const normalized = segment.replace(/-/g, "+").replace(/_/g, "/");
+    const padded = normalized.padEnd(normalized.length + ((4 - (normalized.length % 4)) % 4), "=");
+    return JSON.parse(atob(padded)) as { exp?: number };
   } catch {
-    localStorage.removeItem(userKey);
     return null;
   }
+}
+
+/** Client-side pre-check; server `/auth/me` remains authoritative. */
+function isAccessTokenExpired(token: string) {
+  const payload = decodeJwtPayload(token);
+  if (!payload?.exp) return false;
+  return Date.now() >= (payload.exp - TOKEN_EXPIRY_SKEW_SEC) * 1000;
 }
 
 async function parseResponse(response: Response) {
@@ -67,22 +83,48 @@ function normalizeUser(data: Record<string, unknown>): AuthUser {
   };
 }
 
-import { logActivity } from "@/app/lib/logger";
-
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<AuthUser | null>(null);
   const [isLoading, setIsLoading] = useState(true);
 
-  const refreshUser = useCallback(async () => {
-    const token = getToken();
-    if (!token) { setUser(null); setIsLoading(false); return; }
-    setUser(getStoredUser());
-    setIsLoading(false);
+  const sessionInvalid = useCallback(() => {
+    clearAuthStorage();
+    setUser(null);
   }, []);
 
+  const refreshUser = useCallback(async () => {
+    const token = getToken();
+    if (!token) {
+      setUser(null);
+      setIsLoading(false);
+      return;
+    }
+
+    if (isAccessTokenExpired(token)) {
+      sessionInvalid();
+      setIsLoading(false);
+      return;
+    }
+
+    try {
+      const data = await parseResponse(
+        await fetch(endpoint("/auth/me"), {
+          method: "GET",
+          cache: "no-store",
+          headers: { Authorization: `Bearer ${token}` },
+        }),
+      );
+      const nextUser = normalizeUser(data);
+      storeUser(nextUser);
+      setUser(nextUser);
+    } catch {
+      sessionInvalid();
+    } finally {
+      setIsLoading(false);
+    }
+  }, [sessionInvalid]);
+
   useEffect(() => {
-    // The initial request hydrates the client-side auth state from the HTTP-only session.
-    // eslint-disable-next-line react-hooks/set-state-in-effect
     void refreshUser();
   }, [refreshUser]);
 
@@ -131,7 +173,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   const logout = useCallback(async () => {
-    const current = getStoredUser();
+    const current = user;
     if (current) {
       logActivity(
         "AUTH_LOGOUT",
@@ -142,11 +184,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         { name: current.name, email: current.email, role: current.role }
       );
     }
-    localStorage.removeItem(tokenKey);
-    localStorage.removeItem(userKey);
-    localStorage.removeItem("almadel_active_business_id");
-    setUser(null);
-  }, []);
+    sessionInvalid();
+  }, [sessionInvalid, user]);
+
   const updateUser = useCallback((nextUser: AuthUser) => { storeUser(nextUser); setUser(nextUser); }, []);
   const value = useMemo(() => ({ user, isLoading, isAuthenticated: Boolean(user), login, signup, logout, refreshUser, updateUser }), [user, isLoading, login, signup, logout, refreshUser, updateUser]);
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
