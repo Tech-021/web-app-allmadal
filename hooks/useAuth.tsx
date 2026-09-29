@@ -1,6 +1,14 @@
 "use client";
 
 import { createContext, useCallback, useContext, useEffect, useMemo, useState } from "react";
+import {
+  SESSION_EXPIRED_EVENT,
+  clearAuthStorage,
+  redirectToLoginAfterAuthFailure,
+  teardownSessionOnUnauthorized,
+  tokenKey,
+  userKey,
+} from "@/app/lib/auth-session";
 import { logActivity } from "@/app/lib/logger";
 
 export type UserRole = "admin" | "staff" | "accountant" | "pending" | "owner";
@@ -20,9 +28,6 @@ type AuthContextValue = {
 
 const AuthContext = createContext<AuthContextValue | null>(null);
 const backendUrl = process.env.NEXT_PUBLIC_BACKEND_URL?.replace(/\/$/, "") ?? "";
-const tokenKey = "almadel_access_token";
-const userKey = "almadel_auth_user";
-const businessKey = "almadel_active_business_id";
 const TOKEN_EXPIRY_SKEW_SEC = 30;
 
 function endpoint(path: string) {
@@ -36,12 +41,6 @@ function getToken() {
 
 function storeUser(user: AuthUser) {
   localStorage.setItem(userKey, JSON.stringify(user));
-}
-
-function clearAuthStorage() {
-  localStorage.removeItem(tokenKey);
-  localStorage.removeItem(userKey);
-  localStorage.removeItem(businessKey);
 }
 
 function decodeJwtPayload(token: string): { exp?: number } | null {
@@ -65,7 +64,9 @@ function isAccessTokenExpired(token: string) {
 
 async function parseResponse(response: Response) {
   const data = await response.json().catch(() => ({}));
-  if (!response.ok) throw new Error(data.message || data.detail || data.error || "Something went wrong. Please try again.");
+  if (!response.ok) {
+    throw new Error(data.message || data.detail || data.error || "Something went wrong. Please try again.");
+  }
   return data;
 }
 
@@ -105,18 +106,24 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
     if (isAccessTokenExpired(token)) {
       sessionInvalid();
+      redirectToLoginAfterAuthFailure();
       setIsLoading(false);
       return;
     }
 
     try {
-      const data = await parseResponse(
-        await fetch(endpoint("/auth/me"), {
-          method: "GET",
-          cache: "no-store",
-          headers: { Authorization: `Bearer ${token}` },
-        }),
-      );
+      const response = await fetch(endpoint("/auth/me"), {
+        method: "GET",
+        cache: "no-store",
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (response.status === 401) {
+        teardownSessionOnUnauthorized();
+        setUser(null);
+        setIsLoading(false);
+        return;
+      }
+      const data = await parseResponse(response);
       const nextUser = normalizeUser(data);
       storeUser(nextUser);
       setUser(nextUser);
@@ -130,6 +137,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     void refreshUser();
   }, [refreshUser]);
+
+  useEffect(() => {
+    const onSessionExpired = () => setUser(null);
+    window.addEventListener(SESSION_EXPIRED_EVENT, onSessionExpired);
+    return () => window.removeEventListener(SESSION_EXPIRED_EVENT, onSessionExpired);
+  }, []);
 
   const login = useCallback(async (credentials: Credentials) => {
     const data = await parseResponse(await fetch(endpoint("/auth/sign-in"), {
