@@ -74,27 +74,17 @@ export type ActivityLog = {
 let lastVisitTarget = "";
 let lastVisitTime = 0;
 
-function getCurrentUser(): { id?: number | null; name: string; email: string; role: "admin" | "staff" | "accountant" } {
-  if (typeof window === "undefined") {
-    return { name: "System", email: "system@almadel.com", role: "staff" };
-  }
-  try {
-    const raw = localStorage.getItem("almadel_auth_user");
-    if (raw) {
-      const parsed = JSON.parse(raw);
-      return {
-        id: parsed.id ? Number(parsed.id) : null,
-        name: parsed.fullName || parsed.name || "Team member",
-        email: parsed.email || "",
-        role: "staff",
-      };
-    }
-  } catch { }
-  return { name: "Team member", email: "", role: "staff" };
-}
+/** Event payload only — actor identity is derived on the server from the JWT. */
+export type ActivityLogPayload = {
+  action: ActivityAction;
+  category: ActivityCategory;
+  details: string;
+  target?: string | null;
+  meta?: Record<string, unknown>;
+};
 
 /**
- * Persists an activity log directly to the PostgreSQL Backend Database.
+ * Persists an activity log to the backend. Requires a valid session token.
  */
 export async function logActivity(
   action: ActivityAction,
@@ -102,11 +92,9 @@ export async function logActivity(
   details: string,
   target?: string,
   meta?: Record<string, unknown>,
-  overrideUser?: { id?: number | null; name?: string; email?: string; role?: string }
 ): Promise<void> {
   if (typeof window === "undefined") return;
 
-  // Throttle rapid duplicate page visit events within 3 seconds
   if (action === "PAGE_VISIT") {
     const now = Date.now();
     if (lastVisitTarget === target && now - lastVisitTime < 3000) {
@@ -124,30 +112,24 @@ export async function logActivity(
     return;
   }
 
-  const user = {
-    ...getCurrentUser(),
-    ...overrideUser,
-  };
+  if (!token) {
+    devWarn("[Almadel Logger] Skipping log — no session token (actor cannot be verified server-side).");
+    return;
+  }
 
-  const payload = {
+  const payload: ActivityLogPayload = {
     action,
     category,
     details,
     target: target || null,
     meta: meta || {},
-    userName: user.name,
-    userEmail: user.email,
-    userRole: user.role,
-    userId: user.id || null,
   };
 
   const activeBusinessId = localStorage.getItem("almadel_active_business_id");
   const headers: Record<string, string> = {
     "Content-Type": "application/json",
+    Authorization: `Bearer ${token}`,
   };
-  if (token) {
-    headers["Authorization"] = `Bearer ${token}`;
-  }
   if (activeBusinessId) {
     headers["x-business-id"] = activeBusinessId;
   }
@@ -156,11 +138,10 @@ export async function logActivity(
     `%c[Almadel Logger] 📤 Sending Log Event -> %c${action} (${category})`,
     "color: #0284c7; font-weight: bold",
     "color: #0f172a; font-weight: 600",
-    { url: `${baseUrl}/logs`, payload, hasToken: !!token },
+    { url: `${baseUrl}/logs`, payload },
   );
 
   try {
-    // 1. Try POST /logs
     let res = await fetch(`${baseUrl}/logs`, {
       method: "POST",
       headers,
@@ -217,10 +198,11 @@ export async function clearAllLogs(): Promise<void> {
 
   devLog("%c[Almadel Logger] 🗑️ Requesting DELETE /admin/logs from database...", "color: #e11d48; font-weight: bold");
 
-  if (baseUrl) {
+  if (baseUrl && token) {
     const activeBusinessId = localStorage.getItem("almadel_active_business_id");
-    const headers: Record<string, string> = {};
-    if (token) headers["Authorization"] = `Bearer ${token}`;
+    const headers: Record<string, string> = {
+      Authorization: `Bearer ${token}`,
+    };
     if (activeBusinessId) headers["x-business-id"] = activeBusinessId;
 
     try {

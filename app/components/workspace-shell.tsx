@@ -174,7 +174,6 @@ export function WorkspaceShell({ children }: { children: React.ReactNode }) {
         `Visited ${title} page (${pathname})`,
         pathname,
         { path: pathname, businessId: activeBusiness?.id },
-        { name: user.name, email: user.email, role: navRole }
       );
     }
   }, [user, pathname, activeBusiness?.id]);

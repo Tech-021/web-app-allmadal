@@ -144,10 +144,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     logActivity(
       "AUTH_LOGIN",
       "Auth",
-      `User ${nextUser.name} (${nextUser.email}) signed in with ${nextUser.role} role`,
+      `User ${nextUser.name} (${nextUser.email}) signed in`,
       "/login",
-      { role: nextUser.role },
-      { name: nextUser.name, email: nextUser.email, role: nextUser.role }
     );
 
     return nextUser;
@@ -168,8 +166,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       "Auth",
       `New staff member registered: ${nextUser.name} (${nextUser.email})`,
       "/signup",
-      { role: "staff" },
-      { name: nextUser.name, email: nextUser.email, role: "staff" }
     );
 
     return nextUser;
@@ -183,8 +179,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         "Auth",
         `User ${current.name} (${current.email}) signed out`,
         "/login",
-        undefined,
-        { name: current.name, email: current.email, role: current.role }
       );
     }
     sessionInvalid();
