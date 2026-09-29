@@ -6,6 +6,7 @@ import { api, Product } from "@/app/lib/api";
 import { useToast } from "@/app/components/toast-context";
 import { logActivity } from "@/app/lib/logger";
 import { PaginationControls } from "@/app/components/pagination-controls";
+import { useBusiness } from "@/app/components/business-context";
 import ui from "@/app/components/workspace-ui.module.css";
 
 export type Category = {
@@ -23,6 +24,8 @@ const money = (n: number) => `Rs ${Math.round(n).toLocaleString()}`;
 
 export default function CategoriesPage() {
   const { showToast, confirmDialog } = useToast();
+  const { activeBusiness } = useBusiness();
+  const activeBusinessId = activeBusiness?.id ?? null;
   const [categories, setCategories] = useState<Category[]>([]);
   const [products, setProducts] = useState<Product[]>([]);
   const [loading, setLoading] = useState(true);
@@ -37,6 +40,13 @@ export default function CategoriesPage() {
   const [saving, setSaving] = useState(false);
 
   const load = useCallback(async () => {
+    if (!activeBusinessId) {
+      setCategories([]);
+      setProducts([]);
+      setLoading(false);
+      return;
+    }
+
     setLoading(true);
     setError("");
     try {
@@ -53,11 +63,17 @@ export default function CategoriesPage() {
     } finally {
       setLoading(false);
     }
-  }, [showToast]);
+  }, [activeBusinessId, showToast]);
 
   useEffect(() => {
+    setQuery("");
+    setPage(1);
+    setNotice("");
+    setEditing(undefined);
+    setName("");
+    setDescription("");
     void load();
-  }, [load]);
+  }, [activeBusinessId, load]);
 
   const uncategorizedCount = useMemo(() => {
     return products.filter((p) => !p.category || !p.category.trim()).length;
