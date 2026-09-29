@@ -2,7 +2,8 @@
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { FormEvent, useState } from "react";
+import { FormEvent, useEffect, useState } from "react";
+import { isRememberAuthPreferred } from "@/app/lib/auth-session";
 import { Field } from "./auth-shell";
 import { useAuth } from "@/hooks/useAuth";
 import { useLanguage } from "./language-context";
@@ -14,6 +15,11 @@ export function LoginForm() {
   const [show, setShow] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
+  const [rememberMe, setRememberMe] = useState(true);
+
+  useEffect(() => {
+    setRememberMe(isRememberAuthPreferred());
+  }, []);
 
   async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -24,11 +30,12 @@ export function LoginForm() {
       const user = await login({
         email: String(form.get("email")),
         password: String(form.get("password")),
+        rememberMe,
       });
       if (user.role === "pending") {
         router.push("/setup-business");
       } else {
-        router.push(`/dashboard?role=${user.role}`);
+        router.push("/dashboard");
       }
     } catch (e) {
       setError(e instanceof Error ? e.message : "Unable to sign in.");
@@ -77,7 +84,13 @@ export function LoginForm() {
 
         <div className="flex items-center justify-between text-xs">
           <label className="flex items-center gap-2 font-medium text-[#4b5563] cursor-pointer">
-            <input className="accent-[#00875A] rounded" type="checkbox" />
+            <input
+              className="accent-[#00875A] rounded"
+              type="checkbox"
+              name="remember"
+              checked={rememberMe}
+              onChange={(e) => setRememberMe(e.target.checked)}
+            />
             {t("auth.remember_me", "Remember me")}
           </label>
           <Link className="font-bold text-[#00875A] transition hover:underline" href="/forgot-password">

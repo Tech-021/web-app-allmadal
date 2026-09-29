@@ -1,3 +1,5 @@
+import { businessKey, getAuthItem, handleApiUnauthorizedStatus, tokenKey } from "@/app/lib/auth-session";
+
 const baseUrl = process.env.NEXT_PUBLIC_BACKEND_URL?.replace(/\/$/, "") ?? "";
 
 function parseApiError(payload: unknown, status: number): string {
@@ -29,9 +31,9 @@ export async function publicApi<T>(path: string, options: RequestInit = {}): Pro
 }
 
 export async function api<T>(path: string, options: RequestInit = {}): Promise<T> {
-  const token = typeof window !== "undefined" ? localStorage.getItem("almadel_access_token") : null;
+  const token = getAuthItem(tokenKey);
   if (!baseUrl || !token) throw new Error("Your session is not available. Please sign in again.");
-  const activeBusinessId = typeof window !== "undefined" ? localStorage.getItem("almadel_active_business_id") : null;
+  const activeBusinessId = getAuthItem(businessKey);
   const headers: Record<string, string> = {
     "Content-Type": "application/json",
     Authorization: `Bearer ${token}`,
@@ -46,19 +48,23 @@ export async function api<T>(path: string, options: RequestInit = {}): Promise<T
   });
   const payload = await response.json().catch(() => ({}));
   if (!response.ok) {
+    handleApiUnauthorizedStatus(response.status);
     throw new Error(parseApiError(payload, response.status));
   }
   return payload as T;
 }
 
 export async function uploadProductImage(file: File): Promise<{ url: string }> {
-  const token = typeof window !== "undefined" ? localStorage.getItem("almadel_access_token") : null;
-  const businessId = typeof window !== "undefined" ? localStorage.getItem("almadel_active_business_id") : null;
+  const token = getAuthItem(tokenKey);
+  const businessId = getAuthItem(businessKey);
   if (!baseUrl || !token) throw new Error("Your session is not available. Please sign in again.");
   const form = new FormData(); form.append("image", file);
   const response = await fetch(`${baseUrl}/products/images`, { method: "POST", body: form, headers: { Authorization: `Bearer ${token}`, ...(businessId ? { "x-business-id": businessId } : {}) } });
   const payload = await response.json().catch(() => ({}));
-  if (!response.ok) throw new Error(payload.message || "Could not upload image.");
+  if (!response.ok) {
+    handleApiUnauthorizedStatus(response.status);
+    throw new Error(parseApiError(payload, response.status) || "Could not upload image.");
+  }
   return payload as { url: string };
 }
 

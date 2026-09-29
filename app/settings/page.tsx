@@ -1,12 +1,20 @@
 "use client";
 
-import { FormEvent, useEffect, useState, useRef } from "react";
+import { FormEvent, useEffect, useState, useRef, useCallback } from "react";
 import { useBusiness } from "@/app/components/business-context";
 import { useAuth } from "@/hooks/useAuth";
 import { WorkspaceShell } from "@/app/components/workspace-shell";
 import { api, resolveImageUrl, uploadProductImage } from "@/app/lib/api";
 import { useToast } from "@/app/components/toast-context";
 import { logActivity } from "@/app/lib/logger";
+import {
+  sanitizePhoneInput,
+  validateEmail,
+  validateLogoImageFile,
+  validatePhone,
+  validateStoredLogoUrl,
+  validateText,
+} from "@/app/lib/validators";
 import ui from "@/app/components/workspace-ui.module.css";
 
 export default function SettingsPage() {
@@ -19,6 +27,7 @@ export default function SettingsPage() {
   const [logoUploading, setLogoUploading] = useState(false);
   const [logoUrl, setLogoUrl] = useState<string>("");
   const [allowDiscounts, setAllowDiscounts] = useState(true);
+  const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
 
   const [form, setForm] = useState({
     name: user?.name || "",
@@ -42,32 +51,80 @@ export default function SettingsPage() {
     });
     setLogoUrl(activeBusiness?.logoUrl || "");
     setAllowDiscounts(activeBusiness?.allowDiscounts !== false);
+    setFieldErrors({});
   }, [user?.name, user?.email, activeBusiness]);
 
-  // Handle Logo File Upload
+  const validateAll = useCallback(() => {
+    const errors: Record<string, string> = {};
+
+    const businessErr = validateText(form.business, { min: 2, max: 100, fieldLabel: "Business name" }).error;
+    if (businessErr) errors.business = businessErr;
+
+    const nameErr = validateText(form.name, { min: 2, max: 100, fieldLabel: "Account owner name" }).error;
+    if (nameErr) errors.name = nameErr;
+
+    const emailErr = validateEmail(form.email, { required: true, fieldName: "Email address" }).error;
+    if (emailErr) errors.email = emailErr;
+
+    const mobileErr = validatePhone(form.mobileNumber, {
+      required: false,
+      fieldName: "Store phone number",
+    }).error;
+    if (mobileErr) errors.mobileNumber = mobileErr;
+
+    const whatsappErr = validatePhone(form.whatsappNumber, {
+      required: false,
+      fieldName: "WhatsApp number",
+    }).error;
+    if (whatsappErr) errors.whatsappNumber = whatsappErr;
+
+    const addressErr = validateText(form.address, {
+      max: 200,
+      required: false,
+      fieldLabel: "Store address",
+    }).error;
+    if (addressErr) errors.address = addressErr;
+
+    const cityErr = validateText(form.city, {
+      min: 1,
+      max: 60,
+      required: false,
+      fieldLabel: "City",
+    }).error;
+    if (cityErr) errors.city = cityErr;
+
+    const logoErr = validateStoredLogoUrl(logoUrl).error;
+    if (logoErr) errors.logo = logoErr;
+
+    setFieldErrors(errors);
+    return errors;
+  }, [form, logoUrl]);
+
   const handleLogoFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
 
-    if (file.size > 3 * 1024 * 1024) {
-      showToast("Logo file size must be under 3MB.", "error");
+    const fileCheck = validateLogoImageFile(file);
+    if (!fileCheck.valid) {
+      showToast(fileCheck.error || "Invalid logo file.", "error");
+      if (fileInputRef.current) fileInputRef.current.value = "";
       return;
     }
 
     setLogoUploading(true);
     try {
-      // Upload via backend image service
       const res = await uploadProductImage(file);
       setLogoUrl(res.url);
+      setFieldErrors((prev) => {
+        const next = { ...prev };
+        delete next.logo;
+        return next;
+      });
       showToast("Logo uploaded. Click 'Save Changes' to apply.", "success");
-    } catch {
-      // Fallback to Base64 data URL
-      const reader = new FileReader();
-      reader.onload = () => {
-        setLogoUrl(reader.result as string);
-        showToast("Logo ready. Click 'Save Changes' to apply.", "success");
-      };
-      reader.readAsDataURL(file);
+    } catch (err) {
+      if (fileInputRef.current) fileInputRef.current.value = "";
+      const msg = err instanceof Error ? err.message : "Could not upload logo.";
+      showToast(`${msg} Logo was not saved — try again or check your connection.`, "error");
     } finally {
       setLogoUploading(false);
     }
@@ -76,28 +133,44 @@ export default function SettingsPage() {
   const removeLogo = () => {
     setLogoUrl("");
     if (fileInputRef.current) fileInputRef.current.value = "";
+    setFieldErrors((prev) => {
+      const next = { ...prev };
+      delete next.logo;
+      return next;
+    });
     showToast("Logo removed. Click 'Save Changes' to apply.", "info");
   };
 
   async function submit(e: FormEvent) {
     e.preventDefault();
     if (!activeBusiness) return;
+
+    const errors = validateAll();
+    if (Object.keys(errors).length > 0) {
+      showToast(Object.values(errors)[0] || "Please correct the highlighted fields.", "error");
+      return;
+    }
+
     setSaving(true);
     try {
+      const trimmedBusiness = form.business.trim();
+      const trimmedMobile = form.mobileNumber.trim();
+      const trimmedWhatsapp = form.whatsappNumber.trim();
+
       const [profile, business] = await Promise.all([
         api<{ user: { id?: number; fullName?: string; email: string; role: "admin" | "staff" | "accountant" } }>("/auth/me", {
           method: "PATCH",
-          body: JSON.stringify({ fullName: form.name, email: form.email }),
+          body: JSON.stringify({ fullName: form.name.trim(), email: form.email.trim() }),
         }),
         api<{ business: NonNullable<typeof activeBusiness> }>(`/business/${activeBusiness.id}`, {
           method: "PATCH",
           body: JSON.stringify({
-            name: form.business,
-            mobileNumber: form.mobileNumber,
-            whatsappNumber: form.whatsappNumber,
-            address: form.address,
-            city: form.city,
-            logoUrl: logoUrl || null,
+            name: trimmedBusiness,
+            mobileNumber: trimmedMobile || null,
+            whatsappNumber: trimmedWhatsapp || null,
+            address: form.address.trim() || null,
+            city: form.city.trim() || null,
+            logoUrl: logoUrl.trim() || null,
             allowDiscounts,
           }),
         }),
@@ -105,9 +178,8 @@ export default function SettingsPage() {
 
       updateUser({
         id: profile.user.id,
-        name: profile.user.fullName || form.name,
+        name: profile.user.fullName || form.name.trim(),
         email: profile.user.email,
-        role: profile.user.role,
       });
 
       await reloadBusinesses();
@@ -119,7 +191,7 @@ export default function SettingsPage() {
         "Settings",
         `Updated account & store settings for '${business.business.name}'`,
         business.business.name,
-        { name: form.name, email: form.email, business: business.business.name }
+        { name: form.name.trim(), email: form.email.trim(), business: business.business.name }
       );
     } catch (e) {
       showToast(e instanceof Error ? e.message : "Could not update settings.", "error");
@@ -129,6 +201,7 @@ export default function SettingsPage() {
   }
 
   const resolvedPreview = resolveImageUrl(logoUrl);
+  const inputErrorClass = "border-rose-400 ring-1 ring-rose-200";
 
   return (
     <WorkspaceShell>
@@ -140,7 +213,7 @@ export default function SettingsPage() {
         </div>
       </div>
 
-      <form className={`${ui.panel} max-w-3xl`} onSubmit={submit}>
+      <form className={`${ui.panel} max-w-3xl`} onSubmit={submit} noValidate>
         
         {/* Store Logo Section */}
         <div className="mb-6 pb-6 border-b border-slate-200">
@@ -204,6 +277,9 @@ export default function SettingsPage() {
               <p className="text-[11px] text-slate-400">
                 Recommended: Square PNG or JPG with transparent/white background (Max 3MB).
               </p>
+              {fieldErrors.logo && (
+                <p className="text-[11px] font-bold text-rose-600">{fieldErrors.logo}</p>
+              )}
             </div>
           </div>
         </div>
@@ -213,72 +289,102 @@ export default function SettingsPage() {
           <div className={ui.field}>
             <label>Business / Store Name</label>
             <input
-              className={ui.input}
+              className={`${ui.input} ${fieldErrors.business ? inputErrorClass : ""}`}
               required
+              maxLength={100}
               value={form.business}
               onChange={(e) => setForm({ ...form, business: e.target.value })}
             />
+            {fieldErrors.business && (
+              <p className="text-[11px] font-bold text-rose-600 mt-1">{fieldErrors.business}</p>
+            )}
           </div>
 
           <div className={ui.field}>
             <label>Store Phone Number (Receipt)</label>
             <input
-              className={ui.input}
+              className={`${ui.input} ${fieldErrors.mobileNumber ? inputErrorClass : ""}`}
+              type="tel"
+              maxLength={16}
               placeholder="e.g. 03001234567"
               value={form.mobileNumber}
-              onChange={(e) => setForm({ ...form, mobileNumber: e.target.value })}
+              onChange={(e) => setForm({ ...form, mobileNumber: sanitizePhoneInput(e.target.value) })}
             />
+            {fieldErrors.mobileNumber && (
+              <p className="text-[11px] font-bold text-rose-600 mt-1">{fieldErrors.mobileNumber}</p>
+            )}
           </div>
 
           <div className={ui.field}>
             <label>WhatsApp Number</label>
             <input
-              className={ui.input}
+              className={`${ui.input} ${fieldErrors.whatsappNumber ? inputErrorClass : ""}`}
+              type="tel"
+              maxLength={16}
               placeholder="e.g. 03152944142"
               value={form.whatsappNumber}
-              onChange={(e) => setForm({ ...form, whatsappNumber: e.target.value })}
+              onChange={(e) => setForm({ ...form, whatsappNumber: sanitizePhoneInput(e.target.value) })}
             />
+            {fieldErrors.whatsappNumber && (
+              <p className="text-[11px] font-bold text-rose-600 mt-1">{fieldErrors.whatsappNumber}</p>
+            )}
           </div>
 
           <div className={ui.field}>
             <label>City</label>
             <input
-              className={ui.input}
+              className={`${ui.input} ${fieldErrors.city ? inputErrorClass : ""}`}
+              maxLength={60}
               placeholder="e.g. Karachi, Lahore, Islamabad"
               value={form.city}
               onChange={(e) => setForm({ ...form, city: e.target.value })}
             />
+            {fieldErrors.city && (
+              <p className="text-[11px] font-bold text-rose-600 mt-1">{fieldErrors.city}</p>
+            )}
           </div>
 
           <div className={`${ui.field} ${ui.span2}`}>
             <label>Store Address (Prints on Invoices)</label>
             <input
-              className={ui.input}
+              className={`${ui.input} ${fieldErrors.address ? inputErrorClass : ""}`}
+              maxLength={200}
               placeholder="e.g. Shop # 4, Main Commercial Market, Malir"
               value={form.address}
               onChange={(e) => setForm({ ...form, address: e.target.value })}
             />
+            {fieldErrors.address && (
+              <p className="text-[11px] font-bold text-rose-600 mt-1">{fieldErrors.address}</p>
+            )}
           </div>
 
           <div className={ui.field}>
             <label>Account Owner Name</label>
             <input
-              className={ui.input}
+              className={`${ui.input} ${fieldErrors.name ? inputErrorClass : ""}`}
               required
+              maxLength={100}
               value={form.name}
               onChange={(e) => setForm({ ...form, name: e.target.value })}
             />
+            {fieldErrors.name && (
+              <p className="text-[11px] font-bold text-rose-600 mt-1">{fieldErrors.name}</p>
+            )}
           </div>
 
           <div className={ui.field}>
             <label>Email Address</label>
             <input
-              className={ui.input}
+              className={`${ui.input} ${fieldErrors.email ? inputErrorClass : ""}`}
               required
               type="email"
+              maxLength={100}
               value={form.email}
               onChange={(e) => setForm({ ...form, email: e.target.value })}
             />
+            {fieldErrors.email && (
+              <p className="text-[11px] font-bold text-rose-600 mt-1">{fieldErrors.email}</p>
+            )}
           </div>
         </div>
 

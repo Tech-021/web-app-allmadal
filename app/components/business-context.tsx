@@ -3,6 +3,7 @@
 import React, { createContext, useCallback, useContext, useEffect, useMemo, useState } from "react";
 import { useAuth } from "@/hooks/useAuth";
 import { api } from "@/app/lib/api";
+import { businessKey as activeBusinessStorageKey, removeAuthItem, setAuthItem, getAuthItem } from "@/app/lib/auth-session";
 
 export type Business = {
   id: number;
@@ -58,7 +59,7 @@ interface BusinessContextValue {
 }
 
 const BusinessContext = createContext<BusinessContextValue | null>(null);
-const ACTIVE_BIZ_KEY = "almadel_active_business_id";
+const ACTIVE_BIZ_KEY = activeBusinessStorageKey;
 
 function modeFromBusiness(business: Business | null | undefined): WorkspaceMode {
   return business?.workspaceMode === "financial" ? "financial" : "pos";
@@ -149,7 +150,7 @@ export function BusinessProvider({ children }: { children: React.ReactNode }) {
         setBusinesses(list);
         businessesRef.current = list;
 
-        const savedId = typeof window !== "undefined" ? localStorage.getItem(ACTIVE_BIZ_KEY) : null;
+        const savedId = getAuthItem(ACTIVE_BIZ_KEY);
         let target: Business | null = null;
 
         if (savedId) {
@@ -161,12 +162,12 @@ export function BusinessProvider({ children }: { children: React.ReactNode }) {
 
         setActiveBusiness(target);
         if (target) {
-          localStorage.setItem(ACTIVE_BIZ_KEY, String(target.id));
+          setAuthItem(ACTIVE_BIZ_KEY, String(target.id));
           if (!options?.skipWorkspaceModeSync) {
             applyBusinessMode(target);
           }
         } else {
-          localStorage.removeItem(ACTIVE_BIZ_KEY);
+          removeAuthItem(ACTIVE_BIZ_KEY);
           setWorkspaceModeState("pos");
         }
 
@@ -197,7 +198,7 @@ export function BusinessProvider({ children }: { children: React.ReactNode }) {
       }
 
       setActiveBusiness(selected);
-      localStorage.setItem(ACTIVE_BIZ_KEY, String(selected.id));
+      setAuthItem(ACTIVE_BIZ_KEY, String(selected.id));
       applyBusinessMode(selected);
       window.dispatchEvent(new CustomEvent("almadel_business_switched", { detail: selected }));
     },

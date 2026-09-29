@@ -68,16 +68,44 @@ export function PosTerminal({ onSaleCompleted }: PosTerminalProps) {
 
   // Payment
   const [paymentMethod, setPaymentMethod] = useState<"cash" | "online">("cash");
-  const [cashTendered, setCashTendered] = useState<string>("0");
+  const [cashTendered, setCashTendered] = useState<string>("");
 
   // Submit & Receipt
   const [checkingOut, setCheckingOut] = useState(false);
   const [receipt, setReceipt] = useState<DetailedSaleReceipt | null>(null);
 
   const searchInputRef = useRef<HTMLInputElement>(null);
+  const checkoutLockRef = useRef(false);
 
-  // Fetch products and customers directly from API (no local caching)
+  const businessId = activeBusiness?.id;
+
+  const resetCheckoutState = useCallback(() => {
+    setCart([]);
+    setEditingDiscountProductId(null);
+    setCustomerMode("walkin");
+    setWalkinName("");
+    setWalkinMobile("");
+    setSelectedCustomerId("");
+    setDiscountType("none");
+    setDiscountValue("0");
+    setPaymentMethod("cash");
+    setCashTendered("");
+    setReceipt(null);
+    setSearchQuery("");
+    setSelectedCategory("all");
+    setCatalogPage(1);
+    setScannerLastScanned(null);
+  }, []);
+
+  // Fetch products and customers for the active business (x-business-id from context).
   const loadData = useCallback(async () => {
+    if (!businessId) {
+      setProducts([]);
+      setCustomers([]);
+      setLoading(false);
+      return;
+    }
+
     setLoading(true);
     try {
       const [prodRes, custRes] = await Promise.all([
@@ -92,11 +120,12 @@ export function PosTerminal({ onSaleCompleted }: PosTerminalProps) {
     } finally {
       setLoading(false);
     }
-  }, [showToast]);
+  }, [businessId, showToast]);
 
   useEffect(() => {
+    resetCheckoutState();
     void loadData();
-  }, [loadData]);
+  }, [businessId, loadData, resetCheckoutState]);
 
 
   // Categories extraction
@@ -208,7 +237,7 @@ export function PosTerminal({ onSaleCompleted }: PosTerminalProps) {
     setCart([]);
     setDiscountType("none");
     setDiscountValue("0");
-    setCashTendered("0");
+    setCashTendered("");
   };
 
   // Barcode quick-scanner listener on search input (Enter key)
@@ -312,68 +341,93 @@ export function PosTerminal({ onSaleCompleted }: PosTerminalProps) {
     return Math.max(0, grossSubtotal - totalDiscount);
   }, [grossSubtotal, totalDiscount]);
 
+  const cashTenderedAmount = useMemo(
+    () => Number(parseCurrencyInput(cashTendered)) || 0,
+    [cashTendered],
+  );
+
+  const isCashTenderSufficient = useMemo(() => {
+    if (paymentMethod !== "cash") return true;
+    return cashTenderedAmount >= grandTotal;
+  }, [cashTenderedAmount, grandTotal, paymentMethod]);
+
   const changeDue = useMemo(() => {
     if (paymentMethod !== "cash") return 0;
-    const tendered = Number(parseCurrencyInput(cashTendered)) || 0;
-    return Math.max(0, tendered - grandTotal);
-  }, [cashTendered, grandTotal, paymentMethod]);
+    return Math.max(0, cashTenderedAmount - grandTotal);
+  }, [cashTenderedAmount, grandTotal, paymentMethod]);
+
+  useEffect(() => {
+    if (paymentMethod !== "cash" || cart.length === 0) return;
+    setCashTendered((prev) => (prev.trim() === "" ? String(grandTotal) : prev));
+  }, [paymentMethod, cart.length, grandTotal]);
 
   // Checkout
   const handleCheckout = async () => {
-    if (cart.length === 0) {
-      showToast("Cart is empty. Add products to create a bill.", "error");
-      return;
-    }
-
-    let customerName = walkinName.trim() || "Walk-in Customer";
-    let customerMobile = walkinMobile.trim();
-
-    if (customerMode === "existing" && selectedCustomerId) {
-      const selected = customers.find((c) => String(c.id) === selectedCustomerId);
-      if (selected) {
-        customerName = selected.name;
-        customerMobile = selected.mobile;
-      }
-    }
-
-    const payload = {
-      items: cart.map((i) => ({
-        productId: i.product.id,
-        barcode: i.product.barcode || undefined,
-        quantity: i.quantity,
-        discountType: activeBusiness?.allowDiscounts === false ? "none" : (i.discountType || "none"),
-        discountValue: activeBusiness?.allowDiscounts === false ? 0 : Number(i.discountValue || 0),
-      })),
-      customerName,
-      customerMobile: customerMobile || undefined,
-      discountType: activeBusiness?.allowDiscounts === false ? "none" : discountType,
-      discountValue: activeBusiness?.allowDiscounts === false ? 0 : (Number(parseCurrencyInput(discountValue)) || 0),
-      paymentMethod,
-    };
-
-    const receiptObjItems = cart.map((i) => {
-      const rate = Number(i.product.sellingPrice ?? i.product.price ?? 0);
-      const discType = i.discountType || "none";
-      const discVal = Number(i.discountValue || 0);
-      let itemDiscount = 0;
-      if (discType === "fixed" && discVal > 0) {
-        itemDiscount = Math.min(rate * i.quantity, discVal * i.quantity);
-      } else if (discType === "percentage" && discVal > 0) {
-        itemDiscount = Math.round((rate * i.quantity) * (discVal / 100));
-      }
-      return {
-        name: i.product.name,
-        quantity: i.quantity,
-        price: rate,
-        total: (rate * i.quantity) - itemDiscount,
-        discountAmount: itemDiscount,
-        discountType: discType,
-        discountValue: discVal,
-      };
-    });
-
+    if (checkoutLockRef.current) return;
+    checkoutLockRef.current = true;
     setCheckingOut(true);
+
     try {
+      if (cart.length === 0) {
+        showToast("Cart is empty. Add products to create a bill.", "error");
+        return;
+      }
+
+      if (paymentMethod === "cash" && cashTenderedAmount < grandTotal) {
+        showToast(
+          `Cash received must be at least ₨ ${grandTotal.toLocaleString()} (currently ₨ ${cashTenderedAmount.toLocaleString()}).`,
+          "error",
+        );
+        return;
+      }
+
+      let customerName = walkinName.trim() || "Walk-in Customer";
+      let customerMobile = walkinMobile.trim();
+
+      if (customerMode === "existing" && selectedCustomerId) {
+        const selected = customers.find((c) => String(c.id) === selectedCustomerId);
+        if (selected) {
+          customerName = selected.name;
+          customerMobile = selected.mobile;
+        }
+      }
+
+      const payload = {
+        items: cart.map((i) => ({
+          productId: i.product.id,
+          barcode: i.product.barcode || undefined,
+          quantity: i.quantity,
+          discountType: activeBusiness?.allowDiscounts === false ? "none" : (i.discountType || "none"),
+          discountValue: activeBusiness?.allowDiscounts === false ? 0 : Number(i.discountValue || 0),
+        })),
+        customerName,
+        customerMobile: customerMobile || undefined,
+        discountType: activeBusiness?.allowDiscounts === false ? "none" : discountType,
+        discountValue: activeBusiness?.allowDiscounts === false ? 0 : (Number(parseCurrencyInput(discountValue)) || 0),
+        paymentMethod,
+      };
+
+      const receiptObjItems = cart.map((i) => {
+        const rate = Number(i.product.sellingPrice ?? i.product.price ?? 0);
+        const discType = i.discountType || "none";
+        const discVal = Number(i.discountValue || 0);
+        let itemDiscount = 0;
+        if (discType === "fixed" && discVal > 0) {
+          itemDiscount = Math.min(rate * i.quantity, discVal * i.quantity);
+        } else if (discType === "percentage" && discVal > 0) {
+          itemDiscount = Math.round((rate * i.quantity) * (discVal / 100));
+        }
+        return {
+          name: i.product.name,
+          quantity: i.quantity,
+          price: rate,
+          total: (rate * i.quantity) - itemDiscount,
+          discountAmount: itemDiscount,
+          discountType: discType,
+          discountValue: discVal,
+        };
+      });
+
       const res = await api<{
         id: number;
         invoiceNumber: string;
@@ -397,7 +451,7 @@ export function PosTerminal({ onSaleCompleted }: PosTerminalProps) {
         discountType,
         totalAmount: res.totalAmount ?? grandTotal,
         paymentMethod,
-        cashTendered: Number(parseCurrencyInput(cashTendered)) || undefined,
+        cashTendered: paymentMethod === "cash" ? cashTenderedAmount : undefined,
         changeDue: paymentMethod === "cash" ? changeDue : undefined,
       };
 
@@ -423,6 +477,7 @@ export function PosTerminal({ onSaleCompleted }: PosTerminalProps) {
       console.error("POS Checkout error:", err);
       showToast(err.message || "Failed to complete checkout.", "error");
     } finally {
+      checkoutLockRef.current = false;
       setCheckingOut(false);
     }
   };
@@ -876,7 +931,10 @@ export function PosTerminal({ onSaleCompleted }: PosTerminalProps) {
             <div className="grid grid-cols-2 gap-2">
               <button
                 type="button"
-                onClick={() => setPaymentMethod("cash")}
+                onClick={() => {
+                  setPaymentMethod("cash");
+                  if (cart.length > 0) setCashTendered(String(grandTotal));
+                }}
                 className={`py-2 px-3 rounded-xl border font-bold text-xs flex items-center justify-center gap-1.5 transition ${
                   paymentMethod === "cash"
                     ? "bg-[#e6f4ed] text-[#00875a] border-[#00875a]"
@@ -905,11 +963,20 @@ export function PosTerminal({ onSaleCompleted }: PosTerminalProps) {
                   <input
                     type="text"
                     inputMode="numeric"
-                    placeholder="e.g. 5,000"
+                    placeholder={grandTotal > 0 ? `Min ₨ ${grandTotal.toLocaleString()}` : "e.g. 5,000"}
                     value={formatCurrencyInput(cashTendered)}
                     onChange={(e) => setCashTendered(e.target.value)}
-                    className="w-full px-2 py-1 rounded bg-white border border-slate-200 text-xs font-black text-slate-900 outline-none"
+                    className={`w-full px-2 py-1 rounded bg-white border text-xs font-black text-slate-900 outline-none ${
+                      cart.length > 0 && !isCashTenderSufficient
+                        ? "border-rose-400 ring-1 ring-rose-200"
+                        : "border-slate-200"
+                    }`}
                   />
+                  {cart.length > 0 && !isCashTenderSufficient && (
+                    <p className="mt-0.5 text-[10px] font-bold text-rose-600">
+                      Need at least ₨ {grandTotal.toLocaleString()}
+                    </p>
+                  )}
                 </div>
                 {changeDue > 0 && (
                   <div className="text-right">
@@ -951,7 +1018,7 @@ export function PosTerminal({ onSaleCompleted }: PosTerminalProps) {
           <button
             type="button"
             onClick={handleCheckout}
-            disabled={checkingOut || cart.length === 0}
+            disabled={checkingOut || cart.length === 0 || !isCashTenderSufficient}
             className="w-full py-4 px-6 rounded-2xl bg-gradient-to-r from-[#00875a] to-[#006644] hover:from-[#00744e] hover:to-[#005236] text-white font-black text-sm sm:text-base shadow-lg shadow-[#00875a]/25 transition flex items-center justify-center gap-2 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed active:scale-[0.99]"
           >
             {checkingOut ? (

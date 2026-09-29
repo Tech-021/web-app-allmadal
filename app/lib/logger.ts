@@ -1,3 +1,6 @@
+import { businessKey, getAuthItem, tokenKey } from "@/app/lib/auth-session";
+import { devError, devLog, devWarn } from "@/app/lib/dev-console";
+
 export type ActivityAction =
   | "PRODUCT_CREATE"
   | "PRODUCT_UPDATE"
@@ -72,27 +75,17 @@ export type ActivityLog = {
 let lastVisitTarget = "";
 let lastVisitTime = 0;
 
-function getCurrentUser(): { id?: number | null; name: string; email: string; role: "admin" | "staff" } {
-  if (typeof window === "undefined") {
-    return { name: "System", email: "system@almadel.com", role: "staff" };
-  }
-  try {
-    const raw = localStorage.getItem("almadel_auth_user");
-    if (raw) {
-      const parsed = JSON.parse(raw);
-      return {
-        id: parsed.id ? Number(parsed.id) : null,
-        name: parsed.fullName || parsed.name || "Administrator",
-        email: parsed.email || "admin@almadel.com",
-        role: parsed.role === "admin" ? "admin" : "staff",
-      };
-    }
-  } catch { }
-  return { name: "Store Admin", email: "admin@almadel.com", role: "admin" };
-}
+/** Event payload only — actor identity is derived on the server from the JWT. */
+export type ActivityLogPayload = {
+  action: ActivityAction;
+  category: ActivityCategory;
+  details: string;
+  target?: string | null;
+  meta?: Record<string, unknown>;
+};
 
 /**
- * Persists an activity log directly to the PostgreSQL Backend Database.
+ * Persists an activity log to the backend. Requires a valid session token.
  */
 export async function logActivity(
   action: ActivityAction,
@@ -100,11 +93,9 @@ export async function logActivity(
   details: string,
   target?: string,
   meta?: Record<string, unknown>,
-  overrideUser?: { id?: number | null; name?: string; email?: string; role?: string }
 ): Promise<void> {
   if (typeof window === "undefined") return;
 
-  // Throttle rapid duplicate page visit events within 3 seconds
   if (action === "PAGE_VISIT") {
     const now = Date.now();
     if (lastVisitTarget === target && now - lastVisitTime < 3000) {
@@ -114,73 +105,65 @@ export async function logActivity(
     lastVisitTime = now;
   }
 
-  const token = localStorage.getItem("almadel_access_token");
+  const token = getAuthItem(tokenKey);
   const baseUrl = process.env.NEXT_PUBLIC_BACKEND_URL?.replace(/\/$/, "");
 
   if (!baseUrl) {
-    console.warn("%c[Almadel Logger]%c NEXT_PUBLIC_BACKEND_URL is not set in .env!", "color: #e11d48; font-weight: bold", "color: inherit");
+    devWarn("%c[Almadel Logger]%c NEXT_PUBLIC_BACKEND_URL is not set in .env!", "color: #e11d48; font-weight: bold", "color: inherit");
     return;
   }
 
-  const user = {
-    ...getCurrentUser(),
-    ...overrideUser,
-  };
+  if (!token) {
+    devWarn("[Almadel Logger] Skipping log — no session token (actor cannot be verified server-side).");
+    return;
+  }
 
-  const payload = {
+  const payload: ActivityLogPayload = {
     action,
     category,
     details,
     target: target || null,
     meta: meta || {},
-    userName: user.name,
-    userEmail: user.email,
-    userRole: user.role,
-    userId: user.id || null,
   };
 
-  const activeBusinessId = localStorage.getItem("almadel_active_business_id");
+  const activeBusinessId = getAuthItem(businessKey);
   const headers: Record<string, string> = {
     "Content-Type": "application/json",
+    Authorization: `Bearer ${token}`,
   };
-  if (token) {
-    headers["Authorization"] = `Bearer ${token}`;
-  }
   if (activeBusinessId) {
     headers["x-business-id"] = activeBusinessId;
   }
 
-  console.log(
+  devLog(
     `%c[Almadel Logger] 📤 Sending Log Event -> %c${action} (${category})`,
     "color: #0284c7; font-weight: bold",
     "color: #0f172a; font-weight: 600",
-    { url: `${baseUrl}/logs`, payload, hasToken: !!token }
+    { url: `${baseUrl}/logs`, payload },
   );
 
   try {
-    // 1. Try POST /logs
     let res = await fetch(`${baseUrl}/logs`, {
       method: "POST",
       headers,
       body: JSON.stringify(payload),
     }).catch((err) => {
-      console.error("%c[Almadel Logger] ❌ Network Error on POST /logs:", "color: #dc2626; font-weight: bold", err);
+      devError("%c[Almadel Logger] ❌ Network Error on POST /logs:", "color: #dc2626; font-weight: bold", err);
       return null;
     });
 
     if (res && res.ok) {
       const data = await res.json().catch(() => ({}));
-      console.log("%c[Almadel Logger] ✅ Log successfully persisted to database:", "color: #16a34a; font-weight: bold", data);
+      devLog("%c[Almadel Logger] ✅ Log successfully persisted to database:", "color: #16a34a; font-weight: bold", data);
     } else {
       const errorText = res ? await res.text() : "No response";
-      console.warn(
-        `%c[Almadel Logger] ⚠️ POST /logs returned status ${res?.status || 'ERR'}: %c${errorText}`,
+      devWarn(
+        `%c[Almadel Logger] ⚠️ POST /logs returned status ${res?.status || "ERR"}: %c${errorText}`,
         "color: #d97706; font-weight: bold",
-        "color: #78350f"
+        "color: #78350f",
       );
 
-      // 2. Try fallback to POST /admin/logs
-      console.log(`%c[Almadel Logger] 🔄 Retrying with fallback: POST ${baseUrl}/admin/logs`, "color: #6366f1; font-weight: bold");
+      devLog(`%c[Almadel Logger] 🔄 Retrying with fallback: POST ${baseUrl}/admin/logs`, "color: #6366f1; font-weight: bold");
       const adminRes = await fetch(`${baseUrl}/admin/logs`, {
         method: "POST",
         headers,
@@ -189,21 +172,20 @@ export async function logActivity(
 
       if (adminRes && adminRes.ok) {
         const data = await adminRes.json().catch(() => ({}));
-        console.log("%c[Almadel Logger] ✅ Log successfully persisted via /admin/logs:", "color: #16a34a; font-weight: bold", data);
+        devLog("%c[Almadel Logger] ✅ Log successfully persisted via /admin/logs:", "color: #16a34a; font-weight: bold", data);
       } else {
         const adminError = adminRes ? await adminRes.text() : "No response";
-        console.warn(
-          `%c[Almadel Logger] ⚠️ Fallback POST /admin/logs returned status ${adminRes?.status || 'ERR'}: %c${adminError}`,
+        devWarn(
+          `%c[Almadel Logger] ⚠️ Fallback POST /admin/logs returned status ${adminRes?.status || "ERR"}: %c${adminError}`,
           "color: #dc2626; font-weight: bold",
-          "color: #991b1b"
+          "color: #991b1b",
         );
       }
     }
 
-    // Trigger UI refresh event in active windows
     window.dispatchEvent(new CustomEvent("almadel_log_added"));
   } catch (err) {
-    console.error("%c[Almadel Logger] ❌ Unexpected error saving activity log:", "color: #dc2626; font-weight: bold", err);
+    devError("%c[Almadel Logger] ❌ Unexpected error saving activity log:", "color: #dc2626; font-weight: bold", err);
   }
 }
 
@@ -212,15 +194,16 @@ export async function logActivity(
  */
 export async function clearAllLogs(): Promise<void> {
   if (typeof window === "undefined") return;
-  const token = localStorage.getItem("almadel_access_token");
+  const token = getAuthItem(tokenKey);
   const baseUrl = process.env.NEXT_PUBLIC_BACKEND_URL?.replace(/\/$/, "");
 
-  console.log("%c[Almadel Logger] 🗑️ Requesting DELETE /admin/logs from database...", "color: #e11d48; font-weight: bold");
+  devLog("%c[Almadel Logger] 🗑️ Requesting DELETE /admin/logs from database...", "color: #e11d48; font-weight: bold");
 
-  if (baseUrl) {
-    const activeBusinessId = localStorage.getItem("almadel_active_business_id");
-    const headers: Record<string, string> = {};
-    if (token) headers["Authorization"] = `Bearer ${token}`;
+  if (baseUrl && token) {
+    const activeBusinessId = getAuthItem(businessKey);
+    const headers: Record<string, string> = {
+      Authorization: `Bearer ${token}`,
+    };
     if (activeBusinessId) headers["x-business-id"] = activeBusinessId;
 
     try {
@@ -235,9 +218,9 @@ export async function clearAllLogs(): Promise<void> {
           headers,
         }).catch(() => null);
       }
-      console.log("%c[Almadel Logger] 🗑️ Logs delete request completed.", "color: #16a34a; font-weight: bold");
+      devLog("%c[Almadel Logger] 🗑️ Logs delete request completed.", "color: #16a34a; font-weight: bold");
     } catch (err) {
-      console.error("%c[Almadel Logger] ❌ Failed to delete activity logs from database:", "color: #dc2626; font-weight: bold", err);
+      devError("%c[Almadel Logger] ❌ Failed to delete activity logs from database:", "color: #dc2626; font-weight: bold", err);
     }
   }
 

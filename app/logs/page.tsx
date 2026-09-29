@@ -9,7 +9,8 @@ import { useToast } from "@/app/components/toast-context";
 import { ActivityCategory, ActivityLog, clearAllLogs } from "@/app/lib/logger";
 import { api } from "@/app/lib/api";
 import ui from "@/app/components/workspace-ui.module.css";
-import { effectiveNavRole } from "@/app/lib/access";
+import { useNavRole } from "@/hooks/useNavRole";
+import { devError, devLog, devWarn } from "@/app/lib/dev-console";
 
 function timeAgo(dateString: string): string {
   const seconds = Math.floor((Date.now() - new Date(dateString).getTime()) / 1000);
@@ -56,7 +57,8 @@ function getActionBadgeStyle(action: string, category: ActivityCategory): { bg: 
 
 export default function LogsPage() {
   const { user } = useAuth();
-  const { activeBusiness } = useBusiness();
+  const { activeBusiness, isLoading: businessLoading } = useBusiness();
+  const navRole = useNavRole();
   const router = useRouter();
   const { showToast, confirmDialog } = useToast();
   const [logs, setLogs] = useState<ActivityLog[]>([]);
@@ -75,7 +77,7 @@ export default function LogsPage() {
   const loadLogs = useCallback(async () => {
     setLoading(true);
     setServerNotice("");
-    console.log("%c[Almadel Logs Dashboard] 📥 Starting to fetch activity logs...", "color: #0284c7; font-weight: bold");
+    devLog("%c[Almadel Logs Dashboard] 📥 Starting to fetch activity logs...", "color: #0284c7; font-weight: bold");
 
     try {
       let serverLogs: ActivityLog[] = [];
@@ -83,10 +85,10 @@ export default function LogsPage() {
 
       // 1. Fetch from GET /admin/logs
       try {
-        console.log("%c[Almadel Logs Dashboard] 🔍 Attempt 1: Calling GET /admin/logs", "color: #6366f1; font-weight: 600");
+        devLog("%c[Almadel Logs Dashboard] 🔍 Attempt 1: Calling GET /admin/logs", "color: #6366f1; font-weight: 600");
         const response = await api<{ logs?: ActivityLog[]; data?: ActivityLog[] } | ActivityLog[]>("/admin/logs");
         isRouteFound = true;
-        console.log("%c[Almadel Logs Dashboard] ✅ GET /admin/logs succeeded:", "color: #16a34a; font-weight: bold", response);
+        devLog("%c[Almadel Logs Dashboard] ✅ GET /admin/logs succeeded:", "color: #16a34a; font-weight: bold", response);
 
         if (Array.isArray(response)) {
           serverLogs = response;
@@ -96,14 +98,14 @@ export default function LogsPage() {
           serverLogs = response.data;
         }
       } catch (err: any) {
-        console.warn("%c[Almadel Logs Dashboard] ⚠️ GET /admin/logs failed:", "color: #d97706; font-weight: bold", err?.message || err);
+        devWarn("%c[Almadel Logs Dashboard] ⚠️ GET /admin/logs failed:", "color: #d97706; font-weight: bold", err?.message || err);
 
         // 2. Fallback to GET /logs
         try {
-          console.log("%c[Almadel Logs Dashboard] 🔍 Attempt 2: Calling fallback GET /logs", "color: #6366f1; font-weight: 600");
+          devLog("%c[Almadel Logs Dashboard] 🔍 Attempt 2: Calling fallback GET /logs", "color: #6366f1; font-weight: 600");
           const fallbackRes = await api<{ logs?: ActivityLog[]; data?: ActivityLog[] } | ActivityLog[]>("/logs");
           isRouteFound = true;
-          console.log("%c[Almadel Logs Dashboard] ✅ GET /logs succeeded:", "color: #16a34a; font-weight: bold", fallbackRes);
+          devLog("%c[Almadel Logs Dashboard] ✅ GET /logs succeeded:", "color: #16a34a; font-weight: bold", fallbackRes);
 
           if (Array.isArray(fallbackRes)) {
             serverLogs = fallbackRes;
@@ -113,14 +115,14 @@ export default function LogsPage() {
             serverLogs = fallbackRes.data;
           }
         } catch (err2: any) {
-          console.error("%c[Almadel Logs Dashboard] ❌ Fallback GET /logs also failed:", "color: #dc2626; font-weight: bold", err2?.message || err2);
+          devError("%c[Almadel Logs Dashboard] ❌ Fallback GET /logs also failed:", "color: #dc2626; font-weight: bold", err2?.message || err2);
         }
       }
 
       // If remote server hasn't been restarted with the new logs module yet, load DB stock logs
       if (!isRouteFound) {
         setServerNotice("Note: The remote backend server (65.108.249.169) does not have the new /admin/logs route deployed/restarted yet. Showing database stock movement logs.");
-        console.log("%c[Almadel Logs Dashboard] 🔍 Attempt 3: Loading database stock movement logs from /stock/logs...", "color: #0284c7; font-weight: 600");
+        devLog("%c[Almadel Logs Dashboard] 🔍 Attempt 3: Loading database stock movement logs from /stock/logs...", "color: #0284c7; font-weight: 600");
 
         try {
           const stockData = await api<Array<{
@@ -137,7 +139,7 @@ export default function LogsPage() {
           }>>("/stock/logs").catch(() => []);
 
           if (Array.isArray(stockData) && stockData.length > 0) {
-            console.log(`%c[Almadel Logs Dashboard] ✅ Loaded ${stockData.length} stock logs from database.`, "color: #16a34a; font-weight: bold");
+            devLog(`%c[Almadel Logs Dashboard] ✅ Loaded ${stockData.length} stock logs from database.`, "color: #16a34a; font-weight: bold");
             const stockLogs: ActivityLog[] = stockData.map((item, idx) => ({
               id: String(item.id || idx),
               timestamp: item.createdAt || item.created_at || new Date().toISOString(),
@@ -153,24 +155,24 @@ export default function LogsPage() {
             }));
             serverLogs = stockLogs;
           } else {
-            console.log("%c[Almadel Logs Dashboard] ℹ️ /stock/logs returned 0 records.", "color: #64748b");
+            devLog("%c[Almadel Logs Dashboard] ℹ️ /stock/logs returned 0 records.", "color: #64748b");
           }
         } catch (stockErr) {
-          console.error("%c[Almadel Logs Dashboard] ❌ Failed to fetch /stock/logs:", "color: #dc2626; font-weight: bold", stockErr);
+          devError("%c[Almadel Logs Dashboard] ❌ Failed to fetch /stock/logs:", "color: #dc2626; font-weight: bold", stockErr);
         }
       }
 
-      console.log(`%c[Almadel Logs Dashboard] 📊 Total logs loaded into state: ${serverLogs.length}`, "color: #059669; font-weight: bold");
+      devLog(`%c[Almadel Logs Dashboard] 📊 Total logs loaded into state: ${serverLogs.length}`, "color: #059669; font-weight: bold");
       setLogs(serverLogs);
     } catch (err) {
-      console.error("%c[Almadel Logs Dashboard] ❌ Critical failure during log load:", "color: #dc2626; font-weight: bold", err);
+      devError("%c[Almadel Logs Dashboard] ❌ Critical failure during log load:", "color: #dc2626; font-weight: bold", err);
     } finally {
       setLoading(false);
     }
   }, [activeBusiness?.id]);
 
   useEffect(() => {
-    const navRole = user ? effectiveNavRole(user.role, activeBusiness?.membershipRole) : "staff";
+    if (businessLoading) return;
     if (user && navRole !== "admin") {
       showToast("Access restricted. Activity logs are available to store owners only.", "error");
       router.replace(navRole === "accountant" ? "/accounts" : "/sales");
@@ -179,11 +181,11 @@ export default function LogsPage() {
     loadLogs();
 
     const handleLogAdded = () => {
-      console.log("%c[Almadel Logs Dashboard] 🔔 almadel_log_added event received, refreshing logs...", "color: #6366f1; font-weight: 600");
+      devLog("%c[Almadel Logs Dashboard] 🔔 almadel_log_added event received, refreshing logs...", "color: #6366f1; font-weight: 600");
       loadLogs();
     };
     const handleLogsCleared = () => {
-      console.log("%c[Almadel Logs Dashboard] 🔔 almadel_logs_cleared event received, resetting state to []", "color: #e11d48; font-weight: 600");
+      devLog("%c[Almadel Logs Dashboard] 🔔 almadel_logs_cleared event received, resetting state to []", "color: #e11d48; font-weight: 600");
       setLogs([]);
     };
 
@@ -194,7 +196,7 @@ export default function LogsPage() {
       window.removeEventListener("almadel_log_added", handleLogAdded);
       window.removeEventListener("almadel_logs_cleared", handleLogsCleared);
     };
-  }, [user, activeBusiness?.membershipRole, router, showToast, loadLogs]);
+  }, [user, navRole, businessLoading, router, showToast, loadLogs]);
 
   // Reset to first page when filtering or searching
   useEffect(() => {

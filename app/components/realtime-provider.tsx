@@ -3,10 +3,9 @@
 import { createContext, useContext, useEffect, useMemo, useRef, useState } from "react";
 import { io, type Socket } from "socket.io-client";
 import { useAuth } from "@/hooks/useAuth";
+import { businessKey, getAuthItem, tokenKey } from "@/app/lib/auth-session";
 
 const backendUrl = process.env.NEXT_PUBLIC_BACKEND_URL?.replace(/\/$/, "") ?? "";
-const tokenKey = "almadel_access_token";
-const businessKey = "almadel_active_business_id";
 const events = [
   "product.created", "product.updated", "product.deleted",
   "staff.created", "staff.updated", "staff.deleted",
@@ -24,7 +23,7 @@ export function RealtimeProvider({ children }: { children: React.ReactNode }) {
 
   useEffect(() => {
     if (!isAuthenticated || !backendUrl) return;
-    const token = localStorage.getItem(tokenKey);
+    const token = getAuthItem(tokenKey);
     if (!token) return;
 
     const socket = io(backendUrl, {
@@ -37,7 +36,7 @@ export function RealtimeProvider({ children }: { children: React.ReactNode }) {
       timeout: 5000,
       auth: {
         token,
-        businessId: localStorage.getItem(businessKey),
+        businessId: getAuthItem(businessKey),
       },
     });
     socketRef.current = socket;
@@ -53,7 +52,7 @@ export function RealtimeProvider({ children }: { children: React.ReactNode }) {
     });
 
     const joinSelectedBusiness = () => {
-      const businessId = localStorage.getItem(businessKey);
+      const businessId = getAuthItem(businessKey);
       if (businessId && socket.connected) socket.emit("business.join", businessId);
     };
     const onBusinessSwitch = () => joinSelectedBusiness();

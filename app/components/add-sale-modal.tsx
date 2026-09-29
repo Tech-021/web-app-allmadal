@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect, useMemo, FormEvent } from "react";
+import React, { useState, useEffect, useMemo, useRef, FormEvent } from "react";
 import { api, Product } from "@/app/lib/api";
 import { useToast } from "@/app/components/toast-context";
 import { useBusiness } from "@/app/components/business-context";
@@ -32,6 +32,7 @@ interface AddSaleModalProps {
 export function AddSaleModal({ isOpen, onClose, onSaleCompleted }: AddSaleModalProps) {
   const { showToast } = useToast();
   const { activeBusiness } = useBusiness();
+  const activeBusinessId = activeBusiness?.id ?? null;
 
   const [products, setProducts] = useState<Product[]>([]);
   const [customers, setCustomers] = useState<CustomerOption[]>([]);
@@ -57,10 +58,37 @@ export function AddSaleModal({ isOpen, onClose, onSaleCompleted }: AddSaleModalP
   // Submit & receipt
   const [submitting, setSubmitting] = useState(false);
   const [createdReceipt, setCreatedReceipt] = useState<DetailedSaleReceipt | null>(null);
+  const checkoutLockRef = useRef(false);
 
-  // Load products & customers
+  // Reset form and load catalog when modal opens or active business changes.
   useEffect(() => {
     if (!isOpen) return;
+
+    setLines([
+      {
+        productId: 0,
+        productName: "",
+        price: 0,
+        quantity: 1,
+        maxStock: 0,
+      },
+    ]);
+    setCustomerMode("walkin");
+    setSelectedCustomerId("");
+    setWalkinName("");
+    setWalkinMobile("");
+    setDiscountType("none");
+    setDiscountValue("0");
+    setPaymentMethod("cash");
+    setCashTendered("");
+    setCreatedReceipt(null);
+
+    if (!activeBusinessId) {
+      setProducts([]);
+      setCustomers([]);
+      setLoadingData(false);
+      return;
+    }
 
     let mounted = true;
     async function fetchData() {
@@ -85,31 +113,7 @@ export function AddSaleModal({ isOpen, onClose, onSaleCompleted }: AddSaleModalP
     return () => {
       mounted = false;
     };
-  }, [isOpen, activeBusiness?.id]);
-
-  // Reset form on open
-  useEffect(() => {
-    if (isOpen) {
-      setLines([
-        {
-          productId: 0,
-          productName: "",
-          price: 0,
-          quantity: 1,
-          maxStock: 0,
-        },
-      ]);
-      setCustomerMode("walkin");
-      setSelectedCustomerId("");
-      setWalkinName("");
-      setWalkinMobile("");
-      setDiscountType("none");
-      setDiscountValue("0");
-      setPaymentMethod("cash");
-      setCashTendered("");
-      setCreatedReceipt(null);
-    }
-  }, [isOpen]);
+  }, [isOpen, activeBusinessId]);
 
   // Handle line change
   const handleProductSelect = (index: number, productId: number) => {
@@ -199,46 +203,48 @@ export function AddSaleModal({ isOpen, onClose, onSaleCompleted }: AddSaleModalP
   const handleSubmit = async (e: FormEvent) => {
     e.preventDefault();
 
-    const validLines = lines.filter((l) => l.productId > 0);
-    if (validLines.length === 0) {
-      showToast("Please select at least one product.", "error");
-      return;
-    }
+    if (checkoutLockRef.current) return;
+    checkoutLockRef.current = true;
+    setSubmitting(true);
 
-    // Check stock limits
-    for (const l of validLines) {
-      if (l.maxStock > 0 && l.quantity > l.maxStock) {
-        showToast(`Quantity for ${l.productName} exceeds available stock (${l.maxStock}).`, "error");
+    try {
+      const validLines = lines.filter((l) => l.productId > 0);
+      if (validLines.length === 0) {
+        showToast("Please select at least one product.", "error");
         return;
       }
-    }
 
-    let customerName = walkinName.trim() || "Walk-in Customer";
-    let customerMobile = walkinMobile.trim();
-
-    if (customerMode === "existing" && selectedCustomerId) {
-      const selected = customers.find((c) => String(c.id) === selectedCustomerId);
-      if (selected) {
-        customerName = selected.name;
-        customerMobile = selected.mobile;
+      for (const l of validLines) {
+        if (l.maxStock > 0 && l.quantity > l.maxStock) {
+          showToast(`Quantity for ${l.productName} exceeds available stock (${l.maxStock}).`, "error");
+          return;
+        }
       }
-    }
 
-    const payload = {
-      items: validLines.map((l) => ({
-        productId: l.productId,
-        barcode: l.barcode || undefined,
-        quantity: l.quantity,
-      })),
-      customerName,
-      customerMobile: customerMobile || undefined,
-      discountType,
-      discountValue: Number(parseCurrencyInput(discountValue)) || 0,
-      paymentMethod,
-    };
+      let customerName = walkinName.trim() || "Walk-in Customer";
+      let customerMobile = walkinMobile.trim();
 
-    setSubmitting(true);
-    try {
+      if (customerMode === "existing" && selectedCustomerId) {
+        const selected = customers.find((c) => String(c.id) === selectedCustomerId);
+        if (selected) {
+          customerName = selected.name;
+          customerMobile = selected.mobile;
+        }
+      }
+
+      const payload = {
+        items: validLines.map((l) => ({
+          productId: l.productId,
+          barcode: l.barcode || undefined,
+          quantity: l.quantity,
+        })),
+        customerName,
+        customerMobile: customerMobile || undefined,
+        discountType,
+        discountValue: Number(parseCurrencyInput(discountValue)) || 0,
+        paymentMethod,
+      };
+
       const response = await api<{
         id: number;
         invoiceNumber: string;
@@ -295,6 +301,7 @@ export function AddSaleModal({ isOpen, onClose, onSaleCompleted }: AddSaleModalP
       console.error("Sale checkout error:", err);
       showToast(err.message || "Failed to complete sale.", "error");
     } finally {
+      checkoutLockRef.current = false;
       setSubmitting(false);
     }
   };
