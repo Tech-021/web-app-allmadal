@@ -75,6 +75,7 @@ export function PosTerminal({ onSaleCompleted }: PosTerminalProps) {
   const [receipt, setReceipt] = useState<DetailedSaleReceipt | null>(null);
 
   const searchInputRef = useRef<HTMLInputElement>(null);
+  const checkoutLockRef = useRef(false);
 
   const businessId = activeBusiness?.id;
 
@@ -348,60 +349,63 @@ export function PosTerminal({ onSaleCompleted }: PosTerminalProps) {
 
   // Checkout
   const handleCheckout = async () => {
-    if (cart.length === 0) {
-      showToast("Cart is empty. Add products to create a bill.", "error");
-      return;
-    }
-
-    let customerName = walkinName.trim() || "Walk-in Customer";
-    let customerMobile = walkinMobile.trim();
-
-    if (customerMode === "existing" && selectedCustomerId) {
-      const selected = customers.find((c) => String(c.id) === selectedCustomerId);
-      if (selected) {
-        customerName = selected.name;
-        customerMobile = selected.mobile;
-      }
-    }
-
-    const payload = {
-      items: cart.map((i) => ({
-        productId: i.product.id,
-        barcode: i.product.barcode || undefined,
-        quantity: i.quantity,
-        discountType: activeBusiness?.allowDiscounts === false ? "none" : (i.discountType || "none"),
-        discountValue: activeBusiness?.allowDiscounts === false ? 0 : Number(i.discountValue || 0),
-      })),
-      customerName,
-      customerMobile: customerMobile || undefined,
-      discountType: activeBusiness?.allowDiscounts === false ? "none" : discountType,
-      discountValue: activeBusiness?.allowDiscounts === false ? 0 : (Number(parseCurrencyInput(discountValue)) || 0),
-      paymentMethod,
-    };
-
-    const receiptObjItems = cart.map((i) => {
-      const rate = Number(i.product.sellingPrice ?? i.product.price ?? 0);
-      const discType = i.discountType || "none";
-      const discVal = Number(i.discountValue || 0);
-      let itemDiscount = 0;
-      if (discType === "fixed" && discVal > 0) {
-        itemDiscount = Math.min(rate * i.quantity, discVal * i.quantity);
-      } else if (discType === "percentage" && discVal > 0) {
-        itemDiscount = Math.round((rate * i.quantity) * (discVal / 100));
-      }
-      return {
-        name: i.product.name,
-        quantity: i.quantity,
-        price: rate,
-        total: (rate * i.quantity) - itemDiscount,
-        discountAmount: itemDiscount,
-        discountType: discType,
-        discountValue: discVal,
-      };
-    });
-
+    if (checkoutLockRef.current) return;
+    checkoutLockRef.current = true;
     setCheckingOut(true);
+
     try {
+      if (cart.length === 0) {
+        showToast("Cart is empty. Add products to create a bill.", "error");
+        return;
+      }
+
+      let customerName = walkinName.trim() || "Walk-in Customer";
+      let customerMobile = walkinMobile.trim();
+
+      if (customerMode === "existing" && selectedCustomerId) {
+        const selected = customers.find((c) => String(c.id) === selectedCustomerId);
+        if (selected) {
+          customerName = selected.name;
+          customerMobile = selected.mobile;
+        }
+      }
+
+      const payload = {
+        items: cart.map((i) => ({
+          productId: i.product.id,
+          barcode: i.product.barcode || undefined,
+          quantity: i.quantity,
+          discountType: activeBusiness?.allowDiscounts === false ? "none" : (i.discountType || "none"),
+          discountValue: activeBusiness?.allowDiscounts === false ? 0 : Number(i.discountValue || 0),
+        })),
+        customerName,
+        customerMobile: customerMobile || undefined,
+        discountType: activeBusiness?.allowDiscounts === false ? "none" : discountType,
+        discountValue: activeBusiness?.allowDiscounts === false ? 0 : (Number(parseCurrencyInput(discountValue)) || 0),
+        paymentMethod,
+      };
+
+      const receiptObjItems = cart.map((i) => {
+        const rate = Number(i.product.sellingPrice ?? i.product.price ?? 0);
+        const discType = i.discountType || "none";
+        const discVal = Number(i.discountValue || 0);
+        let itemDiscount = 0;
+        if (discType === "fixed" && discVal > 0) {
+          itemDiscount = Math.min(rate * i.quantity, discVal * i.quantity);
+        } else if (discType === "percentage" && discVal > 0) {
+          itemDiscount = Math.round((rate * i.quantity) * (discVal / 100));
+        }
+        return {
+          name: i.product.name,
+          quantity: i.quantity,
+          price: rate,
+          total: (rate * i.quantity) - itemDiscount,
+          discountAmount: itemDiscount,
+          discountType: discType,
+          discountValue: discVal,
+        };
+      });
+
       const res = await api<{
         id: number;
         invoiceNumber: string;
@@ -451,6 +455,7 @@ export function PosTerminal({ onSaleCompleted }: PosTerminalProps) {
       console.error("POS Checkout error:", err);
       showToast(err.message || "Failed to complete checkout.", "error");
     } finally {
+      checkoutLockRef.current = false;
       setCheckingOut(false);
     }
   };
