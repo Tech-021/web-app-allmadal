@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { FormEvent, useState } from "react";
 import { AuthShell, Field } from "@/app/components/auth-shell";
-import { api } from "@/app/lib/api";
+import { publicApi } from "@/app/lib/api";
 
 export default function ForgotPasswordPage() {
   const [email, setEmail] = useState("");
@@ -17,7 +17,7 @@ export default function ForgotPasswordPage() {
     setBusy(true);
 
     try {
-      await api("/auth/forgot-password", {
+      await publicApi("/auth/forgot-password", {
         method: "POST",
         body: JSON.stringify({ email: email.trim() }),
       });

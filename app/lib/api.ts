@@ -1,5 +1,33 @@
 const baseUrl = process.env.NEXT_PUBLIC_BACKEND_URL?.replace(/\/$/, "") ?? "";
 
+function parseApiError(payload: unknown, status: number): string {
+  if (payload && typeof payload === "object") {
+    const record = payload as Record<string, unknown>;
+    const msg = record.message || record.error || record.detail;
+    if (typeof msg === "string" && msg.length > 0) return msg;
+  }
+  if (typeof payload === "string" && payload.length > 0) return payload;
+  return `Request failed with status ${status}.`;
+}
+
+/** Unauthenticated JSON requests (sign-in, forgot-password, reset-password, etc.). */
+export async function publicApi<T>(path: string, options: RequestInit = {}): Promise<T> {
+  if (!baseUrl) throw new Error("Backend URL is not configured.");
+  const response = await fetch(`${baseUrl}${path}`, {
+    ...options,
+    cache: "no-store",
+    headers: {
+      "Content-Type": "application/json",
+      ...options.headers,
+    },
+  });
+  const payload = await response.json().catch(() => ({}));
+  if (!response.ok) {
+    throw new Error(parseApiError(payload, response.status));
+  }
+  return payload as T;
+}
+
 export async function api<T>(path: string, options: RequestInit = {}): Promise<T> {
   const token = typeof window !== "undefined" ? localStorage.getItem("almadel_access_token") : null;
   if (!baseUrl || !token) throw new Error("Your session is not available. Please sign in again.");
@@ -18,13 +46,7 @@ export async function api<T>(path: string, options: RequestInit = {}): Promise<T
   });
   const payload = await response.json().catch(() => ({}));
   if (!response.ok) {
-    const errorMsg =
-      payload.message ||
-      payload.error ||
-      payload.detail ||
-      (typeof payload === "string" ? payload : "") ||
-      `Request failed with status ${response.status}.`;
-    throw new Error(errorMsg);
+    throw new Error(parseApiError(payload, response.status));
   }
   return payload as T;
 }
