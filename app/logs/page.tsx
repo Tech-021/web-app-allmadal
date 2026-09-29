@@ -9,7 +9,7 @@ import { useToast } from "@/app/components/toast-context";
 import { ActivityCategory, ActivityLog, clearAllLogs } from "@/app/lib/logger";
 import { api } from "@/app/lib/api";
 import ui from "@/app/components/workspace-ui.module.css";
-import { effectiveNavRole } from "@/app/lib/access";
+import { useNavRole } from "@/hooks/useNavRole";
 
 function timeAgo(dateString: string): string {
   const seconds = Math.floor((Date.now() - new Date(dateString).getTime()) / 1000);
@@ -56,7 +56,8 @@ function getActionBadgeStyle(action: string, category: ActivityCategory): { bg: 
 
 export default function LogsPage() {
   const { user } = useAuth();
-  const { activeBusiness } = useBusiness();
+  const { activeBusiness, isLoading: businessLoading } = useBusiness();
+  const navRole = useNavRole();
   const router = useRouter();
   const { showToast, confirmDialog } = useToast();
   const [logs, setLogs] = useState<ActivityLog[]>([]);
@@ -170,7 +171,7 @@ export default function LogsPage() {
   }, [activeBusiness?.id]);
 
   useEffect(() => {
-    const navRole = user ? effectiveNavRole(user.role, activeBusiness?.membershipRole) : "staff";
+    if (businessLoading) return;
     if (user && navRole !== "admin") {
       showToast("Access restricted. Activity logs are available to store owners only.", "error");
       router.replace(navRole === "accountant" ? "/accounts" : "/sales");
@@ -194,7 +195,7 @@ export default function LogsPage() {
       window.removeEventListener("almadel_log_added", handleLogAdded);
       window.removeEventListener("almadel_logs_cleared", handleLogsCleared);
     };
-  }, [user, activeBusiness?.membershipRole, router, showToast, loadLogs]);
+  }, [user, navRole, businessLoading, router, showToast, loadLogs]);
 
   // Reset to first page when filtering or searching
   useEffect(() => {

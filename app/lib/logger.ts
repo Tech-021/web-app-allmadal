@@ -72,7 +72,7 @@ export type ActivityLog = {
 let lastVisitTarget = "";
 let lastVisitTime = 0;
 
-function getCurrentUser(): { id?: number | null; name: string; email: string; role: "admin" | "staff" } {
+function getCurrentUser(): { id?: number | null; name: string; email: string; role: "admin" | "staff" | "accountant" } {
   if (typeof window === "undefined") {
     return { name: "System", email: "system@almadel.com", role: "staff" };
   }
@@ -82,13 +82,13 @@ function getCurrentUser(): { id?: number | null; name: string; email: string; ro
       const parsed = JSON.parse(raw);
       return {
         id: parsed.id ? Number(parsed.id) : null,
-        name: parsed.fullName || parsed.name || "Administrator",
-        email: parsed.email || "admin@almadel.com",
-        role: parsed.role === "admin" ? "admin" : "staff",
+        name: parsed.fullName || parsed.name || "Team member",
+        email: parsed.email || "",
+        role: "staff",
       };
     }
   } catch { }
-  return { name: "Store Admin", email: "admin@almadel.com", role: "admin" };
+  return { name: "Team member", email: "", role: "staff" };
 }
 
 /**

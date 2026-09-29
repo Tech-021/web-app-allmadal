@@ -107,7 +107,6 @@ export default function SettingsPage() {
         id: profile.user.id,
         name: profile.user.fullName || form.name,
         email: profile.user.email,
-        role: profile.user.role,
       });
 
       await reloadBusinesses();

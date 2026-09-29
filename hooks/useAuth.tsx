@@ -7,12 +7,15 @@ export type UserRole = "admin" | "staff" | "accountant" | "pending" | "owner";
 export type AuthUser = { id?: string | number; name: string; email: string; role: UserRole };
 type Credentials = { email: string; password: string; role?: UserRole };
 type SignupData = { name: string; email: string; password: string };
+type ProfilePatch = { name?: string; email?: string; id?: string | number };
+
 type AuthContextValue = {
   user: AuthUser | null; isLoading: boolean; isAuthenticated: boolean;
   login: (data: Credentials) => Promise<AuthUser>;
   signup: (data: SignupData) => Promise<AuthUser>;
   logout: () => Promise<void>; refreshUser: () => Promise<void>;
-  updateUser: (user: AuthUser) => void;
+  /** Display fields only — cannot change privileged `role` (use refreshUser after server updates). */
+  updateUser: (patch: ProfilePatch) => void;
 };
 
 const AuthContext = createContext<AuthContextValue | null>(null);
@@ -187,7 +190,19 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     sessionInvalid();
   }, [sessionInvalid, user]);
 
-  const updateUser = useCallback((nextUser: AuthUser) => { storeUser(nextUser); setUser(nextUser); }, []);
+  const updateUser = useCallback((patch: ProfilePatch) => {
+    setUser((prev) => {
+      if (!prev) return prev;
+      const next: AuthUser = {
+        ...prev,
+        ...(patch.id !== undefined ? { id: patch.id } : {}),
+        ...(patch.name !== undefined ? { name: patch.name } : {}),
+        ...(patch.email !== undefined ? { email: patch.email } : {}),
+      };
+      storeUser(next);
+      return next;
+    });
+  }, []);
   const value = useMemo(() => ({ user, isLoading, isAuthenticated: Boolean(user), login, signup, logout, refreshUser, updateUser }), [user, isLoading, login, signup, logout, refreshUser, updateUser]);
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 }

@@ -28,7 +28,7 @@ export function LoginForm() {
       if (user.role === "pending") {
         router.push("/setup-business");
       } else {
-        router.push(`/dashboard?role=${user.role}`);
+        router.push("/dashboard");
       }
     } catch (e) {
       setError(e instanceof Error ? e.message : "Unable to sign in.");

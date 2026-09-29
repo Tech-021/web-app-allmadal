@@ -12,7 +12,7 @@ import { useToast } from "@/app/components/toast-context";
 import { useLanguage } from "@/app/components/language-context";
 import { PaginationControls } from "@/app/components/pagination-controls";
 import styles from "./dashboard.module.css";
-import { effectiveNavRole } from "@/app/lib/access";
+import { useNavRole } from "@/hooks/useNavRole";
 
 type Sale = { id: number | string; total_amount?: number; total_items?: number; created_at?: string };
 
@@ -148,7 +148,7 @@ function SalesChart({ sales }: { sales: Sale[] }) {
 }
 
 function DashboardContent() {
-  const { user, isLoading, updateUser } = useAuth();
+  const { user, isLoading, refreshUser } = useAuth();
   const { activeBusiness, workspaceMode, reloadBusinesses, switchBusiness } = useBusiness();
   const { t, language } = useLanguage();
   const router = useRouter();
@@ -160,10 +160,7 @@ function DashboardContent() {
   const [error, setError] = useState("");
   const [activeReceipt, setActiveReceipt] = useState<ReceiptSale | null>(null);
 
-  const navRole = useMemo(
-    () => (user ? effectiveNavRole(user.role, activeBusiness?.membershipRole) : "staff"),
-    [user, activeBusiness?.membershipRole],
-  );
+  const navRole = useNavRole();
 
   const fetchDashboard = useCallback(async () => {
     if (!user) return;
@@ -199,9 +196,7 @@ function DashboardContent() {
 
         if (!result.verified || !result.business?.id) return;
 
-        if (user) {
-          updateUser({ ...user, role: "owner" });
-        }
+        await refreshUser();
 
         const list = await reloadBusinesses();
         switchBusiness(result.business.id);
@@ -220,7 +215,7 @@ function DashboardContent() {
         console.warn("Session auto-verification notice:", err);
       }
     })();
-  }, [paymentSuccess, sessionId, reloadBusinesses, switchBusiness, router, user, updateUser]);
+  }, [paymentSuccess, sessionId, reloadBusinesses, switchBusiness, router, refreshUser]);
 
   useEffect(() => {
     if (!isLoading && !user) router.replace("/login");
