@@ -2,7 +2,8 @@
 
 import { FormEvent, useCallback, useEffect, useMemo, useState } from "react";
 import { WorkspaceShell } from "@/app/components/workspace-shell";
-import { api, Product, uploadProductImage } from "@/app/lib/api";
+import { PageHeader, PageSection, PageStack, PageToolbar } from "@/app/components/page-layout";
+import { api, fetchProductCatalog, Product, uploadProductImage } from "@/app/lib/api";
 import { useToast } from "@/app/components/toast-context";
 import { useBusiness } from "@/app/components/business-context";
 import { logActivity } from "@/app/lib/logger";
@@ -62,7 +63,7 @@ export default function ProductsPage() {
   const load = useCallback(async () => {
     setLoading(true);
     try {
-      setProducts(await api<Product[]>("/products"));
+      setProducts(await fetchProductCatalog());
     } catch (e) {
       const msg = e instanceof Error ? e.message : "Could not load products.";
       setError(msg);
@@ -101,7 +102,7 @@ export default function ProductsPage() {
   }, [editing]);
 
   const shown = useMemo(() => {
-    let result = products;
+    let result = Array.isArray(products) ? products : [];
     if (statusFilter === "Healthy") {
       result = result.filter((p) => Number(p.stock ?? 0) > Number(p.lowStockThreshold ?? 5));
     } else if (statusFilter === "Low Stock") {
@@ -452,45 +453,27 @@ export default function ProductsPage() {
 
   return (
     <WorkspaceShell>
-      <div className={ui.head}>
-        <div>
-          <label>{t("nav.stock", "Inventory")}</label>
-          <h1>{t("nav.products", "Products")}</h1>
-          <p>Manage product details, pricing, barcodes, and stock status.</p>
-        </div>
-        <div style={{ display: "flex", gap: 10, alignItems: "center" }}>
+      <PageStack>
+      <PageHeader
+        eyebrow={t("nav.stock", "Inventory")}
+        title={t("nav.products", "Products")}
+        description="Manage product details, pricing, barcodes, and stock status."
+        actions={
+          <>
           {selectedIds.length > 0 && (
             <button
               className={ui.danger}
               disabled={bulkDeleting}
               onClick={() => void handleBulkDelete()}
-              style={{
-                background: "#fee2e2",
-                color: "#dc2626",
-                border: "1px solid #fecaca",
-                padding: "10px 18px",
-                fontWeight: 800,
-                boxShadow: "0 2px 8px rgba(220, 38, 38, 0.15)",
-              }}
             >
-              {bulkDeleting ? "Deleting..." : `🗑️ Delete Selected (${selectedIds.length})`}
+              {bulkDeleting ? "Deleting..." : `Delete selected (${selectedIds.length})`}
             </button>
           )}
-          <button
-            className={ui.secondary}
-            onClick={handleExportCsv}
-            title="Export products to CSV spreadsheet"
-            style={{ fontWeight: 800 }}
-          >
-            {t("action.export_csv", "📥 Export CSV")}
+          <button className={ui.secondary} onClick={handleExportCsv} title="Export products to CSV spreadsheet">
+            {t("action.export_csv", "Export CSV")}
           </button>
-          <button
-            className={ui.secondary}
-            onClick={() => setShowImportModal(true)}
-            title="Bulk import products from CSV spreadsheet"
-            style={{ fontWeight: 800 }}
-          >
-            {t("action.import_csv", "📤 Import CSV")}
+          <button className={ui.secondary} onClick={() => setShowImportModal(true)} title="Bulk import products from CSV">
+            {t("action.import_csv", "Import CSV")}
           </button>
           <button
             className={ui.secondary}
@@ -498,21 +481,21 @@ export default function ProductsPage() {
               setStickerInitialIds(selectedIds.length > 0 ? selectedIds : []);
               setShowStickerModal(true);
             }}
-            title="Generate and print barcode sticker labels"
-            style={{ fontWeight: 800 }}
+            title="Print barcode labels"
           >
-            {t("stickers.print_btn", "🏷️ Print Barcode Labels")}
+            {t("stickers.print_btn", "Print labels")}
           </button>
           <button className={ui.primary} onClick={() => open()}>
             {t("action.add_product", "+ Add product")}
           </button>
-        </div>
-      </div>
+          </>
+        }
+      />
 
       {error && <div className={ui.error}>{error}</div>}
       {notice && <div className={ui.notice}>{notice}</div>}
 
-      <div className={ui.toolbar}>
+      <PageToolbar>
         <input
           className={`${ui.input} ${ui.search}`}
           placeholder={t("action.search", "Search name, barcode, SKU, or category...")}
@@ -534,25 +517,17 @@ export default function ProductsPage() {
         <button className={ui.secondary} onClick={() => void load()}>
           {t("action.refresh", "Refresh")}
         </button>
-      </div>
+      </PageToolbar>
 
-      <div className="no-scrollbar" style={{ display: "flex", gap: 8, marginBottom: 18, overflowX: "auto", paddingBottom: 4 }}>
+      <div className={ui.pillRow} role="tablist" aria-label="Stock filter">
         {(["All", "Healthy", "Low Stock", "Out of Stock"] as const).map((tab) => (
           <button
             key={tab}
+            type="button"
+            role="tab"
+            aria-selected={statusFilter === tab}
+            className={`${ui.pill} ${statusFilter === tab ? ui.pillActive : ""}`}
             onClick={() => setStatusFilter(tab)}
-            style={{
-              border: "1px solid",
-              borderColor: statusFilter === tab ? "#00875a" : "#e5e7eb",
-              background: statusFilter === tab ? "#e6f4ed" : "#ffffff",
-              color: statusFilter === tab ? "#006b3f" : "#4b5563",
-              padding: "6px 14px",
-              borderRadius: 9999,
-              fontSize: 12,
-              fontWeight: 800,
-              cursor: "pointer",
-              transition: "all 0.15s ease",
-            }}
           >
             {tab}
           </button>
@@ -561,99 +536,32 @@ export default function ProductsPage() {
 
       {/* Floating Bulk Action Banner when items are selected */}
       {selectedIds.length > 0 && (
-        <div
-          style={{
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "space-between",
-            background: "linear-gradient(135deg, #056839 0%, #00875a 100%)",
-            color: "#ffffff",
-            padding: "12px 20px",
-            borderRadius: 16,
-            marginBottom: 18,
-            boxShadow: "0 6px 20px rgba(0, 135, 90, 0.25)",
-            animation: "fadeIn 0.2s ease-out",
-          }}
-        >
-          <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
-            <span
-              style={{
-                display: "grid",
-                placeItems: "center",
-                width: 28,
-                height: 28,
-                borderRadius: 9999,
-                background: "rgba(255, 255, 255, 0.25)",
-                fontSize: 14,
-                fontWeight: 900,
-              }}
-            >
-              ✓
-            </span>
-            <span style={{ fontSize: 13, fontWeight: 700 }}>
-              <strong>{selectedIds.length}</strong> product{selectedIds.length > 1 ? "s" : ""} selected
-            </span>
-          </div>
-          <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-            <button
-              onClick={() => setSelectedIds([])}
-              style={{
-                background: "rgba(255, 255, 255, 0.18)",
-                border: "1px solid rgba(255, 255, 255, 0.3)",
-                color: "#ffffff",
-                padding: "6px 14px",
-                borderRadius: 9999,
-                fontSize: 12,
-                fontWeight: 700,
-                cursor: "pointer",
-                transition: "background 0.15s ease",
-              }}
-            >
-              Deselect All
+        <div className={ui.bulkBanner}>
+          <span style={{ fontSize: 13, fontWeight: 700 }}>
+            <strong>{selectedIds.length}</strong> product{selectedIds.length > 1 ? "s" : ""} selected
+          </span>
+          <div className={ui.bulkBannerActions}>
+            <button type="button" className={ui.secondary} onClick={() => setSelectedIds([])}>
+              Deselect all
             </button>
             <button
+              type="button"
+              className={ui.secondary}
               onClick={() => {
                 setStickerInitialIds(selectedIds);
                 setShowStickerModal(true);
               }}
-              style={{
-                background: "#ffffff",
-                border: "none",
-                color: "#006b3f",
-                padding: "7px 16px",
-                borderRadius: 9999,
-                fontSize: 12,
-                fontWeight: 800,
-                cursor: "pointer",
-                boxShadow: "0 2px 10px rgba(0, 0, 0, 0.15)",
-                transition: "all 0.15s ease",
-              }}
             >
-              🏷️ Print Labels ({selectedIds.length})
+              Print labels
             </button>
-            <button
-              disabled={bulkDeleting}
-              onClick={() => void handleBulkDelete()}
-              style={{
-                background: "#dc2626",
-                border: "none",
-                color: "#ffffff",
-                padding: "7px 16px",
-                borderRadius: 9999,
-                fontSize: 12,
-                fontWeight: 800,
-                cursor: bulkDeleting ? "not-allowed" : "pointer",
-                boxShadow: "0 2px 10px rgba(220, 38, 38, 0.35)",
-                transition: "all 0.15s ease",
-              }}
-            >
-              {bulkDeleting ? "Deleting..." : `Delete Selected (${selectedIds.length})`}
+            <button type="button" className={ui.danger} disabled={bulkDeleting} onClick={() => void handleBulkDelete()}>
+              {bulkDeleting ? "Deleting…" : "Delete selected"}
             </button>
           </div>
         </div>
       )}
 
-      <section className={ui.panel}>
+      <PageSection>
         <div className={ui.tableWrap}>
           <table className={ui.table}>
             <thead>
@@ -850,7 +758,9 @@ export default function ProductsPage() {
             itemLabel={t("term.products", "products")}
           />
         )}
-      </section>
+      </PageSection>
+
+      </PageStack>
 
       {editing !== undefined && (
         <div

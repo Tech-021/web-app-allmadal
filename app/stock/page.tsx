@@ -2,7 +2,7 @@
 
 import { FormEvent, useCallback, useEffect, useMemo, useState } from "react";
 import { WorkspaceShell } from "@/app/components/workspace-shell";
-import { api, Product } from "@/app/lib/api";
+import { api, fetchProductCatalog, Product } from "@/app/lib/api";
 import { useToast } from "@/app/components/toast-context";
 import { useBusiness } from "@/app/components/business-context";
 import { logActivity } from "@/app/lib/logger";
@@ -55,7 +55,7 @@ export default function StockPage() {
 
   const load = useCallback(async () => {
     try {
-      setProducts(await api<Product[]>("/products"));
+      setProducts(await fetchProductCatalog());
     } catch (e) {
       const msg = e instanceof Error ? e.message : "Could not load products.";
       showToast(msg, "error");

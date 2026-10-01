@@ -2,7 +2,7 @@
 
 import { FormEvent, useCallback, useEffect, useMemo, useState } from "react";
 import { WorkspaceShell } from "@/app/components/workspace-shell";
-import { api, Product } from "@/app/lib/api";
+import { api, fetchProductCatalog, Product } from "@/app/lib/api";
 import { useToast } from "@/app/components/toast-context";
 import { logActivity } from "@/app/lib/logger";
 import { PaginationControls } from "@/app/components/pagination-controls";
@@ -52,10 +52,10 @@ export default function CategoriesPage() {
     try {
       const [cats, prods] = await Promise.all([
         api<Category[]>("/categories"),
-        api<Product[]>("/products").catch(() => []),
+        fetchProductCatalog().catch(() => []),
       ]);
       setCategories(Array.isArray(cats) ? cats : []);
-      setProducts(Array.isArray(prods) ? prods : []);
+      setProducts(prods);
     } catch (e) {
       const msg = e instanceof Error ? e.message : "Could not load categories.";
       setError(msg);

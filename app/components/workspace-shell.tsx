@@ -179,7 +179,12 @@ export function WorkspaceShell({ children }: { children: React.ReactNode }) {
   }, [user, pathname, activeBusiness?.id]);
 
   if (authLoading || !user) {
-    return <main className={styles.loading}>Loading Almadel workspace...</main>;
+    return (
+      <main className={styles.loading} aria-busy="true">
+        <div className={styles.loadingSpinner} aria-hidden />
+        <span>Loading Almadel workspace…</span>
+      </main>
+    );
   }
 
   return (
@@ -371,10 +376,12 @@ export function WorkspaceShell({ children }: { children: React.ReactNode }) {
 
       {/* Main Page Content */}
       <section className={styles.content}>
-        {activeBusiness && (activeBusiness.isTrialExpired || activeBusiness.subscriptionStatus === "expired") && (
-          <TrialExpiredModal business={activeBusiness} />
-        )}
-        {children}
+        <div className={styles.contentInner}>
+          {activeBusiness && (activeBusiness.isTrialExpired || activeBusiness.subscriptionStatus === "expired") && (
+            <TrialExpiredModal business={activeBusiness} />
+          )}
+          {children}
+        </div>
       </section>
 
       {/* Modern Responsive Mobile Bottom Bar */}

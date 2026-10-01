@@ -16,6 +16,7 @@ import {
   validateText,
 } from "@/app/lib/validators";
 import ui from "@/app/components/workspace-ui.module.css";
+import { PageHeader, PageSection, PageStack } from "@/app/components/page-layout";
 
 export default function SettingsPage() {
   const { user, updateUser } = useAuth();
@@ -205,15 +206,15 @@ export default function SettingsPage() {
 
   return (
     <WorkspaceShell>
-      <div className={ui.head}>
-        <div>
-          <label>Workspace</label>
-          <h1>Settings &amp; Store Branding</h1>
-          <p>Update your business logo, contact details, and account preferences.</p>
-        </div>
-      </div>
+      <PageStack>
+      <PageHeader
+        eyebrow="Workspace"
+        title="Settings & Store Branding"
+        description="Update your business logo, contact details, and account preferences."
+      />
 
-      <form className={`${ui.panel} max-w-3xl`} onSubmit={submit} noValidate>
+      <PageSection>
+      <form className="max-w-3xl" onSubmit={submit} noValidate>
         
         {/* Store Logo Section */}
         <div className="mb-6 pb-6 border-b border-slate-200">
@@ -413,6 +414,8 @@ export default function SettingsPage() {
           </button>
         </div>
       </form>
+      </PageSection>
+      </PageStack>
     </WorkspaceShell>
   );
 }

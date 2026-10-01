@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useState, useEffect, useMemo, useRef, useCallback } from "react";
-import { api, Product } from "@/app/lib/api";
+import { api, fetchProductCatalog, Product } from "@/app/lib/api";
 import { useToast } from "@/app/components/toast-context";
 import { useBusiness } from "@/app/components/business-context";
 import { logActivity } from "@/app/lib/logger";
@@ -109,7 +109,7 @@ export function PosTerminal({ onSaleCompleted }: PosTerminalProps) {
     setLoading(true);
     try {
       const [prodRes, custRes] = await Promise.all([
-        api<Product[]>("/products").catch(() => []),
+        fetchProductCatalog().catch(() => []),
         api<{ customers: CustomerOption[] }>("/customers").catch(() => ({ customers: [] })),
       ]);
       setProducts(Array.isArray(prodRes) ? prodRes : []);
