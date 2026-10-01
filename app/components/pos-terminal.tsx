@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useState, useEffect, useMemo, useRef, useCallback } from "react";
-import { api, fetchProductCatalog, Product } from "@/app/lib/api";
+import { api, fetchProductCatalog, Product, resolveImageUrl } from "@/app/lib/api";
 import { useToast } from "@/app/components/toast-context";
 import { useBusiness } from "@/app/components/business-context";
 import { logActivity } from "@/app/lib/logger";
@@ -584,6 +584,7 @@ export function PosTerminal({ onSaleCompleted }: PosTerminalProps) {
                   const stock = Number(p.stock || 0);
                   const low = stock <= Number(p.lowStockThreshold || 5);
                   const isOutOfStock = stock <= 0;
+                  const thumbUrl = resolveImageUrl(p.imageUrl);
 
                   return (
                     <button
@@ -593,6 +594,17 @@ export function PosTerminal({ onSaleCompleted }: PosTerminalProps) {
                       className="p-3.5 bg-white rounded-2xl border border-slate-200/80 hover:border-[#00875a] hover:shadow-md text-left transition group cursor-pointer flex flex-col justify-between"
                     >
                       <div>
+                        <div className="mb-2 h-16 w-full overflow-hidden rounded-xl border border-slate-100 bg-slate-50 flex items-center justify-center">
+                          {thumbUrl ? (
+                            <img
+                              src={thumbUrl}
+                              alt=""
+                              className="h-full w-full object-cover"
+                            />
+                          ) : (
+                            <span className="text-2xl opacity-40" aria-hidden>📦</span>
+                          )}
+                        </div>
                         <div className="flex items-start justify-between gap-1 mb-1.5">
                           <span className="text-[10px] font-bold text-slate-400 truncate uppercase">
                             {p.category || "General"}
