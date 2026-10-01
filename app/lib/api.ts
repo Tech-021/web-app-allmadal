@@ -12,7 +12,7 @@ function parseApiError(payload: unknown, status: number): string {
   return `Request failed with status ${status}.`;
 }
 
-/** Unauthenticated JSON requests (sign-in, forgot-password, reset-password, etc.). */
+/** Unauthenticated JSON requests (sign-in, magic-link, forgot-password, reset-password, etc.). */
 export async function publicApi<T>(path: string, options: RequestInit = {}): Promise<T> {
   if (!baseUrl) throw new Error("Backend URL is not configured.");
   const response = await fetch(`${baseUrl}${path}`, {

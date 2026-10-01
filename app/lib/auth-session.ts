@@ -8,7 +8,14 @@ export const rememberAuthKey = "almadel_remember_auth";
 
 const AUTH_KEYS = [tokenKey, userKey, businessKey] as const;
 
-const PUBLIC_AUTH_PATHS = ["/login", "/signup", "/forgot-password", "/reset-password"];
+const PUBLIC_AUTH_PATHS = [
+  "/login",
+  "/signup",
+  "/forgot-password",
+  "/reset-password",
+  "/magic-link",
+  "/auth/magic-link",
+];
 
 export const SESSION_EXPIRED_EVENT = "almadel:session-expired";
 

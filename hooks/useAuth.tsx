@@ -3,10 +3,12 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useState } from "react";
 import {
   SESSION_EXPIRED_EVENT,
+  businessKey,
   clearAuthStorage,
   getAuthItem,
   persistAuthCredentials,
   redirectToLoginAfterAuthFailure,
+  removeAuthItem,
   setAuthItem,
   teardownSessionOnUnauthorized,
   tokenKey,
@@ -20,9 +22,12 @@ type Credentials = { email: string; password: string; role?: UserRole; rememberM
 type SignupData = { name: string; email: string; password: string };
 type ProfilePatch = { name?: string; email?: string; id?: string | number };
 
+type AuthApiPayload = Record<string, unknown>;
+
 type AuthContextValue = {
   user: AuthUser | null; isLoading: boolean; isAuthenticated: boolean;
   login: (data: Credentials) => Promise<AuthUser>;
+  loginWithMagicLink: (token: string, options?: { rememberMe?: boolean }) => Promise<AuthUser>;
   signup: (data: SignupData) => Promise<AuthUser>;
   logout: () => Promise<void>; refreshUser: () => Promise<void>;
   /** Display fields only — cannot change privileged `role` (use refreshUser after server updates). */
@@ -147,19 +152,30 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     return () => window.removeEventListener(SESSION_EXPIRED_EVENT, onSessionExpired);
   }, []);
 
-  const login = useCallback(async (credentials: Credentials) => {
-    const data = await parseResponse(await fetch(endpoint("/auth/sign-in"), {
-      method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(credentials),
-    }));
+  const applyAuthResponse = useCallback((data: AuthApiPayload, remember: boolean) => {
     const token = data.access_token || data.accessToken || data.token;
     const nextUser = normalizeUser(data);
-    const remember = credentials.rememberMe !== false;
     if (token) {
       persistAuthCredentials(String(token), JSON.stringify(nextUser), remember);
     } else {
       storeUser(nextUser);
     }
+    const activeBusinessId = data.activeBusinessId;
+    if (activeBusinessId != null && activeBusinessId !== "") {
+      setAuthItem(businessKey, String(activeBusinessId));
+    } else {
+      removeAuthItem(businessKey);
+    }
     setUser(nextUser);
+    return nextUser;
+  }, []);
+
+  const login = useCallback(async (credentials: Credentials) => {
+    const data = await parseResponse(await fetch(endpoint("/auth/sign-in"), {
+      method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(credentials),
+    }));
+    const remember = credentials.rememberMe !== false;
+    const nextUser = applyAuthResponse(data, remember);
 
     logActivity(
       "AUTH_LOGIN",
@@ -169,7 +185,26 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     );
 
     return nextUser;
-  }, []);
+  }, [applyAuthResponse]);
+
+  const loginWithMagicLink = useCallback(async (magicToken: string, options?: { rememberMe?: boolean }) => {
+    const data = await parseResponse(await fetch(endpoint("/auth/magic-link/verify"), {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ token: magicToken.trim() }),
+    }));
+    const remember = options?.rememberMe !== false;
+    const nextUser = applyAuthResponse(data, remember);
+
+    logActivity(
+      "AUTH_LOGIN",
+      "Auth",
+      `User ${nextUser.name} (${nextUser.email}) signed in via magic link`,
+      "/auth/magic-link",
+    );
+
+    return nextUser;
+  }, [applyAuthResponse]);
 
   const signup = useCallback(async (details: SignupData) => {
     const data = await parseResponse(await fetch(endpoint("/auth/staff/sign-up"), {
@@ -220,7 +255,20 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       return next;
     });
   }, []);
-  const value = useMemo(() => ({ user, isLoading, isAuthenticated: Boolean(user), login, signup, logout, refreshUser, updateUser }), [user, isLoading, login, signup, logout, refreshUser, updateUser]);
+  const value = useMemo(
+    () => ({
+      user,
+      isLoading,
+      isAuthenticated: Boolean(user),
+      login,
+      loginWithMagicLink,
+      signup,
+      logout,
+      refreshUser,
+      updateUser,
+    }),
+    [user, isLoading, login, loginWithMagicLink, signup, logout, refreshUser, updateUser],
+  );
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 }
 
