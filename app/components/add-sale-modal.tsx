@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useState, useEffect, useMemo, useRef, FormEvent } from "react";
-import { api, Product } from "@/app/lib/api";
+import { api, fetchProductCatalog, Product } from "@/app/lib/api";
 import { useToast } from "@/app/components/toast-context";
 import { useBusiness } from "@/app/components/business-context";
 import { logActivity } from "@/app/lib/logger";
@@ -95,7 +95,7 @@ export function AddSaleModal({ isOpen, onClose, onSaleCompleted }: AddSaleModalP
       setLoadingData(true);
       try {
         const [prodRes, custRes] = await Promise.all([
-          api<Product[]>("/products").catch(() => []),
+          fetchProductCatalog().catch(() => []),
           api<{ customers: CustomerOption[] }>("/customers").catch(() => ({ customers: [] })),
         ]);
         if (mounted) {

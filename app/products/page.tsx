@@ -3,7 +3,7 @@
 import { FormEvent, useCallback, useEffect, useMemo, useState } from "react";
 import { WorkspaceShell } from "@/app/components/workspace-shell";
 import { PageHeader, PageSection, PageStack, PageToolbar } from "@/app/components/page-layout";
-import { api, Product, uploadProductImage } from "@/app/lib/api";
+import { api, fetchProductCatalog, Product, uploadProductImage } from "@/app/lib/api";
 import { useToast } from "@/app/components/toast-context";
 import { useBusiness } from "@/app/components/business-context";
 import { logActivity } from "@/app/lib/logger";
@@ -63,7 +63,7 @@ export default function ProductsPage() {
   const load = useCallback(async () => {
     setLoading(true);
     try {
-      setProducts(await api<Product[]>("/products"));
+      setProducts(await fetchProductCatalog());
     } catch (e) {
       const msg = e instanceof Error ? e.message : "Could not load products.";
       setError(msg);
@@ -102,7 +102,7 @@ export default function ProductsPage() {
   }, [editing]);
 
   const shown = useMemo(() => {
-    let result = products;
+    let result = Array.isArray(products) ? products : [];
     if (statusFilter === "Healthy") {
       result = result.filter((p) => Number(p.stock ?? 0) > Number(p.lowStockThreshold ?? 5));
     } else if (statusFilter === "Low Stock") {

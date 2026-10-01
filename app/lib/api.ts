@@ -79,3 +79,21 @@ export function resolveImageUrl(url?: string | null): string | null {
 
 export type Product = { id:number; barcode:string; category?:string|null; costPrice:number; imageUrl?:string|null; lowStockThreshold:number; name:string; price:number; qrCode?:string|null; sellingPrice:number; sku?:string|null; stock:number; discountType?: "none" | "fixed" | "percentage"; discountValue?: number };
 export type StaffItem = { user:{ id:number; email:string; fullName:string|null; role:"staff" | "accountant" | "admin" }; stats:{ products:number; sales:number; stockLogs:number; totalItemsSold:number; totalSales:number } };
+
+/** Backend list: raw array (`?legacy=1`) or `{ products, pagination }`. */
+export function parseProductList(payload: unknown): Product[] {
+  if (Array.isArray(payload)) return payload as Product[];
+  if (payload && typeof payload === "object") {
+    const list = (payload as { products?: unknown }).products;
+    if (Array.isArray(list)) return list as Product[];
+  }
+  return [];
+}
+
+const PRODUCT_CATALOG_LIMIT = 250;
+
+/** Catalog / POS — up to server max for client-side search and filters. */
+export async function fetchProductCatalog(): Promise<Product[]> {
+  const payload = await api<unknown>(`/products?limit=${PRODUCT_CATALOG_LIMIT}`);
+  return parseProductList(payload);
+}

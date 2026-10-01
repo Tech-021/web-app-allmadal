@@ -10,7 +10,22 @@ import { ActivityCategory, ActivityLog, clearAllLogs } from "@/app/lib/logger";
 import { api } from "@/app/lib/api";
 import ui from "@/app/components/workspace-ui.module.css";
 import { useNavRole } from "@/hooks/useNavRole";
-import { devError, devLog, devWarn } from "@/app/lib/dev-console";
+import { devLog, devWarn } from "@/app/lib/dev-console";
+
+function isExpectedAuthError(err: unknown): boolean {
+  const msg = err instanceof Error ? err.message : String(err ?? "");
+  return /session is not available|sign in again|authentication required/i.test(msg);
+}
+
+function parseLogsPayload(response: unknown): ActivityLog[] {
+  if (Array.isArray(response)) return response as ActivityLog[];
+  if (response && typeof response === "object") {
+    const record = response as { logs?: unknown; data?: unknown };
+    if (Array.isArray(record.logs)) return record.logs as ActivityLog[];
+    if (Array.isArray(record.data)) return record.data as ActivityLog[];
+  }
+  return [];
+}
 
 function timeAgo(dateString: string): string {
   const seconds = Math.floor((Date.now() - new Date(dateString).getTime()) / 1000);
@@ -56,7 +71,7 @@ function getActionBadgeStyle(action: string, category: ActivityCategory): { bg: 
 }
 
 export default function LogsPage() {
-  const { user } = useAuth();
+  const { user, isAuthenticated, isLoading: authLoading } = useAuth();
   const { activeBusiness, isLoading: businessLoading } = useBusiness();
   const navRole = useNavRole();
   const router = useRouter();
@@ -75,6 +90,12 @@ export default function LogsPage() {
   const [pageSize, setPageSize] = useState(10);
 
   const loadLogs = useCallback(async () => {
+    if (!isAuthenticated || !user) {
+      setLogs([]);
+      setLoading(false);
+      return;
+    }
+
     setLoading(true);
     setServerNotice("");
     devLog("%c[Almadel Logs Dashboard] 📥 Starting to fetch activity logs...", "color: #0284c7; font-weight: bold");
@@ -86,36 +107,32 @@ export default function LogsPage() {
       // 1. Fetch from GET /admin/logs
       try {
         devLog("%c[Almadel Logs Dashboard] 🔍 Attempt 1: Calling GET /admin/logs", "color: #6366f1; font-weight: 600");
-        const response = await api<{ logs?: ActivityLog[]; data?: ActivityLog[] } | ActivityLog[]>("/admin/logs");
+        const response = await api<unknown>("/admin/logs");
         isRouteFound = true;
-        devLog("%c[Almadel Logs Dashboard] ✅ GET /admin/logs succeeded:", "color: #16a34a; font-weight: bold", response);
-
-        if (Array.isArray(response)) {
-          serverLogs = response;
-        } else if (response && Array.isArray(response.logs)) {
-          serverLogs = response.logs;
-        } else if (response && Array.isArray(response.data)) {
-          serverLogs = response.data;
+        serverLogs = parseLogsPayload(response);
+        devLog("%c[Almadel Logs Dashboard] ✅ GET /admin/logs succeeded", "color: #16a34a; font-weight: bold");
+      } catch (err: unknown) {
+        if (isExpectedAuthError(err)) {
+          devWarn("[Almadel Logs Dashboard] Skipping fetch — no active session.");
+          setLogs([]);
+          return;
         }
-      } catch (err: any) {
-        devWarn("%c[Almadel Logs Dashboard] ⚠️ GET /admin/logs failed:", "color: #d97706; font-weight: bold", err?.message || err);
+        devWarn("%c[Almadel Logs Dashboard] ⚠️ GET /admin/logs failed:", "color: #d97706; font-weight: bold", err);
 
         // 2. Fallback to GET /logs
         try {
           devLog("%c[Almadel Logs Dashboard] 🔍 Attempt 2: Calling fallback GET /logs", "color: #6366f1; font-weight: 600");
-          const fallbackRes = await api<{ logs?: ActivityLog[]; data?: ActivityLog[] } | ActivityLog[]>("/logs");
+          const fallbackRes = await api<unknown>("/logs");
           isRouteFound = true;
-          devLog("%c[Almadel Logs Dashboard] ✅ GET /logs succeeded:", "color: #16a34a; font-weight: bold", fallbackRes);
-
-          if (Array.isArray(fallbackRes)) {
-            serverLogs = fallbackRes;
-          } else if (fallbackRes && Array.isArray(fallbackRes.logs)) {
-            serverLogs = fallbackRes.logs;
-          } else if (fallbackRes && Array.isArray(fallbackRes.data)) {
-            serverLogs = fallbackRes.data;
+          serverLogs = parseLogsPayload(fallbackRes);
+          devLog("%c[Almadel Logs Dashboard] ✅ GET /logs succeeded", "color: #16a34a; font-weight: bold");
+        } catch (err2: unknown) {
+          if (isExpectedAuthError(err2)) {
+            devWarn("[Almadel Logs Dashboard] Skipping fetch — no active session.");
+            setLogs([]);
+            return;
           }
-        } catch (err2: any) {
-          devError("%c[Almadel Logs Dashboard] ❌ Fallback GET /logs also failed:", "color: #dc2626; font-weight: bold", err2?.message || err2);
+          devWarn("%c[Almadel Logs Dashboard] ⚠️ GET /logs failed:", "color: #d97706; font-weight: bold", err2);
         }
       }
 
@@ -158,27 +175,33 @@ export default function LogsPage() {
             devLog("%c[Almadel Logs Dashboard] ℹ️ /stock/logs returned 0 records.", "color: #64748b");
           }
         } catch (stockErr) {
-          devError("%c[Almadel Logs Dashboard] ❌ Failed to fetch /stock/logs:", "color: #dc2626; font-weight: bold", stockErr);
+          devWarn("%c[Almadel Logs Dashboard] ⚠️ Failed to fetch /stock/logs:", "color: #d97706; font-weight: bold", stockErr);
         }
       }
 
       devLog(`%c[Almadel Logs Dashboard] 📊 Total logs loaded into state: ${serverLogs.length}`, "color: #059669; font-weight: bold");
       setLogs(serverLogs);
     } catch (err) {
-      devError("%c[Almadel Logs Dashboard] ❌ Critical failure during log load:", "color: #dc2626; font-weight: bold", err);
+      if (!isExpectedAuthError(err)) {
+        devWarn("%c[Almadel Logs Dashboard] ⚠️ Log load failed:", "color: #d97706; font-weight: bold", err);
+      }
     } finally {
       setLoading(false);
     }
-  }, [activeBusiness?.id]);
+  }, [activeBusiness?.id, isAuthenticated, user]);
 
   useEffect(() => {
-    if (businessLoading) return;
-    if (user && navRole !== "admin") {
+    if (authLoading || businessLoading) return;
+    if (!isAuthenticated || !user) {
+      setLoading(false);
+      return;
+    }
+    if (navRole !== "admin") {
       showToast("Access restricted. Activity logs are available to store owners only.", "error");
       router.replace(navRole === "accountant" ? "/accounts" : "/sales");
       return;
     }
-    loadLogs();
+    void loadLogs();
 
     const handleLogAdded = () => {
       devLog("%c[Almadel Logs Dashboard] 🔔 almadel_log_added event received, refreshing logs...", "color: #6366f1; font-weight: 600");
@@ -196,7 +219,7 @@ export default function LogsPage() {
       window.removeEventListener("almadel_log_added", handleLogAdded);
       window.removeEventListener("almadel_logs_cleared", handleLogsCleared);
     };
-  }, [user, navRole, businessLoading, router, showToast, loadLogs]);
+  }, [user, isAuthenticated, authLoading, navRole, businessLoading, router, showToast, loadLogs]);
 
   // Reset to first page when filtering or searching
   useEffect(() => {
