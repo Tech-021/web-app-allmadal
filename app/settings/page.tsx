@@ -51,7 +51,7 @@ export default function SettingsPage() {
       city: activeBusiness?.city || "",
     });
     setLogoUrl(activeBusiness?.logoUrl || "");
-    setAllowDiscounts(activeBusiness?.allowDiscounts !== false);
+    setAllowDiscounts(activeBusiness?.allowDiscounts ?? true);
     setFieldErrors({});
   }, [user?.name, user?.email, activeBusiness]);
 

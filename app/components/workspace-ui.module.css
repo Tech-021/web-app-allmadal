@@ -409,6 +409,35 @@
   gap: 6px;
 }
 
+.productCell {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.productThumb {
+  width: 40px;
+  height: 40px;
+  flex-shrink: 0;
+  border-radius: 10px;
+  object-fit: cover;
+  border: 1px solid #eaeaeb;
+  background: #f8fafc;
+}
+
+.productThumbPlaceholder {
+  width: 40px;
+  height: 40px;
+  flex-shrink: 0;
+  border-radius: 10px;
+  border: 1px dashed #e2e8f0;
+  background: #f8fafc;
+  display: grid;
+  place-items: center;
+  font-size: 16px;
+  line-height: 1;
+}
+
 .formActions {
   display: flex;
   justify-content: flex-end;

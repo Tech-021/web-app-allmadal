@@ -241,7 +241,9 @@ export default function ProductsPage() {
 
     setSaving(true);
     try {
-      const imageUrl = mediaFile ? (await uploadProductImage(mediaFile)).url : draft.imageUrl;
+      const imageUrl = mediaFile
+        ? (await uploadProductImage(mediaFile)).url
+        : (draft.imageUrl || editing?.imageUrl || "");
       const payload = {
         ...draft,
         barcode: editing?.barcode || draft.barcode || `AUTO-${Date.now()}`,
@@ -634,7 +636,20 @@ export default function ProductsPage() {
                       />
                     </td>
                     <td>
-                      <strong>{p.name}</strong>
+                      <div className={ui.productCell}>
+                        {resolveImageUrl(p.imageUrl) ? (
+                          <img
+                            className={ui.productThumb}
+                            src={resolveImageUrl(p.imageUrl)!}
+                            alt=""
+                          />
+                        ) : (
+                          <span className={ui.productThumbPlaceholder} aria-hidden>
+                            📦
+                          </span>
+                        )}
+                        <strong>{p.name}</strong>
+                      </div>
                     </td>
                     <td>
                       {p.barcode}
