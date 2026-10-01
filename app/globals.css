@@ -10,6 +10,9 @@
   --tint-blue: #eef4ff;
   --tint-orange: #fff3eb;
   --tint-purple: #f4f0fd;
+  --page-max-width: 1320px;
+  --space-page-x: clamp(14px, 3vw, 48px);
+  --space-section: clamp(16px, 2.5vw, 24px);
 }
 
 *, *::before, *::after {
