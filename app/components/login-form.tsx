@@ -110,6 +110,22 @@ export function LoginForm() {
         >
           {busy ? t("auth.signing_in", "Signing in…") : t("auth.login", "Login Karein")}
         </button>
+
+        <div className="relative py-1">
+          <div className="absolute inset-0 flex items-center" aria-hidden>
+            <div className="w-full border-t border-[#e5e7eb]" />
+          </div>
+          <div className="relative flex justify-center text-xs">
+            <span className="bg-white px-2 font-medium text-[#9ca3af]">or</span>
+          </div>
+        </div>
+
+        <Link
+          href="/magic-link"
+          className="flex h-12.5 w-full items-center justify-center rounded-full border-2 border-[#00875A] bg-white font-extrabold text-[#00875A] text-sm tracking-wide transition hover:bg-emerald-50"
+        >
+          {t("auth.magic_link", "Email me a sign-in link")}
+        </Link>
       </form>
 
       <p className="mt-7 text-center text-xs font-medium text-[#6b7280]">
