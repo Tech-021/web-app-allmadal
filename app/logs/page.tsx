@@ -11,10 +11,11 @@ import { api } from "@/app/lib/api";
 import ui from "@/app/components/workspace-ui.module.css";
 import { useNavRole } from "@/hooks/useNavRole";
 import { devLog, devWarn } from "@/app/lib/dev-console";
+import { isAuthSessionMessage } from "@/app/lib/auth-session";
 
 function isExpectedAuthError(err: unknown): boolean {
   const msg = err instanceof Error ? err.message : String(err ?? "");
-  return /session is not available|sign in again|authentication required/i.test(msg);
+  return isAuthSessionMessage(msg);
 }
 
 function parseLogsPayload(response: unknown): ActivityLog[] {

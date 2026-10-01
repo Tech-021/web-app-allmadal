@@ -6,6 +6,7 @@ import {
   businessKey,
   clearAuthStorage,
   getAuthItem,
+  markIntentionalLogout,
   persistAuthCredentials,
   redirectToLoginAfterAuthFailure,
   removeAuthItem,
@@ -230,9 +231,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   const logout = useCallback(async () => {
+    markIntentionalLogout();
     const current = user;
     if (current) {
-      logActivity(
+      await logActivity(
         "AUTH_LOGOUT",
         "Auth",
         `User ${current.name} (${current.email}) signed out`,

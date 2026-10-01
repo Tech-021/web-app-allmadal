@@ -19,6 +19,36 @@ const PUBLIC_AUTH_PATHS = [
 
 export const SESSION_EXPIRED_EVENT = "almadel:session-expired";
 
+const INTENTIONAL_LOGOUT_MS = 4000;
+let intentionalLogoutUntil = 0;
+
+/** Call before clearing credentials on explicit sign-out (suppresses scary session error toasts). */
+export function markIntentionalLogout() {
+  if (typeof window === "undefined") return;
+  intentionalLogoutUntil = Date.now() + INTENTIONAL_LOGOUT_MS;
+}
+
+export function clearIntentionalLogout() {
+  intentionalLogoutUntil = 0;
+}
+
+export function isIntentionalLogoutActive() {
+  return Date.now() < intentionalLogoutUntil;
+}
+
+export function isAuthSessionMessage(message: string) {
+  return /session is not available|sign in again|authentication required|session expired/i.test(message);
+}
+
+/** Hide session error toasts during sign-out or on public auth pages. */
+export function shouldSuppressAuthSessionToast(message: string) {
+  if (!isAuthSessionMessage(message)) return false;
+  if (isIntentionalLogoutActive()) return true;
+  if (typeof window === "undefined") return false;
+  const path = window.location.pathname;
+  return PUBLIC_AUTH_PATHS.some((p) => path === p || path.startsWith(`${p}/`));
+}
+
 function authKeys() {
   return AUTH_KEYS;
 }

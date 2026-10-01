@@ -358,7 +358,14 @@ export function PosTerminal({ onSaleCompleted }: PosTerminalProps) {
 
   useEffect(() => {
     if (paymentMethod !== "cash" || cart.length === 0) return;
-    setCashTendered((prev) => (prev.trim() === "" ? String(grandTotal) : prev));
+    setCashTendered((prev) => {
+      if (prev.trim() === "") return String(grandTotal);
+      const prevAmount = Number(parseCurrencyInput(prev)) || 0;
+      // Customer entered extra for change — keep it.
+      if (prevAmount >= grandTotal) return prev;
+      // Bill grew (more qty / discounts changed) — default to exact total due.
+      return String(grandTotal);
+    });
   }, [paymentMethod, cart.length, grandTotal]);
 
   // Checkout

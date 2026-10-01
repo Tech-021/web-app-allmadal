@@ -185,6 +185,7 @@ export function TrialExpiredModal({ business }: TrialExpiredModalProps) {
             type="button"
             onClick={async () => {
               await logout();
+              showToast("You have been signed out.", "success");
               window.location.href = "/login";
             }}
             className="text-red-600 hover:text-red-700 hover:underline"

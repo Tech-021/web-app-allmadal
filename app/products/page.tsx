@@ -3,7 +3,7 @@
 import { FormEvent, useCallback, useEffect, useMemo, useState } from "react";
 import { WorkspaceShell } from "@/app/components/workspace-shell";
 import { PageHeader, PageSection, PageStack, PageToolbar } from "@/app/components/page-layout";
-import { api, fetchProductCatalog, Product, uploadProductImage } from "@/app/lib/api";
+import { api, fetchProductCatalog, Product, resolveImageUrl, uploadProductImage } from "@/app/lib/api";
 import { useToast } from "@/app/components/toast-context";
 import { useBusiness } from "@/app/components/business-context";
 import { logActivity } from "@/app/lib/logger";
@@ -54,6 +54,7 @@ export default function ProductsPage() {
   const [selectedIds, setSelectedIds] = useState<number[]>([]);
   const [bulkDeleting, setBulkDeleting] = useState(false);
   const [mediaFile, setMediaFile] = useState<File | null>(null);
+  const [filePreviewUrl, setFilePreviewUrl] = useState<string | null>(null);
   const [showImportModal, setShowImportModal] = useState(false);
   const [scannerOpen, setScannerOpen] = useState(false);
   const [scannerTarget, setScannerTarget] = useState<"search" | "form">("search");
@@ -76,6 +77,18 @@ export default function ProductsPage() {
   useEffect(() => {
     void load();
   }, [load]);
+
+  useEffect(() => {
+    if (!mediaFile) {
+      setFilePreviewUrl(null);
+      return;
+    }
+    const url = URL.createObjectURL(mediaFile);
+    setFilePreviewUrl(url);
+    return () => URL.revokeObjectURL(url);
+  }, [mediaFile]);
+
+  const productImagePreview = filePreviewUrl ?? resolveImageUrl(draft.imageUrl);
 
   // Socket.IO delivers the change; refresh this page's server-backed list.
   // The socket is a notification channel, not a replacement for the API read.
@@ -793,17 +806,31 @@ export default function ProductsPage() {
                 <div className={`${ui.field} ${key === "imageUrl" ? ui.span2 : ""}`} key={key}>
                   <label>{label}</label>
                   {key === "imageUrl" ? (
-                    <>
-                      <input
-                        className={ui.input}
-                        type="file"
-                        accept="image/png,image/jpeg,image/webp,image/gif"
-                        onChange={(e) => setMediaFile(e.target.files?.[0] || null)}
-                      />
-                      {(mediaFile?.name || draft.imageUrl) && (
-                        <span className={ui.muted}>{mediaFile?.name || "Current image selected"}</span>
-                      )}
-                    </>
+                    <div className={ui.imageField}>
+                      <div
+                        className={ui.imagePreview}
+                        aria-label={productImagePreview ? "Product image preview" : "No product image"}
+                      >
+                        {productImagePreview ? (
+                          <img src={productImagePreview} alt="" />
+                        ) : (
+                          <span className={ui.muted}>No image</span>
+                        )}
+                      </div>
+                      <div className={ui.imageFieldControls}>
+                        <input
+                          className={ui.input}
+                          type="file"
+                          accept="image/png,image/jpeg,image/webp,image/gif"
+                          onChange={(e) => setMediaFile(e.target.files?.[0] || null)}
+                        />
+                        {(mediaFile?.name || draft.imageUrl) && (
+                          <span className={ui.muted}>
+                            {mediaFile?.name || "Using saved product image"}
+                          </span>
+                        )}
+                      </div>
+                    </div>
                   ) : key === "barcode" ? (
                     <div style={{ display: "flex", gap: 6 }}>
                       <input

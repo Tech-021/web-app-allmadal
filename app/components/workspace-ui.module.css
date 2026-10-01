@@ -375,6 +375,40 @@
   grid-column: span 2;
 }
 
+.imageField {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.imagePreview {
+  width: 72px;
+  height: 72px;
+  flex-shrink: 0;
+  border-radius: 12px;
+  border: 2px dashed #e2e8f0;
+  background: #f8fafc;
+  overflow: hidden;
+  display: grid;
+  place-items: center;
+}
+
+.imagePreview img {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  padding: 4px;
+}
+
+.imageFieldControls {
+  flex: 1;
+  min-width: 160px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
 .formActions {
   display: flex;
   justify-content: flex-end;

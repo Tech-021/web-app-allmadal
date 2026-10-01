@@ -352,6 +352,7 @@ export function WorkspaceShell({ children }: { children: React.ReactNode }) {
             title={t("shell.sign_out", "Sign out")}
             onClick={async () => {
               await logout();
+              showToast("You have been signed out.", "success");
               router.push("/login");
             }}
           >
@@ -368,7 +369,13 @@ export function WorkspaceShell({ children }: { children: React.ReactNode }) {
         </Link>
         <div className="flex items-center gap-2">
           <LanguageSwitcher variant="compact" />
-          <button onClick={async () => { await logout(); router.push("/login"); }}>
+          <button
+            onClick={async () => {
+              await logout();
+              showToast("You have been signed out.", "success");
+              router.push("/login");
+            }}
+          >
             {t("shell.sign_out", "Sign out")}
           </button>
         </div>
@@ -470,6 +477,7 @@ export function WorkspaceShell({ children }: { children: React.ReactNode }) {
                 onClick={async () => {
                   setMobileDrawerOpen(false);
                   await logout();
+                  showToast("You have been signed out.", "success");
                   router.push("/login");
                 }}
                 className="font-bold text-red-600 hover:underline"

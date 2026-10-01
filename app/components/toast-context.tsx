@@ -1,6 +1,7 @@
 "use client";
 
 import React, { createContext, useCallback, useContext, useState } from "react";
+import { shouldSuppressAuthSessionToast } from "@/app/lib/auth-session";
 
 export type ToastType = "success" | "error" | "info";
 
@@ -33,6 +34,9 @@ export function ToastProvider({ children }: { children: React.ReactNode }) {
   } | null>(null);
 
   const showToast = useCallback((message: string, type: ToastType = "info") => {
+    if (type === "error" && shouldSuppressAuthSessionToast(message)) {
+      return;
+    }
     const id = Math.random().toString(36).substring(2, 9);
     setToasts((prev) => [...prev, { id, message, type }]);
 
