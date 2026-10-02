@@ -17,6 +17,7 @@ import {
 } from "@/app/lib/validators";
 import ui from "@/app/components/workspace-ui.module.css";
 import { PageHeader, PageSection, PageStack } from "@/app/components/page-layout";
+import { PasskeySettings } from "@/app/components/passkey-settings";
 
 export default function SettingsPage() {
   const { user, updateUser } = useAuth();
@@ -407,6 +408,8 @@ export default function SettingsPage() {
             <span>Enable Discounts at POS Counter (Allow cashiers to apply Fixed ₨ or Percent % discounts)</span>
           </label>
         </div>
+
+        <PasskeySettings />
 
         <div className={ui.formActions}>
           <button className={ui.primary} disabled={saving || logoUploading}>

@@ -16,6 +16,7 @@ import {
   userKey,
 } from "@/app/lib/auth-session";
 import { logActivity } from "@/app/lib/logger";
+import { signInWithPasskey } from "@/app/lib/passkey";
 
 export type UserRole = "admin" | "staff" | "accountant" | "pending" | "owner";
 export type AuthUser = { id?: string | number; name: string; email: string; role: UserRole };
@@ -29,6 +30,7 @@ type AuthContextValue = {
   user: AuthUser | null; isLoading: boolean; isAuthenticated: boolean;
   login: (data: Credentials) => Promise<AuthUser>;
   loginWithMagicLink: (token: string, options?: { rememberMe?: boolean }) => Promise<AuthUser>;
+  loginWithPasskey: (email?: string, options?: { rememberMe?: boolean }) => Promise<AuthUser>;
   signup: (data: SignupData) => Promise<AuthUser>;
   logout: () => Promise<void>; refreshUser: () => Promise<void>;
   /** Display fields only — cannot change privileged `role` (use refreshUser after server updates). */
@@ -207,6 +209,21 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     return nextUser;
   }, [applyAuthResponse]);
 
+  const loginWithPasskey = useCallback(async (email?: string, options?: { rememberMe?: boolean }) => {
+    const data = await signInWithPasskey(email);
+    const remember = options?.rememberMe !== false;
+    const nextUser = applyAuthResponse(data as AuthApiPayload, remember);
+
+    logActivity(
+      "AUTH_LOGIN",
+      "Auth",
+      `User ${nextUser.name} (${nextUser.email}) signed in via passkey`,
+      "/login",
+    );
+
+    return nextUser;
+  }, [applyAuthResponse]);
+
   const signup = useCallback(async (details: SignupData) => {
     const data = await parseResponse(await fetch(endpoint("/auth/staff/sign-up"), {
       method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ fullName: details.name, email: details.email, password: details.password }),
@@ -264,12 +281,13 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       isAuthenticated: Boolean(user),
       login,
       loginWithMagicLink,
+      loginWithPasskey,
       signup,
       logout,
       refreshUser,
       updateUser,
     }),
-    [user, isLoading, login, loginWithMagicLink, signup, logout, refreshUser, updateUser],
+    [user, isLoading, login, loginWithMagicLink, loginWithPasskey, signup, logout, refreshUser, updateUser],
   );
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 }
