@@ -46,10 +46,10 @@ export function LoginForm() {
 
   return (
     <div className="w-full">
-      <h1 className="text-[2rem] font-extrabold tracking-[-.035em] text-[#111827]">
+      <h1 className="m-0 text-[28px] font-semibold leading-tight tracking-[-.03em] text-[var(--text)]">
         {t("auth.welcome_back", "Welcome back")}
       </h1>
-      <p className="mt-1.5 text-sm text-[#6b7280]">
+      <p className="mt-1.5 text-sm text-[var(--muted)]">
         Apni Dukaan Ko Asaan Banayein. {language === "ur" ? "Credentials enter karein." : "Enter credentials to continue."}
       </p>
 
@@ -72,7 +72,7 @@ export function LoginForm() {
           required
           right={
             <button
-              className="absolute inset-y-0 right-0 px-4 text-xs font-bold text-[#6b7280] transition hover:text-[#00875A] cursor-pointer"
+              className="absolute inset-y-0 right-0 px-4 text-xs font-bold text-[var(--muted)] transition hover:text-[var(--brand)] cursor-pointer"
               type="button"
               onClick={() => setShow(!show)}
               aria-label={show ? "Hide password" : "Show password"}
@@ -83,9 +83,9 @@ export function LoginForm() {
         />
 
         <div className="flex items-center justify-between text-xs">
-          <label className="flex items-center gap-2 font-medium text-[#4b5563] cursor-pointer">
+          <label className="flex items-center gap-2 font-medium text-[var(--text-2)] cursor-pointer">
             <input
-              className="accent-[#00875A] rounded"
+              className="accent-[var(--brand)] rounded"
               type="checkbox"
               name="remember"
               checked={rememberMe}
@@ -93,44 +93,44 @@ export function LoginForm() {
             />
             {t("auth.remember_me", "Remember me")}
           </label>
-          <Link className="font-bold text-[#00875A] transition hover:underline" href="/forgot-password">
+          <Link className="font-medium text-[var(--brand)] transition hover:underline" href="/forgot-password">
             {t("auth.forgot_password", "Forgot Password?")}
           </Link>
         </div>
 
         {error && (
-          <p role="alert" className="rounded-2xl bg-red-50 border border-red-200 px-4 py-3 text-xs font-semibold text-red-700">
+          <p role="alert" className="al-pop rounded-[10px] border border-[color-mix(in_oklab,var(--neg)_25%,transparent)] bg-[var(--neg-soft)] px-3.5 py-2.5 text-[13px] font-medium text-[var(--neg)]">
             {error}
           </p>
         )}
 
         <button
           disabled={busy}
-          className="h-12.5 w-full rounded-full bg-[#00875A] font-extrabold text-white shadow-[0_8px_20px_rgba(0,135,90,.22)] transition-all duration-200 hover:bg-[#006b3f] hover:shadow-[0_10px_24px_rgba(0,135,90,.3)] active:scale-[0.99] disabled:cursor-not-allowed disabled:opacity-60 text-sm tracking-wide cursor-pointer"
+          className="h-11 w-full rounded-[10px] bg-[var(--brand)] text-[14px] font-medium text-[var(--on-brand)] shadow-[inset_0_1px_0_rgba(255,255,255,.18),0_1px_2px_rgba(10,94,72,.3)] transition-[background-color,transform] duration-150 hover:bg-[var(--brand-strong)] active:scale-[0.99] disabled:cursor-not-allowed disabled:opacity-60 cursor-pointer"
         >
           {busy ? t("auth.signing_in", "Signing in…") : t("auth.login", "Login Karein")}
         </button>
 
         <div className="relative py-1">
           <div className="absolute inset-0 flex items-center" aria-hidden>
-            <div className="w-full border-t border-[#e5e7eb]" />
+            <div className="w-full border-t border-[var(--border)]" />
           </div>
           <div className="relative flex justify-center text-xs">
-            <span className="bg-white px-2 font-medium text-[#9ca3af]">or</span>
+            <span className="bg-[var(--bg)] px-2 text-[var(--faint)]">or</span>
           </div>
         </div>
 
         <Link
           href="/magic-link"
-          className="flex h-12.5 w-full items-center justify-center rounded-full border-2 border-[#00875A] bg-white font-extrabold text-[#00875A] text-sm tracking-wide transition hover:bg-emerald-50"
+          className="flex h-11 w-full items-center justify-center gap-2 rounded-[10px] border border-[var(--border)] bg-[var(--surface)] text-[14px] font-medium text-[var(--text)] shadow-[var(--shadow-xs)] transition-colors hover:border-[var(--border-strong)] hover:bg-[var(--surface-2)]"
         >
           {t("auth.magic_link", "Email me a sign-in link")}
         </Link>
       </form>
 
-      <p className="mt-7 text-center text-xs font-medium text-[#6b7280]">
+      <p className="mt-7 text-center text-xs font-medium text-[var(--muted)]">
         Don&apos;t have an account?{" "}
-        <Link className="font-bold text-[#00875A] hover:underline" href="/signup">
+        <Link className="font-medium text-[var(--brand)] hover:underline" href="/signup">
           Naya Account Banayein
         </Link>
       </p>

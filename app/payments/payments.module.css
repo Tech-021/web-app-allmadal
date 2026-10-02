@@ -1,0 +1,222 @@
+/* Billing page: status first, then plan detail. */
+
+.status {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 300px;
+}
+
+.statusMain {
+  padding: 24px;
+  min-width: 0;
+  position: relative;
+}
+
+.statusMain::before {
+  content: "";
+  position: absolute;
+  inset: 0 auto 0 0;
+  width: 3px;
+  background: linear-gradient(180deg, var(--brand), transparent);
+  opacity: 0.6;
+}
+
+.statusTitle {
+  margin: 14px 0 6px;
+  font-size: clamp(20px, 2.2vw, 24px);
+  font-weight: 600;
+  letter-spacing: -0.025em;
+  line-height: 1.2;
+}
+
+.statusText {
+  margin: 0;
+  max-width: 60ch;
+  font-size: 13.5px;
+  line-height: 1.55;
+  color: var(--muted);
+}
+
+.statusAside {
+  padding: 18px 22px;
+  border-left: 1px solid var(--border);
+  background: var(--surface-2);
+  justify-content: center;
+}
+
+.meter {
+  margin-top: 18px;
+  max-width: 460px;
+}
+
+.meterTrack {
+  height: 6px;
+  border-radius: 99px;
+  background: var(--sunken);
+  box-shadow: inset 0 0 0 1px var(--border);
+  overflow: hidden;
+}
+
+.meterTrack span {
+  display: block;
+  height: 100%;
+  border-radius: inherit;
+  background: var(--brand);
+  transform-origin: left;
+  animation: billingGrow 900ms var(--ease) backwards 120ms;
+}
+
+.meterTrack span.meterEnded {
+  background: var(--neg);
+}
+
+@keyframes billingGrow {
+  from { transform: scaleX(0); }
+  to { transform: scaleX(1); }
+}
+
+.meterLegend {
+  display: flex;
+  justify-content: space-between;
+  margin-top: 7px;
+  font-size: 12px;
+  color: var(--muted);
+  font-family: var(--font-mono);
+}
+
+.grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 320px;
+  gap: 16px;
+  align-items: start;
+}
+
+.planHead {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 20px;
+  padding: 22px 24px;
+  border-bottom: 1px solid var(--border);
+}
+
+.planHead h2 {
+  margin: 10px 0 3px;
+  font-size: 18px;
+  font-weight: 600;
+  letter-spacing: -0.02em;
+}
+
+.planHead p {
+  margin: 0;
+  font-size: 13px;
+  color: var(--muted);
+}
+
+.price {
+  text-align: right;
+  flex: none;
+}
+
+.price strong {
+  font-family: var(--font-mono);
+  font-size: 34px;
+  font-weight: 600;
+  letter-spacing: -0.04em;
+  line-height: 1;
+}
+
+.price span {
+  margin-left: 4px;
+  font-size: 13px;
+  color: var(--muted);
+}
+
+.price small {
+  display: block;
+  margin-top: 6px;
+  font-size: 12px;
+  color: var(--brand-ink);
+}
+
+.features {
+  list-style: none;
+  margin: 0;
+  padding: 20px 24px;
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px 24px;
+}
+
+.features li {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 13px;
+  color: var(--text-2);
+}
+
+.features li > span {
+  width: 18px;
+  height: 18px;
+  flex: none;
+  border-radius: 5px;
+  display: grid;
+  place-items: center;
+  color: var(--brand);
+  background: var(--brand-soft);
+}
+
+.assure {
+  display: flex;
+  gap: 12px;
+  padding: 16px 18px;
+  border-top: 1px solid var(--border);
+}
+
+.assure:first-child {
+  border-top: 0;
+}
+
+.assure h3 {
+  margin: 2px 0 3px;
+  font-size: 13px;
+  font-weight: 560;
+}
+
+.assure p {
+  margin: 0;
+  font-size: 12.5px;
+  line-height: 1.5;
+  color: var(--muted);
+}
+
+@media (max-width: 1024px) {
+  .grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 760px) {
+  .status {
+    grid-template-columns: 1fr;
+  }
+  .statusAside {
+    border-left: 0;
+    border-top: 1px solid var(--border);
+  }
+  .planHead {
+    flex-direction: column;
+  }
+  .price {
+    text-align: left;
+  }
+  .features {
+    grid-template-columns: 1fr;
+  }
+  .statusMain,
+  .planHead,
+  .features {
+    padding-left: 18px;
+    padding-right: 18px;
+  }
+}

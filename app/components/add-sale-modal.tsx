@@ -7,6 +7,9 @@ import { useBusiness } from "@/app/components/business-context";
 import { logActivity } from "@/app/lib/logger";
 import { DetailedSaleReceipt, PosReceiptModal } from "@/app/components/pos-receipt-modal";
 import { formatCurrencyInput, parseCurrencyInput } from "@/app/lib/validators";
+import { Icon, type IconName } from "@/app/components/icons";
+import ui from "@/app/components/workspace-ui.module.css";
+import sm from "./add-sale-modal.module.css";
 
 interface CartLine {
   productId: number;
@@ -308,101 +311,86 @@ export function AddSaleModal({ isOpen, onClose, onSaleCompleted }: AddSaleModalP
 
   if (!isOpen) return null;
 
+  const sectionTitle = (icon: IconName, label: string) => (
+    <span className="flex items-center gap-2 text-[12.5px] font-medium text-[var(--text-2)]">
+      <Icon name={icon} size={14} className="text-[var(--muted)]" />
+      {label}
+    </span>
+  );
+
   return (
     <>
       <div
-        className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-gray-950/60 backdrop-blur-xs overflow-y-auto"
+        className={ui.modal}
         role="dialog"
         aria-modal="true"
+        aria-label="New sale"
         onMouseDown={(e) => {
           if (e.target === e.currentTarget && !createdReceipt) onClose();
         }}
       >
-        <div className="relative w-full max-w-2xl bg-white rounded-3xl shadow-2xl border border-gray-100 overflow-hidden my-auto animate-in zoom-in-95">
-          {/* Header */}
-          <div className="px-6 py-4 bg-gradient-to-r from-[#00875a] to-[#006644] text-white flex items-center justify-between">
-            <div className="flex items-center gap-3">
-              <span className="size-10 rounded-2xl bg-white/20 grid place-items-center text-xl">
-                🛒
+        <div className={`${ui.sheet} ${sm.sheet}`}>
+          <div className={ui.sheetHead}>
+            <div className="flex min-w-0 items-center gap-2.5">
+              <span className={ui.iconTile}>
+                <Icon name="cart" size={15} />
               </span>
-              <div>
-                <h3 className="text-lg font-black tracking-tight leading-tight">
-                  New Sale / Bill Banayein
-                </h3>
-                <p className="text-xs text-emerald-100/90 font-medium">
-                  {activeBusiness?.name || "Active Store"} • Record customer transaction
-                </p>
+              <div className="min-w-0">
+                <h2>New sale / Bill Banayein</h2>
+                <p className="m-0 mt-0.5 truncate text-[12.5px] text-[var(--muted)]">{activeBusiness?.name || "Active Store"} · record a customer transaction</p>
               </div>
             </div>
-            <button
-              type="button"
-              onClick={onClose}
-              className="size-8 rounded-full bg-white/10 hover:bg-white/20 text-white font-bold grid place-items-center transition cursor-pointer"
-            >
-              ✕
+            <button type="button" onClick={onClose} className={ui.iconButton} aria-label="Close">
+              <Icon name="x" size={15} />
             </button>
           </div>
 
-          <form onSubmit={handleSubmit} className="p-6 space-y-6 max-h-[80vh] overflow-y-auto">
-            {/* 1. Products Section */}
-            <div className="space-y-3">
+          <form onSubmit={handleSubmit} className="flex flex-col gap-5">
+            {/* 1. Items */}
+            <section className="flex flex-col gap-2.5">
               <div className="flex items-center justify-between">
-                <label className="text-xs font-black text-gray-900 uppercase tracking-wider flex items-center gap-1.5">
-                  <span>📦</span> Products / Items
-                </label>
-                <button
-                  type="button"
-                  onClick={handleAddLine}
-                  className="px-3 py-1 rounded-xl bg-emerald-50 hover:bg-emerald-100 text-[#00875a] font-bold text-xs transition cursor-pointer flex items-center gap-1"
-                >
-                  <span>+</span> Add Another Item
+                {sectionTitle("box", "Items")}
+                <button type="button" onClick={handleAddLine} className={`${ui.secondary} ${ui.btnSm}`}>
+                  <Icon name="plus" size={13} />
+                  Add item
                 </button>
               </div>
 
               {loadingData ? (
-                <div className="p-4 text-center text-xs text-gray-500 font-medium bg-gray-50 rounded-2xl">
-                  Loading catalog products...
+                <div className="flex flex-col gap-2">
+                  <span className="al-skeleton block h-[52px] w-full" />
+                  <span className="al-skeleton block h-[52px] w-full" />
                 </div>
               ) : products.length === 0 ? (
-                <div className="p-4 text-center text-xs text-amber-800 bg-amber-50 border border-amber-200 rounded-2xl">
-                  No products in catalog. Please add products from the Products page first.
+                <div className={`${ui.notice} !border-[color-mix(in_oklab,var(--warn)_25%,transparent)] !bg-[var(--warn-soft)] !text-[var(--warn)]`}>
+                  <Icon name="alert" size={15} className="mt-px shrink-0" />
+                  No products in your catalogue yet. Add products from the Products page first.
                 </div>
               ) : (
-                <div className="space-y-2.5">
+                <div className="overflow-hidden rounded-[11px] border border-[var(--border)]">
                   {lines.map((line, index) => (
-                    <div
-                      key={index}
-                      className="p-3 bg-gray-50/90 rounded-2xl border border-gray-200/70 flex flex-col sm:flex-row items-center gap-2.5"
-                    >
-                      {/* Product Selector */}
-                      <div className="flex-1 w-full">
-                        <select
-                          value={line.productId || ""}
-                          onChange={(e) => handleProductSelect(index, Number(e.target.value))}
-                          className="w-full px-3 py-2 rounded-xl bg-white border border-gray-200 text-xs font-bold text-gray-800 outline-none focus:border-[#00875a]"
-                          required
-                        >
-                          <option value="">-- Choose Product --</option>
-                          {products.map((p) => {
-                            const pPrice = Number(p.sellingPrice ?? p.price ?? 0);
-                            return (
-                              <option key={p.id} value={p.id}>
-                                {p.name} {p.barcode ? `(${p.barcode})` : ""} — ₨ {pPrice.toLocaleString()} (Stock: {p.stock})
-                              </option>
-                            );
-                          })}
-                        </select>
-                      </div>
+                    <div key={index} className={`${sm.line} ${index > 0 ? "border-t border-[var(--border)]" : ""}`}>
+                      <select
+                        value={line.productId || ""}
+                        onChange={(e) => handleProductSelect(index, Number(e.target.value))}
+                        className={`${ui.select} ${sm.product}`}
+                        required
+                        aria-label={`Product for line ${index + 1}`}
+                      >
+                        <option value="">Choose product…</option>
+                        {products.map((p) => {
+                          const pPrice = Number(p.sellingPrice ?? p.price ?? 0);
+                          return (
+                            <option key={p.id} value={p.id}>
+                              {p.name} {p.barcode ? `(${p.barcode})` : ""} — Rs {pPrice.toLocaleString()} · stock {p.stock}
+                            </option>
+                          );
+                        })}
+                      </select>
 
-                      {/* Quantity Stepper */}
-                      <div className="flex items-center gap-1 shrink-0">
-                        <button
-                          type="button"
-                          onClick={() => handleQuantityChange(index, line.quantity - 1)}
-                          disabled={line.quantity <= 1}
-                          className="size-8 rounded-lg bg-white border border-gray-200 hover:bg-gray-100 font-bold text-sm text-gray-700 disabled:opacity-40"
-                        >
-                          -
+                      <div className={sm.stepper}>
+                        <button type="button" onClick={() => handleQuantityChange(index, line.quantity - 1)} disabled={line.quantity <= 1} aria-label="Decrease quantity">
+                          <Icon name="minus" size={13} />
                         </button>
                         <input
                           type="number"
@@ -410,103 +398,62 @@ export function AddSaleModal({ isOpen, onClose, onSaleCompleted }: AddSaleModalP
                           max={line.maxStock > 0 ? line.maxStock : undefined}
                           value={line.quantity}
                           onChange={(e) => handleQuantityChange(index, Number(e.target.value) || 1)}
-                          className="w-14 text-center py-1.5 rounded-lg bg-white border border-gray-200 text-xs font-black text-gray-900 outline-none"
+                          aria-label="Quantity"
                         />
                         <button
                           type="button"
                           onClick={() => handleQuantityChange(index, line.quantity + 1)}
                           disabled={line.maxStock > 0 && line.quantity >= line.maxStock}
-                          className="size-8 rounded-lg bg-white border border-gray-200 hover:bg-gray-100 font-bold text-sm text-gray-700 disabled:opacity-40"
+                          aria-label="Increase quantity"
                         >
-                          +
+                          <Icon name="plus" size={13} />
                         </button>
                       </div>
 
-                      {/* Line Total */}
-                      <div className="w-24 text-right shrink-0">
-                        <span className="block text-xs font-black text-gray-900">
-                          ₨ {(line.price * line.quantity).toLocaleString()}
-                        </span>
-                        <span className="text-[10px] text-gray-400 font-semibold">
-                          @ ₨ {line.price.toLocaleString()}
-                        </span>
+                      <div className={sm.lineTotal}>
+                        <span className="block font-mono text-[13px] font-medium">Rs {(line.price * line.quantity).toLocaleString()}</span>
+                        <span className="font-mono text-[11px] text-[var(--faint)]">@ {line.price.toLocaleString()}</span>
                       </div>
 
-                      {/* Remove Button */}
-                      <button
-                        type="button"
-                        onClick={() => handleRemoveLine(index)}
-                        className="size-8 rounded-lg text-red-500 hover:bg-red-50 grid place-items-center text-sm font-bold shrink-0 transition"
-                        title="Remove product"
-                      >
-                        🗑️
+                      <button type="button" onClick={() => handleRemoveLine(index)} className={`${ui.iconButton} hover:!text-[var(--neg)]`} title="Remove item" aria-label="Remove item">
+                        <Icon name="trash" size={14} />
                       </button>
                     </div>
                   ))}
                 </div>
               )}
-            </div>
+            </section>
 
-            {/* 2. Customer Selection */}
-            <div className="p-4 rounded-2xl bg-slate-50 border border-slate-200/80 space-y-3">
-              <div className="flex items-center justify-between">
-                <label className="text-xs font-black text-slate-800 uppercase tracking-wider flex items-center gap-1.5">
-                  <span>👥</span> Customer Details
-                </label>
-                <div className="flex rounded-xl bg-slate-200/70 p-0.5 text-[11px] font-bold">
-                  <button
-                    type="button"
-                    onClick={() => setCustomerMode("walkin")}
-                    className={`px-3 py-1 rounded-lg transition ${
-                      customerMode === "walkin" ? "bg-white text-slate-900 shadow-xs" : "text-slate-600"
-                    }`}
-                  >
-                    Walk-in Customer
+            {/* 2. Customer */}
+            <section className="flex flex-col gap-2.5">
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                {sectionTitle("user", "Customer")}
+                <div className={ui.segmented} role="tablist" aria-label="Customer type">
+                  <button type="button" role="tab" aria-selected={customerMode === "walkin"} onClick={() => setCustomerMode("walkin")} className={customerMode === "walkin" ? ui.segmentedOn : ""}>
+                    Walk-in
                   </button>
-                  <button
-                    type="button"
-                    onClick={() => setCustomerMode("existing")}
-                    className={`px-3 py-1 rounded-lg transition ${
-                      customerMode === "existing" ? "bg-white text-slate-900 shadow-xs" : "text-slate-600"
-                    }`}
-                  >
-                    Select Khata Customer
+                  <button type="button" role="tab" aria-selected={customerMode === "existing"} onClick={() => setCustomerMode("existing")} className={customerMode === "existing" ? ui.segmentedOn : ""}>
+                    Khata customer
                   </button>
                 </div>
               </div>
 
               {customerMode === "walkin" ? (
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                  <div>
-                    <label className="block text-[11px] font-bold text-slate-600 mb-1">Customer Name (Optional)</label>
-                    <input
-                      type="text"
-                      placeholder="e.g. Walk-in / Bilal"
-                      value={walkinName}
-                      onChange={(e) => setWalkinName(e.target.value)}
-                      className="w-full px-3 py-2 rounded-xl bg-white border border-slate-200 text-xs font-bold text-slate-800 outline-none focus:border-[#00875a]"
-                    />
+                <div className={ui.formGrid}>
+                  <div className={ui.field}>
+                    <label htmlFor="as-name">Name (optional)</label>
+                    <input id="as-name" type="text" placeholder="Walk-in / Bilal" value={walkinName} onChange={(e) => setWalkinName(e.target.value)} className={ui.input} />
                   </div>
-                  <div>
-                    <label className="block text-[11px] font-bold text-slate-600 mb-1">Mobile / WhatsApp (Optional)</label>
-                    <input
-                      type="tel"
-                      placeholder="03001234567"
-                      value={walkinMobile}
-                      onChange={(e) => setWalkinMobile(e.target.value)}
-                      className="w-full px-3 py-2 rounded-xl bg-white border border-slate-200 text-xs font-bold text-slate-800 outline-none focus:border-[#00875a]"
-                    />
+                  <div className={ui.field}>
+                    <label htmlFor="as-mobile">Mobile / WhatsApp (optional)</label>
+                    <input id="as-mobile" type="tel" placeholder="03001234567" value={walkinMobile} onChange={(e) => setWalkinMobile(e.target.value)} className={`${ui.input} ${ui.inputMono}`} />
                   </div>
                 </div>
               ) : (
-                <div>
-                  <label className="block text-[11px] font-bold text-slate-600 mb-1">Choose Customer from Khata</label>
-                  <select
-                    value={selectedCustomerId}
-                    onChange={(e) => setSelectedCustomerId(e.target.value)}
-                    className="w-full px-3 py-2 rounded-xl bg-white border border-slate-200 text-xs font-bold text-slate-800 outline-none focus:border-[#00875a]"
-                  >
-                    <option value="">-- Choose Existing Customer --</option>
+                <div className={ui.field}>
+                  <label htmlFor="as-customer">Customer from khata</label>
+                  <select id="as-customer" value={selectedCustomerId} onChange={(e) => setSelectedCustomerId(e.target.value)} className={ui.select}>
+                    <option value="">Choose existing customer…</option>
                     {customers.map((c) => (
                       <option key={c.id} value={c.id}>
                         {c.name} ({c.mobile})
@@ -515,137 +462,106 @@ export function AddSaleModal({ isOpen, onClose, onSaleCompleted }: AddSaleModalP
                   </select>
                 </div>
               )}
-            </div>
+            </section>
 
-            {/* 3. Discount & Payment Method */}
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              {/* Discount Section */}
-              <div className="p-4 rounded-2xl bg-gray-50 border border-gray-200 space-y-2.5">
-                <label className="text-xs font-black text-gray-800 uppercase tracking-wider flex items-center gap-1.5">
-                  <span>🏷️</span> Apply Discount
-                </label>
+            {/* 3. Discount & payment */}
+            <div className={ui.formGrid}>
+              <section className="flex flex-col gap-2.5">
+                {sectionTitle("tag", "Discount")}
                 <div className="flex gap-2">
-                  <select
-                    value={discountType}
-                    onChange={(e) => setDiscountType(e.target.value as any)}
-                    className="w-1/2 px-2.5 py-2 rounded-xl bg-white border border-gray-200 text-xs font-bold text-gray-800 outline-none"
-                  >
-                    <option value="none">No Discount</option>
-                    <option value="fixed">Fixed (₨ Off)</option>
-                    <option value="percentage">Percent (% Off)</option>
+                  <select value={discountType} onChange={(e) => setDiscountType(e.target.value as any)} className={ui.select} aria-label="Discount type">
+                    <option value="none">No discount</option>
+                    <option value="fixed">Fixed (Rs off)</option>
+                    <option value="percentage">Percent (% off)</option>
                   </select>
                   {discountType !== "none" && (
                     <input
                       type="text"
                       inputMode="numeric"
-                      placeholder={discountType === "percentage" ? "10%" : "500"}
+                      placeholder={discountType === "percentage" ? "10" : "500"}
                       value={discountType === "fixed" ? formatCurrencyInput(discountValue) : discountValue}
                       onChange={(e) => setDiscountValue(e.target.value)}
-                      className="w-1/2 px-3 py-2 rounded-xl bg-white border border-gray-200 text-xs font-bold text-gray-900 outline-none focus:border-[#00875a]"
+                      className={`${ui.input} ${ui.inputMono}`}
+                      aria-label="Discount value"
                     />
                   )}
                 </div>
                 {discountAmount > 0 && (
-                  <p className="text-[11px] font-bold text-emerald-700">
-                    Discount saving: ₨ {discountAmount.toLocaleString()}
-                  </p>
+                  <span className="text-[12px] text-[var(--pos)]">
+                    Saving <span className="font-mono">Rs {discountAmount.toLocaleString()}</span>
+                  </span>
                 )}
-              </div>
+              </section>
 
-              {/* Payment Method Section */}
-              <div className="p-4 rounded-2xl bg-gray-50 border border-gray-200 space-y-2.5">
-                <label className="text-xs font-black text-gray-800 uppercase tracking-wider flex items-center gap-1.5">
-                  <span>💳</span> Payment Method
-                </label>
-                <div className="grid grid-cols-2 gap-2">
-                  <button
-                    type="button"
-                    onClick={() => setPaymentMethod("cash")}
-                    className={`py-2 px-3 rounded-xl border font-bold text-xs flex items-center justify-center gap-1.5 transition ${
-                      paymentMethod === "cash"
-                        ? "bg-[#e6f4ed] text-[#00875a] border-[#00875a] ring-2 ring-[#00875a]/20"
-                        : "bg-white text-gray-700 border-gray-200"
-                    }`}
-                  >
-                    <span>💵</span> Cash
+              <section className="flex flex-col gap-2.5">
+                {sectionTitle("card", "Payment")}
+                <div className={ui.segmented} role="radiogroup" aria-label="Payment method">
+                  <button type="button" role="radio" aria-checked={paymentMethod === "cash"} onClick={() => setPaymentMethod("cash")} className={`flex-1 justify-center ${paymentMethod === "cash" ? ui.segmentedOn : ""}`}>
+                    <Icon name="coins" size={13} />
+                    Cash
                   </button>
-                  <button
-                    type="button"
-                    onClick={() => setPaymentMethod("online")}
-                    className={`py-2 px-3 rounded-xl border font-bold text-xs flex items-center justify-center gap-1.5 transition ${
-                      paymentMethod === "online"
-                        ? "bg-[#e6f4ed] text-[#00875a] border-[#00875a] ring-2 ring-[#00875a]/20"
-                        : "bg-white text-gray-700 border-gray-200"
-                    }`}
-                  >
-                    <span>🏦</span> Online / Bank
+                  <button type="button" role="radio" aria-checked={paymentMethod === "online"} onClick={() => setPaymentMethod("online")} className={`flex-1 justify-center ${paymentMethod === "online" ? ui.segmentedOn : ""}`}>
+                    <Icon name="bank" size={13} />
+                    Online / bank
                   </button>
                 </div>
-
                 {paymentMethod === "cash" && (
-                  <div className="pt-1 flex items-center gap-2">
-                    <div className="flex-1">
-                      <label className="block text-[10px] font-bold text-gray-500 mb-0.5">Cash Tendered (₨)</label>
+                  <div className="flex items-end gap-3">
+                    <div className={`${ui.field} flex-1`}>
+                      <label htmlFor="as-tendered">Cash tendered (Rs)</label>
                       <input
+                        id="as-tendered"
                         type="text"
                         inputMode="numeric"
                         placeholder="5,000"
                         value={formatCurrencyInput(cashTendered)}
                         onChange={(e) => setCashTendered(e.target.value)}
-                        className="w-full px-2.5 py-1.5 rounded-lg bg-white border border-gray-200 text-xs font-bold text-gray-900 outline-none"
+                        className={`${ui.input} ${ui.inputMono}`}
                       />
                     </div>
                     {changeDue > 0 && (
-                      <div className="text-right">
-                        <span className="block text-[10px] font-bold text-gray-500">Change Due</span>
-                        <strong className="text-xs font-black text-emerald-700">₨ {changeDue.toLocaleString()}</strong>
+                      <div className="pb-2 text-right">
+                        <span className="block text-[11.5px] text-[var(--muted)]">Change due</span>
+                        <strong className="font-mono text-[14px] font-medium text-[var(--pos)]">Rs {changeDue.toLocaleString()}</strong>
                       </div>
                     )}
                   </div>
                 )}
-              </div>
+              </section>
             </div>
 
-            {/* 4. Financial Summary & Submit CTA */}
-            <div className="p-4 rounded-2xl bg-gradient-to-r from-emerald-950 to-teal-950 text-white space-y-2">
-              <div className="flex justify-between text-xs text-emerald-200/80">
-                <span>Subtotal ({lines.filter((l) => l.productId > 0).length} items)</span>
-                <span>₨ {subtotal.toLocaleString()}</span>
+            {/* 4. Summary */}
+            <dl className={`${ui.kv} ${sm.summary}`}>
+              <div>
+                <dt>Subtotal · {lines.filter((l) => l.productId > 0).length} items</dt>
+                <dd className="font-mono">Rs {subtotal.toLocaleString()}</dd>
               </div>
               {discountAmount > 0 && (
-                <div className="flex justify-between text-xs text-emerald-400 font-semibold">
-                  <span>Discount</span>
-                  <span>- ₨ {discountAmount.toLocaleString()}</span>
+                <div>
+                  <dt>Discount</dt>
+                  <dd className="font-mono !text-[var(--pos)]">− Rs {discountAmount.toLocaleString()}</dd>
                 </div>
               )}
-              <div className="flex justify-between items-baseline pt-2 border-t border-emerald-800">
-                <span className="text-sm font-extrabold text-white uppercase tracking-wider">Total Bill</span>
-                <span className="text-2xl font-black text-emerald-300">
-                  ₨ {grandTotal.toLocaleString()}
-                </span>
+              <div className={ui.kvTotal}>
+                <dt>Total bill</dt>
+                <dd className="font-mono !text-[22px] tracking-[-0.03em]">Rs {grandTotal.toLocaleString()}</dd>
               </div>
-            </div>
+            </dl>
 
-            {/* Action Buttons */}
-            <div className="flex items-center justify-end gap-3 pt-2">
-              <button
-                type="button"
-                onClick={onClose}
-                className="px-5 py-3 rounded-2xl bg-gray-100 hover:bg-gray-200 text-gray-700 font-extrabold text-xs transition cursor-pointer"
-              >
+            <div className={`${ui.formActions} !mt-0`}>
+              <button type="button" onClick={onClose} className={ui.secondary}>
                 Cancel
               </button>
-              <button
-                type="submit"
-                disabled={submitting || subtotal === 0}
-                className="px-8 py-3.5 rounded-2xl bg-gradient-to-r from-[#00875a] to-[#006644] hover:from-[#00744e] hover:to-[#005236] text-white font-black text-sm shadow-lg shadow-[#00875a]/25 transition flex items-center gap-2 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
-              >
+              <button type="submit" disabled={submitting || subtotal === 0} className={`${ui.primary} ${ui.btnLg}`}>
                 {submitting ? (
-                  <span>Processing Sale...</span>
+                  <>
+                    <span className="size-3.5 rounded-full border-2 border-current border-t-transparent [animation:almadelSpin_700ms_linear_infinite]" />
+                    Processing sale…
+                  </>
                 ) : (
                   <>
-                    <span>Complete Sale (Bill Banayein)</span>
-                    <span className="text-base font-bold">➔</span>
+                    <Icon name="check" size={15} />
+                    Complete sale (Bill Banayein)
                   </>
                 )}
               </button>

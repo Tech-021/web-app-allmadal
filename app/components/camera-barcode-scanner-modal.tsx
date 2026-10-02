@@ -1,6 +1,8 @@
 "use client";
 
 import { useEffect, useRef, useState, useCallback } from "react";
+import { Icon } from "@/app/components/icons";
+import ui from "@/app/components/workspace-ui.module.css";
 import { Html5Qrcode, Html5QrcodeSupportedFormats, CameraDevice } from "html5-qrcode";
 import { useLanguage } from "./language-context";
 
@@ -420,203 +422,152 @@ export function CameraBarcodeScannerModal({
 
   if (!isOpen) return null;
 
+  const toolBtn =
+    "inline-flex h-8 items-center gap-1.5 rounded-[8px] border border-[var(--border-strong)] bg-[var(--surface-2)] px-2.5 text-[12px] font-medium text-[var(--text-2)] transition hover:border-[var(--faint)] hover:text-[var(--text)] cursor-pointer max-sm:h-10";
+
   return (
     <div
-      className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-slate-950/80 backdrop-blur-sm animate-in fade-in duration-200"
+      className="al-overlay fixed inset-0 z-50 flex items-end justify-center bg-[rgba(3,4,5,.82)] backdrop-blur-[4px] sm:items-center sm:p-4"
       onMouseDown={(e) => {
         if (e.target === e.currentTarget) onClose();
       }}
     >
-      <div className="relative w-full max-w-lg bg-slate-900 border border-slate-800 rounded-3xl shadow-2xl overflow-hidden flex flex-col text-white">
+      <div
+        data-theme="dark"
+        role="dialog"
+        aria-modal="true"
+        aria-label={title || "Barcode scanner"}
+        className="relative flex max-h-[100dvh] w-full max-w-lg flex-col overflow-hidden rounded-t-[20px] border border-[var(--border-strong)] bg-[var(--surface)] text-[var(--text)] shadow-[var(--shadow-lg)] sm:rounded-[18px]"
+      >
         {/* Header */}
-        <div className="px-5 py-4 border-b border-slate-800 flex items-center justify-between bg-slate-900/90">
-          <div className="flex items-center gap-2.5">
-            <span className="flex items-center justify-center size-9 rounded-xl bg-emerald-500/10 text-emerald-400 text-lg border border-emerald-500/20">
-              📷
+        <div className="flex items-center justify-between gap-3 border-b border-[var(--border)] px-4 py-3.5 sm:px-5">
+          <div className="flex min-w-0 items-center gap-2.5">
+            <span className="grid size-8 shrink-0 place-items-center rounded-[9px] border border-[var(--brand-line)] bg-[var(--brand-soft)] text-[var(--brand)]">
+              <Icon name="scan" size={16} />
             </span>
-            <div>
-              <h2 className="text-base font-extrabold text-white tracking-tight">
-                {title || (language === "ur" ? "Camera Barcode Scanner" : "Camera Barcode & QR Scanner")}
+            <div className="min-w-0">
+              <h2 className="m-0 truncate text-[15px] font-semibold tracking-[-0.01em]">
+                {title || (language === "ur" ? "Camera Barcode Scanner" : "Barcode & QR scanner")}
               </h2>
-              <p className="text-xs text-slate-400 font-medium">
-                {subtitle ||
-                  (language === "ur"
-                    ? "Camera ko barcode ke samnay rakhein"
-                    : "Point camera at any standard retail barcode or QR code")}
+              <p className="m-0 truncate text-[12px] text-[var(--muted)]">
+                {subtitle || (language === "ur" ? "Camera ko barcode ke samnay rakhein" : "Point the camera at any retail barcode or QR code")}
               </p>
             </div>
           </div>
-
           <button
             type="button"
             onClick={onClose}
-            className="size-8 rounded-full bg-slate-800 hover:bg-slate-700 text-slate-400 hover:text-white flex items-center justify-center text-sm font-bold transition cursor-pointer"
+            aria-label="Close scanner"
+            className="grid size-8 shrink-0 place-items-center rounded-[8px] text-[var(--muted)] transition hover:bg-[var(--surface-2)] hover:text-[var(--text)] max-sm:size-10"
           >
-            ✕
+            <Icon name="x" size={16} />
           </button>
         </div>
 
-        {/* Video Viewport Area */}
-        <div className="relative bg-black flex items-center justify-center min-h-[320px] overflow-hidden select-none">
-          <div
-            id={containerIdRef.current}
-            className="w-full h-full flex items-center justify-center [&_video]:max-h-[380px] [&_video]:w-full [&_video]:object-contain"
-          />
+        {/* Viewport */}
+        <div className="relative flex min-h-[300px] select-none items-center justify-center overflow-hidden bg-black">
+          <div id={containerIdRef.current} className="flex size-full items-center justify-center [&_video]:max-h-[380px] [&_video]:w-full [&_video]:object-contain" />
 
-          {/* Loading Indicator */}
           {isStarting && (
-            <div className="absolute inset-0 flex flex-col items-center justify-center bg-slate-950/90 z-20 space-y-3">
-              <div className="size-10 rounded-full border-3 border-emerald-500/20 border-t-emerald-500 animate-spin" />
-              <p className="text-xs font-bold text-slate-300">
-                {language === "ur" ? "Camera shuru ho raha hai..." : "Accessing camera..."}
-              </p>
+            <div className="absolute inset-0 z-20 flex flex-col items-center justify-center gap-3 bg-[var(--bg)]/90">
+              <span className="size-8 rounded-full border-2 border-[var(--brand-line)] border-t-[var(--brand)] [animation:almadelSpin_800ms_linear_infinite]" />
+              <p className="m-0 text-[12.5px] text-[var(--muted)]">{language === "ur" ? "Camera shuru ho raha hai..." : "Starting camera…"}</p>
             </div>
           )}
 
-          {/* Error Message */}
           {errorMsg && (
-            <div className="absolute inset-0 flex flex-col items-center justify-center p-6 text-center bg-slate-950/95 z-20 space-y-3">
-              <span className="text-3xl">⚠️</span>
-              <p className="text-xs font-bold text-red-400 max-w-xs">{errorMsg}</p>
-              <button
-                type="button"
-                onClick={() => onClose()}
-                className="px-4 py-2 rounded-xl text-xs font-extrabold bg-slate-800 text-white hover:bg-slate-700 transition"
-              >
+            <div className="absolute inset-0 z-20 flex flex-col items-center justify-center gap-3 bg-[var(--bg)]/95 p-6 text-center">
+              <span className="grid size-11 place-items-center rounded-[12px] bg-[var(--neg-soft)] text-[var(--neg)]">
+                <Icon name="alert" size={20} />
+              </span>
+              <p className="m-0 max-w-xs text-[13px] text-[var(--text-2)]">{errorMsg}</p>
+              <button type="button" onClick={() => onClose()} className={toolBtn}>
                 {t("form.close", "Close")}
               </button>
             </div>
           )}
 
-          {/* Target Reticle / Laser Overlay */}
           {!isStarting && !errorMsg && (
-            <div className="absolute inset-0 pointer-events-none flex items-center justify-center">
-              {/* Corner reticle frame */}
-              <div className="relative w-[300px] h-[190px] border border-white/20 rounded-2xl shadow-[0_0_0_9999px_rgba(0,0,0,0.45)]">
-                {/* Top-Left Corner */}
-                <div className="absolute -top-1 -left-1 size-5 border-t-3 border-l-3 border-emerald-400 rounded-tl-lg" />
-                {/* Top-Right Corner */}
-                <div className="absolute -top-1 -right-1 size-5 border-t-3 border-r-3 border-emerald-400 rounded-tr-lg" />
-                {/* Bottom-Left Corner */}
-                <div className="absolute -bottom-1 -left-1 size-5 border-b-3 border-l-3 border-emerald-400 rounded-bl-lg" />
-                {/* Bottom-Right Corner */}
-                <div className="absolute -bottom-1 -right-1 size-5 border-b-3 border-r-3 border-emerald-400 rounded-br-lg" />
-
-                {/* Animated Pulsing Laser Line */}
-                <div className="absolute left-2 right-2 h-0.5 bg-gradient-to-r from-transparent via-emerald-400 to-transparent shadow-[0_0_12px_#10b981] animate-bounce duration-1000 top-1/2 -translate-y-1/2" />
+            <div className="pointer-events-none absolute inset-0 flex items-center justify-center">
+              <div className="relative h-[180px] w-[min(300px,80%)] rounded-[16px] shadow-[0_0_0_9999px_rgba(0,0,0,0.5)]">
+                <span className="absolute -left-px -top-px size-6 rounded-tl-[14px] border-l-2 border-t-2 border-[var(--brand)]" />
+                <span className="absolute -right-px -top-px size-6 rounded-tr-[14px] border-r-2 border-t-2 border-[var(--brand)]" />
+                <span className="absolute -bottom-px -left-px size-6 rounded-bl-[14px] border-b-2 border-l-2 border-[var(--brand)]" />
+                <span className="absolute -bottom-px -right-px size-6 rounded-br-[14px] border-b-2 border-r-2 border-[var(--brand)]" />
+                <span className="absolute inset-x-3 h-px bg-[linear-gradient(90deg,transparent,var(--brand),transparent)] shadow-[0_0_10px_var(--brand)] [animation:scanSweep_2.2s_var(--ease)_infinite_alternate]" />
               </div>
-
-              {/* Scanning status hint badge */}
-              <div className="absolute bottom-4 px-3 py-1 rounded-full bg-slate-900/80 backdrop-blur-md border border-white/10 text-[11px] font-extrabold text-emerald-400 flex items-center gap-1.5 shadow-md">
-                <span className="size-2 rounded-full bg-emerald-500 animate-ping" />
-                <span>
-                  {language === "ur" ? "Barcode samnay rakhein" : "Align barcode within frame"}
-                </span>
+              <div className="absolute bottom-4 flex items-center gap-2 rounded-full border border-white/10 bg-black/60 px-3 py-1 text-[11.5px] font-medium text-white/85 backdrop-blur-md">
+                <span className="al-live-dot" />
+                {language === "ur" ? "Barcode samnay rakhein" : "Align barcode within the frame"}
               </div>
             </div>
           )}
 
-          {/* Scan Success Confirmation Banner */}
           {recentScanFlash && (
-            <div className="absolute top-4 inset-x-4 z-30 flex items-center justify-center pointer-events-none animate-in zoom-in-95 duration-150">
-              <div className="px-4 py-2.5 rounded-2xl bg-emerald-600 text-white font-black text-xs shadow-xl flex items-center gap-2 border border-emerald-400/40">
-                <span className="text-base">✓</span>
-                <span>
-                  {language === "ur" ? "Scan Mukammal:" : "Barcode Scanned:"}{" "}
-                  <code className="font-mono bg-emerald-700/80 px-1.5 py-0.5 rounded text-[11px]">
-                    {recentScanFlash}
-                  </code>
-                </span>
+            <div className="al-pop pointer-events-none absolute inset-x-4 top-4 z-30 flex justify-center">
+              <div className="flex items-center gap-2 rounded-[10px] bg-[var(--brand)] px-3.5 py-2 text-[12.5px] font-medium text-[var(--on-brand)] shadow-[var(--shadow-lg)]">
+                <Icon name="check" size={14} strokeWidth={2.2} />
+                {language === "ur" ? "Scan Mukammal:" : "Scanned"}
+                <code className="rounded bg-black/15 px-1.5 py-0.5 font-mono text-[11.5px]">{recentScanFlash}</code>
               </div>
             </div>
           )}
         </div>
 
-        {/* Last Scanned Feedback Card (When Product is found in POS) */}
         {lastScannedInfo && (
-          <div className="px-5 py-2.5 bg-slate-800/80 border-t border-slate-700/80 flex items-center justify-between text-xs">
-            <div className="flex items-center gap-2">
-              <span className={`text-base ${lastScannedInfo.found ? "text-emerald-400" : "text-amber-400"}`}>
-                {lastScannedInfo.found ? "✅" : "⚠️"}
+          <div className="al-pop flex items-center justify-between gap-3 border-t border-[var(--border)] bg-[var(--surface-2)] px-4 py-2.5 sm:px-5">
+            <div className="flex min-w-0 items-center gap-2.5">
+              <span
+                className={`grid size-7 shrink-0 place-items-center rounded-[8px] ${
+                  lastScannedInfo.found ? "bg-[var(--brand-soft)] text-[var(--brand)]" : "bg-[var(--warn-soft)] text-[var(--warn)]"
+                }`}
+              >
+                <Icon name={lastScannedInfo.found ? "check" : "alert"} size={14} />
               </span>
-              <div>
-                <p className="font-extrabold text-white">
-                  {lastScannedInfo.productName || (language === "ur" ? "Samaan nahi mila" : "Unknown Item")}
-                </p>
-                <p className="text-[10px] text-slate-400 font-mono">
-                  {lastScannedInfo.code}
-                </p>
+              <div className="min-w-0">
+                <p className="m-0 truncate text-[13px] font-medium">{lastScannedInfo.productName || (language === "ur" ? "Samaan nahi mila" : "Unknown item")}</p>
+                <p className="m-0 font-mono text-[11px] text-[var(--muted)]">{lastScannedInfo.code}</p>
               </div>
             </div>
-            {lastScannedInfo.price !== undefined && (
-              <span className="font-black text-emerald-400 text-sm">
-                ₨ {lastScannedInfo.price.toLocaleString()}
-              </span>
-            )}
+            {lastScannedInfo.price !== undefined && <span className="shrink-0 font-mono text-[13px] font-medium text-[var(--brand)]">Rs {lastScannedInfo.price.toLocaleString()}</span>}
           </div>
         )}
 
-        {/* Guidance Tip Banner */}
-        <div className="px-5 py-2 bg-slate-950/90 border-t border-slate-800/80 flex items-center gap-2 text-[11px] text-slate-400">
-          <span className="text-emerald-400 text-xs">💡</span>
+        <div className="flex items-start gap-2 border-t border-[var(--border)] px-4 py-2 text-[11.5px] leading-relaxed text-[var(--muted)] sm:px-5">
+          <Icon name="info" size={13} className="mt-0.5 shrink-0" />
           <span>
             {language === "ur"
               ? "Naseehat: Barcode ko camera se 15–20cm door rakhein taake focus saaf ho."
-              : "Tip: Hold barcode 15–20cm away from camera, flat and well-lit. Move back slightly if blurry."}
+              : "Hold the barcode 15–20cm away, flat and well-lit. Move back slightly if it's blurry."}
           </span>
         </div>
 
-        {/* Controls Toolbar */}
-        <div className="p-4 bg-slate-900 border-t border-slate-800 flex flex-wrap items-center justify-between gap-2.5">
-          <div className="flex items-center gap-2">
-            {/* Camera Switcher (if > 1 camera) */}
+        {/* Controls */}
+        <div className="flex flex-wrap items-center justify-between gap-2.5 border-t border-[var(--border)] px-4 py-3 sm:px-5">
+          <div className="flex flex-wrap items-center gap-1.5">
             {cameras.length > 1 && (
-              <button
-                type="button"
-                onClick={() => void handleSwitchCamera()}
-                title="Switch front/rear camera"
-                className="px-3 py-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 border border-slate-700 text-xs font-bold text-slate-200 flex items-center gap-1.5 transition cursor-pointer"
-              >
-                <span>🔄</span>
-                <span>{language === "ur" ? "Camera Badlein" : "Flip"}</span>
+              <button type="button" onClick={() => void handleSwitchCamera()} title="Switch front/rear camera" className={toolBtn}>
+                <Icon name="refresh" size={13} />
+                {language === "ur" ? "Camera Badlein" : "Flip"}
               </button>
             )}
-
-            {/* Flashlight/Torch toggle if supported */}
             {hasTorch && (
               <button
                 type="button"
                 onClick={() => void toggleTorch()}
-                title="Toggle camera flashlight"
-                className={`px-3 py-1.5 rounded-xl border text-xs font-bold flex items-center gap-1.5 transition cursor-pointer ${
-                  isTorchOn
-                    ? "bg-amber-500/20 border-amber-500/40 text-amber-300"
-                    : "bg-slate-800 hover:bg-slate-700 border-slate-700 text-slate-200"
-                }`}
+                title="Toggle flashlight"
+                aria-pressed={isTorchOn}
+                className={`${toolBtn} ${isTorchOn ? "!border-[color-mix(in_oklab,var(--warn)_40%,transparent)] !bg-[var(--warn-soft)] !text-[var(--warn)]" : ""}`}
               >
-                <span>{isTorchOn ? "🔦 On" : "🔦 Off"}</span>
+                <Icon name="zap" size={13} />
+                {isTorchOn ? "Torch on" : "Torch"}
               </button>
             )}
-
-            {/* Snap / Upload Image file */}
-            <input
-              ref={fileInputRef}
-              type="file"
-              accept="image/*"
-              className="hidden"
-              onChange={handleFileUpload}
-            />
-            <button
-              type="button"
-              onClick={() => fileInputRef.current?.click()}
-              title="Upload photo or take picture if webcam is blurry"
-              className="px-3 py-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 border border-slate-700 text-xs font-bold text-slate-200 flex items-center gap-1.5 transition cursor-pointer"
-            >
-              <span>📁</span>
-              <span>{language === "ur" ? "Tasveer Upload" : "Upload Photo"}</span>
+            <input ref={fileInputRef} type="file" accept="image/*" className="hidden" onChange={handleFileUpload} />
+            <button type="button" onClick={() => fileInputRef.current?.click()} title="Upload a photo if the webcam is blurry" className={toolBtn}>
+              <Icon name="image" size={13} />
+              {language === "ur" ? "Tasveer Upload" : "Upload photo"}
             </button>
-
-            {/* Sound Mute/Unmute */}
             <button
               type="button"
               onClick={() => {
@@ -627,44 +578,39 @@ export function CameraBarcodeScannerModal({
                 }
               }}
               title={soundEnabled ? "Mute beep sound" : "Enable beep sound (click to test)"}
-              className="size-8 rounded-xl bg-slate-800 hover:bg-slate-700 border border-slate-700 text-slate-300 flex items-center justify-center text-xs transition cursor-pointer"
+              aria-pressed={soundEnabled}
+              className={`${toolBtn} w-8 justify-center px-0 max-sm:w-10 ${soundEnabled ? "" : "opacity-60"}`}
             >
-              {soundEnabled ? "🔔" : "🔕"}
+              <Icon name="bell" size={13} />
             </button>
           </div>
 
-          {/* Continuous Scanning Mode Toggle */}
-          <label className="flex items-center gap-2 text-xs font-bold text-slate-300 cursor-pointer select-none">
+          <label className="flex cursor-pointer select-none items-center gap-2 text-[12.5px] text-[var(--text-2)]">
             <input
               type="checkbox"
+              role="switch"
               checked={isContinuous}
               onChange={(e) => {
                 const val = e.target.checked;
                 setIsContinuous(val);
                 if (onContinuousToggle) onContinuousToggle(val);
               }}
-              className="size-4 accent-[#00875a] rounded cursor-pointer"
+              className={ui.switch}
             />
-            <span>
-              {language === "ur" ? "Musalsal Scan (Continuous)" : "Continuous POS Scan"}
-            </span>
+            {language === "ur" ? "Musalsal Scan (Continuous)" : "Continuous scan"}
           </label>
         </div>
 
-        {/* Manual Barcode Digits Fallback Entry */}
-        <form onSubmit={handleManualSubmit} className="p-3 bg-slate-950/70 border-t border-slate-800/80 flex items-center gap-2">
+        <form onSubmit={handleManualSubmit} className="flex items-center gap-2 border-t border-[var(--border)] bg-[var(--sunken)] px-4 py-3 pb-[calc(12px+env(safe-area-inset-bottom))] sm:px-5">
           <input
             type="text"
-            placeholder={language === "ur" ? "Ya barcode number likhein..." : "Or type barcode number manually..."}
+            placeholder={language === "ur" ? "Ya barcode number likhein..." : "Or type the barcode number…"}
             value={manualCode}
             onChange={(e) => setManualCode(e.target.value)}
-            className="flex-1 px-3 py-2 rounded-xl bg-slate-800/80 border border-slate-700 text-xs font-mono font-bold text-white placeholder-slate-500 outline-none focus:border-emerald-500 transition"
+            className={`${ui.input} ${ui.inputMono} flex-1`}
+            aria-label="Barcode number"
           />
-          <button
-            type="submit"
-            disabled={!manualCode.trim()}
-            className="px-3.5 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 disabled:opacity-40 text-white text-xs font-bold transition cursor-pointer"
-          >
+          <button type="submit" disabled={!manualCode.trim()} className={ui.primary}>
             {t("action.submit", "Enter")}
           </button>
         </form>

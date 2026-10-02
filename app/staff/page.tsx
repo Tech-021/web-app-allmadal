@@ -10,6 +10,9 @@ import { useToast } from "@/app/components/toast-context";
 import { logActivity } from "@/app/lib/logger";
 import { PaginationControls } from "@/app/components/pagination-controls";
 import ui from "@/app/components/workspace-ui.module.css";
+import ob from "@/app/components/onboarding.module.css";
+import { Icon } from "@/app/components/icons";
+import { Metric, MetricStrip, PageHeader, TableEmptyRow, TableSkeletonRows } from "@/app/components/page-layout";
 import { canManageStore } from "@/app/lib/access";
 
 type Draft = { fullName: string; email: string; password: string; confirm: string; role: "staff" | "accountant" };
@@ -210,172 +213,141 @@ export default function StaffPage() {
 
   return (
     <WorkspaceShell>
-      <div className={ui.head}>
-        <div>
-          <label>Admin</label>
-          <h1>Staff & Team Management</h1>
-          <p>Add staff (POS counter) and accountants (finance books, balance sheets & reports).</p>
-        </div>
-        <button className={ui.primary} onClick={() => open()}>
-          + Add Team Member
-        </button>
-      </div>
+      <PageHeader
+        eyebrow="Team"
+        title="Staff & permissions"
+        description="Add counter staff for POS, and accountants for books, balance sheets and reports."
+        actions={
+          <button className={ui.primary} onClick={() => open()}>
+            <Icon name="plus" size={15} />
+            Add team member
+          </button>
+        }
+      />
 
-      {error && <div className={ui.error}>{error}</div>}
-      {notice && <div className={ui.notice}>{notice}</div>}
+      {error && (
+        <div className={ui.error} role="alert">
+          <Icon name="alert" size={15} className="mt-px shrink-0" />
+          {error}
+        </div>
+      )}
+      {notice && (
+        <div className={ui.notice} role="status">
+          <Icon name="check" size={15} className="mt-px shrink-0" />
+          {notice}
+        </div>
+      )}
 
-      <section className={ui.metrics}>
-        <div className={ui.metric}>
-          <span>Staff Members</span>
-          <strong>{totals.staffCount}</strong>
-        </div>
-        <div className={ui.metric}>
-          <span>Accountants</span>
-          <strong>{totals.accountantCount}</strong>
-        </div>
-        <div className={ui.metric}>
-          <span>POS Staff Sales</span>
-          <strong>{money(totals.sales)}</strong>
-        </div>
-        <div className={ui.metric}>
-          <span>Items Sold</span>
-          <strong>{totals.items}</strong>
-        </div>
-      </section>
+      <MetricStrip>
+        <Metric label="Staff members" icon="users" value={totals.staffCount.toLocaleString()} hint="POS counter access" />
+        <Metric label="Accountants" icon="wallet" value={totals.accountantCount.toLocaleString()} hint="Financial books access" />
+        <Metric label="Staff sales" icon="pkr" tone="pos" value={money(totals.sales)} hint="Total through staff counters" />
+        <Metric label="Items sold" icon="box" value={Number(totals.items || 0).toLocaleString()} hint="By staff members" />
+      </MetricStrip>
 
-      <div className={ui.toolbar}>
-        <input
-          className={`${ui.input} ${ui.search}`}
-          placeholder="Search team members by name, email, or role…"
-          value={query}
-          onChange={(e) => {
-            setQuery(e.target.value);
-            setPage(1);
-          }}
-        />
-        <button className={ui.secondary} onClick={() => void load()}>
-          Refresh
-        </button>
-      </div>
-
-      <section className={ui.panel}>
-        <div className={ui.tableWrap}>
+      <section className={`${ui.panel} ${ui.panelFlush}`}>
+        <div className={ui.panelHead}>
+          <input
+            className={`${ui.input} ${ui.search} max-w-[440px]`}
+            placeholder="Search by name, email or role…"
+            value={query}
+            onChange={(e) => {
+              setQuery(e.target.value);
+              setPage(1);
+            }}
+            aria-label="Search team members"
+          />
+          <button className={ui.iconButton} onClick={() => void load()} aria-label="Refresh" title="Refresh">
+            <Icon name="refresh" size={15} />
+          </button>
+        </div>
+        <div className={`${ui.tableWrap} ${ui.tableBare}`}>
           <table className={ui.table}>
             <thead>
               <tr>
                 <th>Member</th>
-                <th>Role & Access</th>
-                <th>Total Sales</th>
-                <th>Orders</th>
-                <th>Items Sold</th>
-                <th>Avg. Sale</th>
-                <th>Actions</th>
+                <th>Role</th>
+                <th className="text-right">Total sales</th>
+                <th className="text-right">Orders</th>
+                <th className="text-right">Items sold</th>
+                <th className="text-right">Avg. sale</th>
+                <th className="text-right">Actions</th>
               </tr>
             </thead>
             <tbody>
-              {paginatedShown.map((item) => {
-                const name = item.user.fullName || "Unnamed member";
-                const initial = name[0]?.toUpperCase() || "M";
-                const isAccountant = item.user.role === "accountant";
-
-                return (
-                  <tr key={item.user.id}>
-                    <td>
-                      <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
-                        <div
-                          style={{
-                            width: 38,
-                            height: 38,
-                            borderRadius: 12,
-                            background: isAccountant ? "#ede9fe" : "#e6f4ed",
-                            color: isAccountant ? "#6d28d9" : "#00875a",
-                            fontWeight: 800,
-                            fontSize: 14,
-                            display: "grid",
-                            placeItems: "center",
-                            flexShrink: 0,
-                          }}
-                        >
-                          {initial}
-                        </div>
-                        <div>
-                          <strong style={{ fontSize: 13.5, color: "#111827", display: "block" }}>
-                            {name}
-                          </strong>
-                          <span className={ui.muted}>{item.user.email}</span>
-                        </div>
-                      </div>
-                    </td>
-                    <td>
-                      <div style={{ display: "flex", gap: 6, alignItems: "center" }}>
-                        {isAccountant ? (
+              {loading && !staff.length ? (
+                <TableSkeletonRows cols={7} rows={3} />
+              ) : !shown.length ? (
+                <TableEmptyRow
+                  colSpan={7}
+                  icon="users"
+                  title={query ? "No team members match your search" : "No team members yet"}
+                  body={query ? "Try a different name, email or role." : "Invite staff to run the counter, or an accountant to manage your books."}
+                  action={
+                    !query && (
+                      <button className={ui.primary} onClick={() => open()}>
+                        <Icon name="plus" size={15} />
+                        Add team member
+                      </button>
+                    )
+                  }
+                />
+              ) : (
+                paginatedShown.map((item) => {
+                  const name = item.user.fullName || "Unnamed member";
+                  const initial = name[0]?.toUpperCase() || "M";
+                  const isAccountant = item.user.role === "accountant";
+                  return (
+                    <tr key={item.user.id}>
+                      <td>
+                        <div className={ui.productCell}>
                           <span
-                            className={ui.badge}
-                            style={{
-                              background: "#f5f3ff",
-                              color: "#6d28d9",
-                              borderColor: "#ddd6fe",
-                              fontWeight: 700,
-                            }}
+                            className={`grid size-9 shrink-0 place-items-center rounded-[10px] text-[13px] font-semibold ${
+                              isAccountant ? "bg-[var(--info-soft)] text-[var(--info)]" : "bg-[var(--brand-soft)] text-[var(--brand-ink)]"
+                            }`}
                           >
-                            Accountant
+                            {initial}
                           </span>
-                        ) : (
-                          <span className={ui.badge}>Staff</span>
-                        )}
-                        <span className={`${ui.badge} ${ui.success}`}>Active</span>
-                      </div>
-                    </td>
-                    <td>
-                      {isAccountant ? (
-                        <span className={ui.muted} style={{ fontSize: 12 }}>Financials only</span>
-                      ) : (
-                        <strong style={{ color: "#00875a", fontSize: 13.5 }}>
-                          {money(item.stats.totalSales)}
-                        </strong>
-                      )}
-                    </td>
-                    <td>
-                      {isAccountant ? <span className={ui.muted}>—</span> : <strong>{item.stats.sales}</strong>}
-                    </td>
-                    <td>
-                      {isAccountant ? <span className={ui.muted}>—</span> : <strong>{item.stats.totalItemsSold}</strong>}
-                    </td>
-                    <td>
-                      {isAccountant ? (
-                        <span className={ui.muted}>—</span>
-                      ) : (
-                        <span style={{ fontWeight: 600, color: "#374151" }}>
-                          {money(item.stats.sales ? item.stats.totalSales / item.stats.sales : 0)}
-                        </span>
-                      )}
-                    </td>
-                    <td>
-                      <div className={ui.actions}>
-                        <button className={ui.secondary} onClick={() => open(item)}>
-                          Edit
-                        </button>
-                        <button className={ui.danger} onClick={() => void remove(item)}>
-                          Delete
-                        </button>
-                      </div>
-                    </td>
-                  </tr>
-                );
-              })}
-              {!loading && !shown.length && (
-                <tr>
-                  <td colSpan={7} className={ui.empty}>
-                    {query ? "No team members match your search." : "No team members found."}
-                  </td>
-                </tr>
-              )}
-              {loading && !staff.length && (
-                <tr>
-                  <td colSpan={7} className={ui.empty}>
-                    Loading team members…
-                  </td>
-                </tr>
+                          <div className="min-w-0">
+                            <span className="block truncate font-medium">{name}</span>
+                            <span className="block truncate text-[12px] text-[var(--muted)]">{item.user.email}</span>
+                          </div>
+                        </div>
+                      </td>
+                      <td>
+                        <div className="flex items-center gap-1.5">
+                          <span className={`${ui.chip} ${isAccountant ? ui.chipInfo : ""}`}>
+                            <Icon name={isAccountant ? "wallet" : "cart"} size={11} />
+                            {isAccountant ? "Accountant" : "Staff"}
+                          </span>
+                          <span className={`${ui.chip} ${ui.chipPos}`}>
+                            <span className="size-1.5 rounded-full bg-current" />
+                            Active
+                          </span>
+                        </div>
+                      </td>
+                      <td className="text-right font-mono font-medium">
+                        {isAccountant ? <span className="font-sans font-normal text-[12px] text-[var(--faint)]">Financials only</span> : money(item.stats.totalSales)}
+                      </td>
+                      <td className="text-right font-mono">{isAccountant ? <span className="text-[var(--faint)]">—</span> : item.stats.sales}</td>
+                      <td className="text-right font-mono">{isAccountant ? <span className="text-[var(--faint)]">—</span> : item.stats.totalItemsSold}</td>
+                      <td className="text-right font-mono text-[var(--text-2)]">
+                        {isAccountant ? <span className="text-[var(--faint)]">—</span> : money(item.stats.sales ? item.stats.totalSales / item.stats.sales : 0)}
+                      </td>
+                      <td>
+                        <div className="flex justify-end gap-1.5">
+                          <button className={`${ui.secondary} ${ui.btnSm}`} onClick={() => open(item)}>
+                            <Icon name="edit" size={13} />
+                            Edit
+                          </button>
+                          <button className={`${ui.iconButton} hover:!text-[var(--neg)]`} onClick={() => void remove(item)} aria-label={`Delete ${name}`} title="Delete">
+                            <Icon name="trash" size={14} />
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                  );
+                })
               )}
             </tbody>
           </table>
@@ -404,83 +376,68 @@ export default function StaffPage() {
             if (e.target === e.currentTarget) setModal(null);
           }}
         >
-          <form className={ui.sheet} onSubmit={submit}>
+          <form className={ui.sheet} onSubmit={submit} role="dialog" aria-modal="true" aria-label={modal.item ? "Edit team member" : "Add team member"}>
             <div className={ui.sheetHead}>
-              <h2>{modal.item ? "Edit Team Member" : "Add Team Member"}</h2>
-              <button type="button" className={ui.secondary} onClick={() => setModal(null)}>
-                Close
+              <div className="flex items-center gap-2.5">
+                <span className={ui.iconTile}>
+                  <Icon name={modal.item ? "edit" : "users"} size={15} />
+                </span>
+                <h2>{modal.item ? "Edit team member" : "Add team member"}</h2>
+              </div>
+              <button type="button" className={ui.iconButton} onClick={() => setModal(null)} aria-label="Close">
+                <Icon name="x" size={15} />
               </button>
             </div>
+
+            <div className="mb-5">
+              <div className={ui.notice}>
+                <Icon name="mail" size={15} className="mt-px shrink-0" />
+                {modal.item
+                  ? "If the password is changed, the updated login details are emailed to this member."
+                  : "Login details are emailed to the member automatically."}
+              </div>
+            </div>
+
             <div className={ui.formGrid}>
-              <div
-                style={{
-                  gridColumn: "1 / -1",
-                  padding: "10px 14px",
-                  background: "#f0fdf4",
-                  border: "1px solid #bbf7d0",
-                  borderRadius: 10,
-                  fontSize: 12,
-                  color: "#166534",
-                  display: "flex",
-                  alignItems: "center",
-                  gap: 8,
-                  fontWeight: 600,
-                }}
-              >
-                <span>📧</span>
-                <span>
-                  {modal.item
-                    ? "If password is changed, updated login credentials will be emailed to the user."
-                    : "Login credentials will be automatically sent to the user's email address."}
+              <div className={`${ui.field} ${ui.span2}`}>
+                <span className="text-[12.5px] font-medium text-[var(--text-2)]" id="staff-role-label">
+                  Role & access
                 </span>
+                <div className={`${ob.choices} ${ob.choices2}`} role="radiogroup" aria-labelledby="staff-role-label">
+                  {(
+                    [
+                      { id: "staff", icon: "cart", title: "Staff", body: "Sales counter & POS only" },
+                      { id: "accountant", icon: "wallet", title: "Accountant", body: "Accounts, balance sheets & reports" },
+                    ] as const
+                  ).map((r) => (
+                    <button
+                      key={r.id}
+                      type="button"
+                      role="radio"
+                      aria-checked={draft.role === r.id}
+                      onClick={() => setDraft({ ...draft, role: r.id })}
+                      className={`${ob.choice} ${ob.choiceCompact} ${draft.role === r.id ? ob.choiceOn : ""}`}
+                    >
+                      <Icon name={r.icon} size={17} />
+                      <span className="flex flex-col">
+                        <strong>{r.title}</strong>
+                        <span>{r.body}</span>
+                      </span>
+                    </button>
+                  ))}
+                </div>
               </div>
               <Field label="Full name">
-
-                <input
-                  className={ui.input}
-                  placeholder="e.g. Ali Ahmed"
-                  value={draft.fullName}
-                  onChange={(e) => setDraft({ ...draft, fullName: e.target.value })}
-                  required
-                />
+                <input className={ui.input} placeholder="e.g. Ali Ahmed" value={draft.fullName} onChange={(e) => setDraft({ ...draft, fullName: e.target.value })} required />
               </Field>
               <Field label="Email address">
-                <input
-                  className={ui.input}
-                  type="email"
-                  placeholder="e.g. ali@company.com"
-                  value={draft.email}
-                  onChange={(e) => setDraft({ ...draft, email: e.target.value })}
-                  required
-                />
+                <input className={ui.input} type="email" placeholder="ali@company.com" value={draft.email} onChange={(e) => setDraft({ ...draft, email: e.target.value })} required />
               </Field>
-              <Field label="Role & Access Permission">
-                <select
-                  className={ui.input}
-                  value={draft.role}
-                  onChange={(e) => setDraft({ ...draft, role: e.target.value as "staff" | "accountant" })}
-                >
-                  <option value="staff">Staff — Sales Counter & POS Only</option>
-                  <option value="accountant">Accountant — Accounts, Balance Sheets & Financial Reports</option>
-                </select>
-              </Field>
-              <Field label={modal.item ? "New password (leave blank to keep current)" : "Password"}>
-                <input
-                  className={ui.input}
-                  type="password"
-                  placeholder="Minimum 8 characters"
-                  value={draft.password}
-                  onChange={(e) => setDraft({ ...draft, password: e.target.value })}
-                />
+              <Field label={modal.item ? "New password (blank keeps current)" : "Password"}>
+                <input className={ui.input} type="password" placeholder="Minimum 8 characters" value={draft.password} onChange={(e) => setDraft({ ...draft, password: e.target.value })} />
               </Field>
               <Field label="Confirm password">
-                <input
-                  className={ui.input}
-                  type="password"
-                  placeholder="Re-enter password"
-                  value={draft.confirm}
-                  onChange={(e) => setDraft({ ...draft, confirm: e.target.value })}
-                />
+                <input className={ui.input} type="password" placeholder="Re-enter password" value={draft.confirm} onChange={(e) => setDraft({ ...draft, confirm: e.target.value })} />
               </Field>
             </div>
             <div className={ui.formActions}>
@@ -488,7 +445,7 @@ export default function StaffPage() {
                 Cancel
               </button>
               <button className={ui.primary} disabled={saving}>
-                {saving ? "Saving…" : modal.item ? "Save changes" : "Add Member"}
+                {saving ? "Saving…" : modal.item ? "Save changes" : "Add member"}
               </button>
             </div>
           </form>

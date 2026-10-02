@@ -39,11 +39,11 @@ export function PaginationControls({
   if (compact) {
     return (
       <div
-        className={`flex items-center justify-between gap-2 px-3 py-2 bg-slate-50/60 border-t border-slate-100 rounded-b-2xl text-xs font-semibold text-slate-600 ${className}`}
+        className={`flex items-center justify-between gap-2 px-3 py-2 text-xs font-medium text-[var(--muted)] ${className}`}
       >
         {/* Left: compact counter + optional mini per-page select */}
         <div className="flex items-center gap-1.5 min-w-0">
-          <span className="text-[11.5px] text-slate-500 font-medium whitespace-nowrap">
+          <span className="text-[11.5px] text-[var(--muted)] whitespace-nowrap tabular-nums">
             {isUrdu ? (
               <>
                 <strong>{totalItems}</strong> mein se <strong>{startItem}–{endItem}</strong>
@@ -60,7 +60,7 @@ export function PaginationControls({
               value={pageSize}
               onChange={(e) => onPageSizeChange(Number(e.target.value))}
               aria-label="Items per page"
-              className="py-0.5 px-1 text-[11px] font-bold bg-white border border-slate-200 rounded text-slate-600 outline-none focus:border-[#00875a] cursor-pointer"
+              className="h-6 min-h-6 px-1 text-[11.5px] font-medium bg-[var(--surface)] border border-[var(--border)] rounded-md text-[var(--text-2)] outline-none focus:border-[var(--brand)] cursor-pointer"
               title={isUrdu ? "Har safha" : "Per page"}
             >
               {pageSizeOptions.map((opt) => (
@@ -79,12 +79,12 @@ export function PaginationControls({
             onClick={() => onPageChange(safePage - 1)}
             disabled={safePage <= 1}
             aria-label="Previous Page"
-            className="w-7 h-7 rounded-lg border border-slate-200 bg-white hover:bg-slate-100 disabled:opacity-30 disabled:hover:bg-white text-slate-600 font-bold transition flex items-center justify-center cursor-pointer disabled:cursor-not-allowed shadow-2xs"
+            className="size-7 min-h-7 rounded-lg border border-[var(--border)] bg-[var(--surface)] hover:border-[var(--border-strong)] disabled:opacity-30 text-[var(--text-2)] transition-colors flex items-center justify-center cursor-pointer disabled:cursor-not-allowed"
           >
             <span className="text-sm leading-none select-none">‹</span>
           </button>
 
-          <span className="px-2 py-0.5 text-[11px] font-extrabold text-slate-700 bg-white border border-slate-200/80 rounded-md min-w-[28px] text-center select-none shadow-2xs">
+          <span className="px-2 py-0.5 text-[11.5px] font-medium text-[var(--text)] tabular-nums min-w-[28px] text-center select-none">
             {safePage} / {totalPages}
           </span>
 
@@ -93,7 +93,7 @@ export function PaginationControls({
             onClick={() => onPageChange(safePage + 1)}
             disabled={safePage >= totalPages}
             aria-label="Next Page"
-            className="w-7 h-7 rounded-lg border border-slate-200 bg-white hover:bg-slate-100 disabled:opacity-30 disabled:hover:bg-white text-slate-600 font-bold transition flex items-center justify-center cursor-pointer disabled:cursor-not-allowed shadow-2xs"
+            className="size-7 min-h-7 rounded-lg border border-[var(--border)] bg-[var(--surface)] hover:border-[var(--border-strong)] disabled:opacity-30 text-[var(--text-2)] transition-colors flex items-center justify-center cursor-pointer disabled:cursor-not-allowed"
           >
             <span className="text-sm leading-none select-none">›</span>
           </button>
@@ -131,11 +131,11 @@ export function PaginationControls({
 
   return (
     <div
-      className={`flex flex-wrap items-center justify-between gap-3 px-4 py-3 bg-white border-t border-slate-200/80 rounded-b-2xl text-xs font-bold text-slate-600 ${className}`}
+      className={`flex flex-wrap items-center justify-between gap-3 px-4 py-3 border-t border-[var(--border)] text-xs font-medium text-[var(--text-2)] ${className}`}
     >
       {/* Left: Summary and Page Size */}
       <div className="flex items-center gap-3 flex-wrap">
-        <span className="text-slate-500 font-medium whitespace-nowrap">
+        <span className="text-[var(--muted)] whitespace-nowrap tabular-nums">
           {isUrdu ? (
             <>
               Kul <strong>{totalItems}</strong> mein se <strong>{startItem}–{endItem}</strong> {itemLabel}
@@ -149,11 +149,11 @@ export function PaginationControls({
 
         {onPageSizeChange && (
           <div className="flex items-center gap-1.5 ml-1">
-            <span className="text-[11px] text-slate-400 font-semibold whitespace-nowrap">{isUrdu ? "Har safha:" : "Per page:"}</span>
+            <span className="text-[11.5px] text-[var(--muted)] whitespace-nowrap">{isUrdu ? "Har safha:" : "Per page:"}</span>
             <select
               value={pageSize}
               onChange={(e) => onPageSizeChange(Number(e.target.value))}
-              className="py-1 px-2 text-xs font-extrabold bg-slate-50 border border-slate-200 rounded-lg text-slate-700 outline-none focus:border-[#00875a] cursor-pointer"
+              className="h-8 min-h-8 px-2 text-xs font-medium bg-[var(--surface)] border border-[var(--border)] rounded-lg text-[var(--text)] outline-none focus:border-[var(--brand)] cursor-pointer"
             >
               {pageSizeOptions.map((opt) => (
                 <option key={opt} value={opt}>
@@ -173,7 +173,7 @@ export function PaginationControls({
           onClick={() => onPageChange(safePage - 1)}
           disabled={safePage <= 1}
           aria-label="Previous Page"
-          className="px-2.5 py-1.5 rounded-lg border border-slate-200 bg-white hover:bg-slate-50 disabled:opacity-40 disabled:hover:bg-white text-slate-700 font-bold transition flex items-center gap-1 cursor-pointer disabled:cursor-not-allowed"
+          className="h-8 px-2.5 rounded-lg border border-[var(--border)] bg-[var(--surface)] hover:border-[var(--border-strong)] disabled:opacity-40 text-[var(--text)] font-medium transition-colors flex items-center gap-1 cursor-pointer disabled:cursor-not-allowed"
         >
           <span>‹</span>
           <span className="hidden sm:inline">{isUrdu ? "Peechla" : "Previous"}</span>
@@ -184,7 +184,7 @@ export function PaginationControls({
           {pages.map((p, idx) => {
             if (p === "...") {
               return (
-                <span key={`ellipsis-${idx}`} className="px-1.5 py-1 text-slate-400">
+                <span key={`ellipsis-${idx}`} className="px-1.5 py-1 text-[var(--faint)]">
                   ...
                 </span>
               );
@@ -196,10 +196,10 @@ export function PaginationControls({
                 key={pageNum}
                 type="button"
                 onClick={() => onPageChange(pageNum)}
-                className={`min-w-8 h-8 px-2 rounded-lg font-extrabold text-xs transition cursor-pointer flex items-center justify-center ${
+                className={`min-w-8 h-8 min-h-8 px-2 rounded-lg font-medium text-xs tabular-nums transition-colors cursor-pointer flex items-center justify-center ${
                   isActive
-                    ? "bg-[#00875a] text-white shadow-xs"
-                    : "border border-slate-200 bg-white hover:bg-slate-100 text-slate-700"
+                    ? "bg-[var(--text)] text-[var(--surface)]"
+                    : "border border-transparent text-[var(--text-2)] hover:border-[var(--border)] hover:bg-[var(--surface)]"
                 }`}
               >
                 {pageNum}
@@ -214,7 +214,7 @@ export function PaginationControls({
           onClick={() => onPageChange(safePage + 1)}
           disabled={safePage >= totalPages}
           aria-label="Next Page"
-          className="px-2.5 py-1.5 rounded-lg border border-slate-200 bg-white hover:bg-slate-50 disabled:opacity-40 disabled:hover:bg-white text-slate-700 font-bold transition flex items-center gap-1 cursor-pointer disabled:cursor-not-allowed"
+          className="h-8 px-2.5 rounded-lg border border-[var(--border)] bg-[var(--surface)] hover:border-[var(--border-strong)] disabled:opacity-40 text-[var(--text)] font-medium transition-colors flex items-center gap-1 cursor-pointer disabled:cursor-not-allowed"
         >
           <span className="hidden sm:inline">{isUrdu ? "Agla" : "Next"}</span>
           <span>›</span>

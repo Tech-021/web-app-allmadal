@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { FormEvent, Suspense, useState } from "react";
 import { useSearchParams } from "next/navigation";
-import { AuthShell, Field } from "@/app/components/auth-shell";
+import { AuthShell, AuthStateIcon, Field } from "@/app/components/auth-shell";
 import { publicApi } from "@/app/lib/api";
 
 function ResetPasswordForm() {
@@ -52,13 +52,14 @@ function ResetPasswordForm() {
   if (!token) {
     return (
       <div className="w-full">
-        <h1 className="text-[2rem] font-extrabold tracking-[-.035em] text-[#111827]">Invalid link</h1>
-        <p className="mt-2 text-sm text-[#6b7280]">
+        <AuthStateIcon icon="alert" tone="neg" />
+        <h1 className="m-0 text-[28px] font-semibold leading-tight tracking-[-.03em] text-[var(--text)]">Invalid link</h1>
+        <p className="mt-2 text-sm text-[var(--muted)]">
           This password reset link is missing or incomplete. Request a new one from the login page.
         </p>
         <Link
           href="/forgot-password"
-          className="mt-6 inline-flex h-11 w-full items-center justify-center rounded-full bg-[#00875A] font-bold text-white shadow-md transition hover:bg-[#006b3f]"
+          className="mt-6 inline-flex h-11 w-full items-center justify-center rounded-[10px] bg-[var(--brand)] text-[14px] font-medium text-[var(--on-brand)] transition hover:bg-[var(--brand-strong)]"
         >
           Request new link
         </Link>
@@ -68,12 +69,13 @@ function ResetPasswordForm() {
 
   if (done) {
     return (
-      <div className="rounded-3xl border border-emerald-200 bg-white p-8 text-center shadow-[0_20px_50px_rgba(0,135,90,.07)]">
-        <h1 className="text-2xl font-extrabold text-[#111827]">Password updated</h1>
-        <p className="mt-2 text-sm text-[#6b7280]">You can sign in with your new password.</p>
+      <div className="al-pop rounded-[16px] border border-[var(--border)] bg-[var(--surface)] p-7 text-center shadow-[var(--shadow-md)]">
+        <AuthStateIcon icon="check" />
+        <h1 className="m-0 text-[24px] font-semibold tracking-[-.025em] text-[var(--text)]">Password updated</h1>
+        <p className="mt-2 text-sm text-[var(--muted)]">You can sign in with your new password.</p>
         <Link
           href="/login"
-          className="mt-6 inline-flex h-11 w-full items-center justify-center rounded-full bg-[#00875A] font-bold text-white shadow-md transition hover:bg-[#006b3f]"
+          className="mt-6 inline-flex h-11 w-full items-center justify-center rounded-[10px] bg-[var(--brand)] text-[14px] font-medium text-[var(--on-brand)] transition hover:bg-[var(--brand-strong)]"
         >
           Go to login
         </Link>
@@ -83,8 +85,8 @@ function ResetPasswordForm() {
 
   return (
     <div className="w-full">
-      <h1 className="text-[2rem] font-extrabold tracking-[-.035em] text-[#111827]">Choose a new password</h1>
-      <p className="mt-1.5 text-sm text-[#6b7280]">Enter a new password for your Almadel account.</p>
+      <h1 className="m-0 text-[28px] font-semibold leading-tight tracking-[-.03em] text-[var(--text)]">Choose a new password</h1>
+      <p className="mt-1.5 text-sm text-[var(--muted)]">Enter a new password for your Almadel account.</p>
 
       <form className="mt-7 space-y-4.5" onSubmit={submit}>
         <Field
@@ -109,14 +111,14 @@ function ResetPasswordForm() {
         />
 
         {error && (
-          <p role="alert" className="rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-xs font-semibold text-red-700">
+          <p role="alert" className="al-pop rounded-[10px] border border-[color-mix(in_oklab,var(--neg)_25%,transparent)] bg-[var(--neg-soft)] px-3.5 py-2.5 text-[13px] font-medium text-[var(--neg)]">
             {error}
           </p>
         )}
 
         <button
           disabled={busy}
-          className="h-12.5 w-full rounded-full bg-[#00875A] font-extrabold text-white shadow-[0_8px_20px_rgba(0,135,90,.22)] transition-all duration-200 hover:bg-[#006b3f] disabled:cursor-not-allowed disabled:opacity-60 text-sm tracking-wide cursor-pointer"
+          className="h-11 w-full rounded-[10px] bg-[var(--brand)] text-[14px] font-medium text-[var(--on-brand)] shadow-[inset_0_1px_0_rgba(255,255,255,.18),0_1px_2px_rgba(10,94,72,.3)] transition-[background-color,transform] duration-150 hover:bg-[var(--brand-strong)] active:scale-[0.99] disabled:cursor-not-allowed disabled:opacity-60 cursor-pointer"
         >
           {busy ? "Saving…" : "Update password"}
         </button>
@@ -130,7 +132,7 @@ export default function ResetPasswordPage() {
     <AuthShell mode="login">
       <Suspense
         fallback={
-          <p className="text-sm text-[#6b7280]">Loading…</p>
+          <p className="text-sm text-[var(--muted)]">Loading…</p>
         }
       >
         <ResetPasswordForm />

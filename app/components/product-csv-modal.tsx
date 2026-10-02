@@ -1,6 +1,8 @@
 "use client";
 
 import { ChangeEvent, DragEvent, useState } from "react";
+import { Icon } from "@/app/components/icons";
+import ui from "@/app/components/workspace-ui.module.css";
 import { api } from "@/app/lib/api";
 import { useToast } from "@/app/components/toast-context";
 
@@ -283,67 +285,58 @@ export function ProductCsvModal({ isOpen, onClose, onSuccess }: ProductCsvModalP
   const autoBarcodeCount = rows.filter((r) => r.isValid && !r.barcode).length;
   const invalidCount = rows.filter((r) => !r.isValid).length;
 
+  const statusChip = (status: string) =>
+    status === "Ready" ? ui.chipPos : status === "Auto-Barcode" ? ui.chipWarn : ui.chipNeg;
+
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4 backdrop-blur-xs animate-in fade-in duration-150">
-      <div className="relative flex max-h-[90vh] w-full max-w-4xl flex-col rounded-3xl bg-white shadow-2xl border border-gray-100 overflow-hidden">
-        {/* Header */}
-        <div className="flex items-center justify-between border-b border-gray-100 px-6 py-4.5 bg-gray-50/70">
-          <div className="flex items-center gap-3">
-            <div className="grid size-10 place-items-center rounded-2xl bg-[#00875A]/10 text-[#00875A]">
-              <svg className="size-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2.2">
-                <path strokeLinecap="round" strokeLinejoin="round" d="M3 16.5v2.25A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75V16.5m-13.5-9L12 3m0 0l4.5 4.5M12 3v13.5" />
-              </svg>
-            </div>
-            <div>
-              <h2 className="text-lg font-extrabold text-[#111827]">Import Products (CSV)</h2>
-              <p className="text-xs text-[#6b7280]">Bulk upload items, prices, and stock inventory from spreadsheets.</p>
+    <div className={ui.modal} onMouseDown={(e) => e.target === e.currentTarget && onClose()}>
+      <div className={`${ui.sheet} ${ui.sheetFlush}`} style={{ width: "min(900px, 100%)" }} role="dialog" aria-modal="true" aria-label="Import products from CSV">
+        <div className={`${ui.sheetHead} !mb-0 px-5 pt-5 sm:px-6`}>
+          <div className="flex min-w-0 items-center gap-2.5">
+            <span className={ui.iconTile}>
+              <Icon name="upload" size={15} />
+            </span>
+            <div className="min-w-0">
+              <h2>Import products</h2>
+              <p className="m-0 mt-0.5 truncate text-[12.5px] text-[var(--muted)]">Bulk upload items, prices and stock from a spreadsheet.</p>
             </div>
           </div>
-          <button
-            onClick={onClose}
-            className="grid size-8 place-items-center rounded-full text-gray-400 hover:bg-gray-200 hover:text-gray-700 transition"
-          >
-            ✕
+          <button type="button" onClick={onClose} className={ui.iconButton} aria-label="Close">
+            <Icon name="x" size={15} />
           </button>
         </div>
 
-        {/* Modal Body */}
-        <div className="flex-1 overflow-y-auto p-6 space-y-6">
+        <div className="flex-1 overflow-y-auto px-5 py-5 sm:px-6">
           {importResult ? (
-            /* Results Screen */
-            <div className="space-y-6 text-center py-4">
-              <div className="mx-auto grid size-16 place-items-center rounded-3xl bg-emerald-50 text-[#00875A]">
-                <svg className="size-8" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2.5">
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M4.5 12.75l6 6 9-13.5" />
-                </svg>
-              </div>
+            <div className="flex flex-col items-center py-4 text-center">
+              <span className="mb-4 grid size-12 place-items-center rounded-[14px] border border-[var(--brand-line)] bg-[var(--brand-soft)] text-[var(--brand)] [animation:almadelScaleUp_420ms_var(--ease-spring)_backwards]">
+                <Icon name="check" size={22} strokeWidth={2} />
+              </span>
+              <h3 className="m-0 text-[20px] font-semibold tracking-[-0.025em]">Import complete</h3>
+              <p className="mb-0 mt-1 text-[13px] text-[var(--muted)]">Your product catalogue has been updated.</p>
 
-              <div>
-                <h3 className="text-2xl font-black text-[#111827]">Import Completed!</h3>
-                <p className="mt-1 text-xs text-[#6b7280]">
-                  Your product inventory catalog has been successfully synchronized.
-                </p>
-              </div>
-
-              <div className="grid grid-cols-3 gap-4 max-w-lg mx-auto">
-                <div className="rounded-2xl border border-emerald-100 bg-emerald-50/50 p-4">
-                  <p className="text-xs font-bold text-emerald-800">New Created</p>
-                  <p className="mt-1 text-2xl font-black text-[#00875A]">+{importResult.created}</p>
+              <div className={`${ui.metrics} mt-6 w-full max-w-lg`}>
+                <div className={`${ui.metric} ${ui.tonePos}`}>
+                  <span>Created</span>
+                  <strong className="font-mono">+{importResult.created}</strong>
                 </div>
-                <div className="rounded-2xl border border-blue-100 bg-blue-50/50 p-4">
-                  <p className="text-xs font-bold text-blue-800">Updated</p>
-                  <p className="mt-1 text-2xl font-black text-blue-600">{importResult.updated}</p>
+                <div className={`${ui.metric} ${ui.toneInfo}`}>
+                  <span>Updated</span>
+                  <strong className="font-mono">{importResult.updated}</strong>
                 </div>
-                <div className="rounded-2xl border border-gray-100 bg-gray-50/50 p-4">
-                  <p className="text-xs font-bold text-gray-600">Failed</p>
-                  <p className="mt-1 text-2xl font-black text-gray-800">{importResult.failed.length}</p>
+                <div className={`${ui.metric} ${importResult.failed.length ? ui.toneNeg : ""}`}>
+                  <span>Failed</span>
+                  <strong className="font-mono">{importResult.failed.length}</strong>
                 </div>
               </div>
 
               {importResult.failed.length > 0 && (
-                <div className="text-left rounded-2xl border border-red-200 bg-red-50 p-4 max-w-lg mx-auto">
-                  <p className="text-xs font-bold text-red-800 mb-2">Rows with issues:</p>
-                  <ul className="text-xs text-red-700 space-y-1 max-h-32 overflow-y-auto">
+                <div className={`${ui.error} mt-4 w-full max-w-lg !flex-col !items-stretch text-left`}>
+                  <span className="flex items-center gap-2">
+                    <Icon name="alert" size={14} />
+                    Rows with issues
+                  </span>
+                  <ul className="m-0 max-h-32 list-none overflow-y-auto p-0 font-mono text-[12px] font-normal">
                     {importResult.failed.map((f, i) => (
                       <li key={i}>
                         Row {f.index}: {f.message}
@@ -353,206 +346,146 @@ export function ProductCsvModal({ isOpen, onClose, onSuccess }: ProductCsvModalP
                 </div>
               )}
 
-              <div className="flex justify-center gap-3 pt-2">
-                <button
-                  type="button"
-                  onClick={resetAll}
-                  className="px-5 py-2.5 rounded-full border border-gray-200 text-xs font-bold text-gray-700 hover:bg-gray-50 transition"
-                >
-                  Import Another File
+              <div className="mt-6 flex justify-center gap-2">
+                <button type="button" onClick={resetAll} className={ui.secondary}>
+                  Import another file
                 </button>
-                <button
-                  type="button"
-                  onClick={onClose}
-                  className="px-6 py-2.5 rounded-full bg-[#00875A] text-xs font-bold text-white shadow-md hover:bg-[#006b3f] transition"
-                >
+                <button type="button" onClick={onClose} className={ui.primary}>
                   Done
                 </button>
               </div>
             </div>
           ) : (
-            <>
-              {/* Top Banner / Template Download */}
-              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 rounded-2xl border border-emerald-100 bg-[#e6f4ed]/50 p-4 text-xs">
+            <div className="flex flex-col gap-4">
+              <div className="flex flex-col justify-between gap-3 rounded-[12px] border border-[var(--border)] bg-[var(--surface-2)] p-3.5 sm:flex-row sm:items-center">
                 <div className="flex items-center gap-3">
-                  <span className="text-xl">📄</span>
+                  <span className={ui.metricIcon}>
+                    <Icon name="file" size={14} />
+                  </span>
                   <div>
-                    <strong className="text-[#00875A]">Need the recommended format?</strong>
-                    <p className="text-gray-600">Download our sample template with pre-filled examples.</p>
+                    <p className="m-0 text-[13px] font-medium">Need the recommended format?</p>
+                    <p className="m-0 text-[12.5px] text-[var(--muted)]">Download a sample template with pre-filled examples.</p>
                   </div>
                 </div>
-                <button
-                  type="button"
-                  onClick={handleDownloadTemplate}
-                  className="inline-flex items-center justify-center gap-1.5 whitespace-nowrap rounded-xl bg-white px-4 py-2 font-extrabold text-[#00875A] border border-[#00875A]/20 shadow-xs hover:bg-[#00875A] hover:text-white transition"
-                >
-                  <svg className="size-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2.2">
-                    <path strokeLinecap="round" strokeLinejoin="round" d="M3 16.5v2.25A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75V16.5M16.5 12L12 16.5m0 0L7.5 12m4.5 4.5V3" />
-                  </svg>
-                  Download Template (.csv)
+                <button type="button" onClick={handleDownloadTemplate} className={ui.secondary}>
+                  <Icon name="download" size={14} />
+                  Template (.csv)
                 </button>
               </div>
 
-              {/* Upload Dropzone */}
               {rows.length === 0 ? (
                 <div
                   onDragEnter={handleDrag}
                   onDragLeave={handleDrag}
                   onDragOver={handleDrag}
                   onDrop={handleDrop}
-                  className={`relative flex flex-col items-center justify-center rounded-3xl border-2 border-dashed p-8 text-center transition-all ${
-                    dragActive
-                      ? "border-[#00875A] bg-[#00875A]/5 scale-[0.99]"
-                      : "border-gray-300 hover:border-gray-400 bg-gray-50/50"
+                  className={`flex flex-col items-center justify-center rounded-[14px] border border-dashed p-10 text-center transition-all ${
+                    dragActive ? "scale-[0.995] border-[var(--brand)] bg-[var(--brand-soft)]" : "border-[var(--border-strong)] bg-[var(--surface-2)] hover:border-[var(--faint)]"
                   }`}
                 >
-                  <div className="grid size-14 place-items-center rounded-2xl bg-white shadow-sm border border-gray-100 text-gray-400 mb-3">
-                    <svg className="size-7 text-[#00875A]" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
-                      <path strokeLinecap="round" strokeLinejoin="round" d="M19.5 14.25v-2.625a3.375 3.375 0 00-3.375-3.375h-1.5A1.125 1.125 0 0113.5 7.125v-1.5a3.375 3.375 0 00-3.375-3.375H8.25m6.75 12l-3-3m0 0l-3 3m3-3v6m-1.5-15H5.625c-.621 0-1.125.504-1.125 1.125v17.25c0 .621.504 1.125 1.125 1.125h12.75c.621 0 1.125-.504 1.125-1.125V11.25a9 9 0 00-9-9z" />
-                    </svg>
-                  </div>
-                  <h4 className="text-sm font-extrabold text-[#111827]">
-                    Drag & Drop your CSV file here, or{" "}
-                    <label className="text-[#00875A] hover:underline cursor-pointer">
+                  <span className={ui.emptyIcon}>
+                    <Icon name="upload" size={19} />
+                  </span>
+                  <p className="m-0 text-[14px] font-medium">
+                    Drop your CSV here, or{" "}
+                    <label className="cursor-pointer text-[var(--brand-ink)] underline-offset-2 hover:underline">
                       browse
-                      <input
-                        type="file"
-                        accept=".csv,.txt"
-                        onChange={onFileInputChange}
-                        className="hidden"
-                      />
+                      <input type="file" accept=".csv,.txt" onChange={onFileInputChange} className="hidden" />
                     </label>
-                  </h4>
-                  <p className="mt-1 text-xs text-[#9ca3af]">Supports .csv files up to 10MB.</p>
+                  </p>
+                  <p className="m-0 mt-1 text-[12.5px] text-[var(--muted)]">.csv files up to 10MB</p>
                 </div>
               ) : (
-                /* Staged Rows Summary & Preview */
-                <div className="space-y-3">
-                  <div className="flex flex-wrap items-center justify-between gap-2 border-b border-gray-100 pb-3">
-                    <div className="flex items-center gap-2">
-                      <span className="font-extrabold text-sm text-[#111827]">{fileName}</span>
-                      <span className="rounded-full bg-gray-100 px-2.5 py-0.5 text-[11px] font-bold text-gray-700">
-                        {rows.length} rows detected
+                <div className="flex flex-col gap-3">
+                  <div className="flex flex-wrap items-center justify-between gap-2">
+                    <div className="flex min-w-0 items-center gap-2">
+                      <Icon name="file" size={14} className="shrink-0 text-[var(--muted)]" />
+                      <span className="truncate font-mono text-[13px]">{fileName}</span>
+                      <span className={ui.chip}>
+                        <span className="font-mono">{rows.length}</span> rows
                       </span>
                     </div>
-
-                    <div className="flex items-center gap-2 text-xs">
-                      <span className="inline-flex items-center gap-1 rounded-full bg-emerald-100 px-2.5 py-0.5 font-bold text-emerald-800">
-                        ✓ {validCount} ready
+                    <div className="flex flex-wrap items-center gap-1.5">
+                      <span className={`${ui.chip} ${ui.chipPos}`}>
+                        <Icon name="check" size={11} />
+                        {validCount} ready
                       </span>
                       {autoBarcodeCount > 0 && (
-                        <span className="inline-flex items-center gap-1 rounded-full bg-amber-100 px-2.5 py-0.5 font-bold text-amber-800">
-                          ⚡ {autoBarcodeCount} auto-barcode
+                        <span className={`${ui.chip} ${ui.chipWarn}`}>
+                          <Icon name="zap" size={11} />
+                          {autoBarcodeCount} auto-barcode
                         </span>
                       )}
                       {invalidCount > 0 && (
-                        <span className="inline-flex items-center gap-1 rounded-full bg-red-100 px-2.5 py-0.5 font-bold text-red-800">
-                          ✕ {invalidCount} invalid
+                        <span className={`${ui.chip} ${ui.chipNeg}`}>
+                          <Icon name="x" size={11} />
+                          {invalidCount} invalid
                         </span>
                       )}
-                      <button
-                        type="button"
-                        onClick={resetAll}
-                        className="text-xs font-bold text-red-600 hover:underline ml-2"
-                      >
+                      <button type="button" onClick={resetAll} className={`${ui.secondary} ${ui.btnSm}`}>
                         Clear
                       </button>
                     </div>
                   </div>
 
-                  {/* Preview Table */}
-                  <div className="max-h-72 overflow-x-auto overflow-y-auto rounded-2xl border border-gray-200">
-                    <table className="w-full text-left text-xs border-collapse">
-                      <thead className="sticky top-0 bg-gray-50 border-b border-gray-200 text-gray-500 font-bold uppercase tracking-wider text-[10px]">
+                  <div className={`${ui.tableWrap} max-h-72 overflow-y-auto`}>
+                    <table className={ui.table}>
+                      <thead>
                         <tr>
-                          <th className="py-2.5 px-3">#</th>
-                          <th className="py-2.5 px-3">Status</th>
-                          <th className="py-2.5 px-3">Product Name</th>
-                          <th className="py-2.5 px-3">Barcode</th>
-                          <th className="py-2.5 px-3">Category</th>
-                          <th className="py-2.5 px-3">Selling Price</th>
-                          <th className="py-2.5 px-3">Cost Price</th>
-                          <th className="py-2.5 px-3">Stock</th>
+                          <th>#</th>
+                          <th>Status</th>
+                          <th>Product</th>
+                          <th>Barcode</th>
+                          <th>Category</th>
+                          <th className="text-right">Price</th>
+                          <th className="text-right">Cost</th>
+                          <th className="text-right">Stock</th>
                         </tr>
                       </thead>
-                      <tbody className="divide-y divide-gray-100 font-medium">
+                      <tbody>
                         {rows.slice(0, 50).map((r, i) => (
-                          <tr
-                            key={i}
-                            className={`hover:bg-gray-50/70 transition ${
-                              !r.isValid ? "bg-red-50/40" : ""
-                            }`}
-                          >
-                            <td className="py-2 px-3 text-gray-400 font-mono text-[11px]">{r.index}</td>
-                            <td className="py-2 px-3">
-                              <span
-                                className={`inline-block rounded-md px-2 py-0.5 text-[10px] font-extrabold ${
-                                  r.statusNotice === "Ready"
-                                    ? "bg-emerald-100 text-emerald-800"
-                                    : r.statusNotice === "Auto-Barcode"
-                                    ? "bg-amber-100 text-amber-800"
-                                    : "bg-red-100 text-red-800"
-                                }`}
-                              >
-                                {r.statusNotice}
-                              </span>
+                          <tr key={i} className={!r.isValid ? "!bg-[var(--neg-soft)]" : ""}>
+                            <td className="font-mono text-[11.5px] text-[var(--faint)]">{r.index}</td>
+                            <td>
+                              <span className={`${ui.chip} ${ui.chipXs} ${statusChip(r.statusNotice)}`}>{r.statusNotice}</span>
                             </td>
-                            <td className="py-2 px-3 font-bold text-[#111827] max-w-[200px] truncate" title={r.name}>
-                              {r.name || <span className="text-red-500 italic">Empty</span>}
+                            <td className="max-w-[200px] truncate font-medium" title={r.name}>
+                              {r.name || <span className="italic text-[var(--neg)]">Empty</span>}
                             </td>
-                            <td className="py-2 px-3 font-mono text-gray-600">
-                              {r.barcode || <span className="text-amber-600 text-[10px]">Will generate</span>}
-                            </td>
-                            <td className="py-2 px-3 text-gray-500">{r.category || "—"}</td>
-                            <td className="py-2 px-3 font-bold text-[#00875A]">
-                              Rs {r.sellingPrice.toLocaleString()}
-                            </td>
-                            <td className="py-2 px-3 text-gray-600">Rs {r.costPrice.toLocaleString()}</td>
-                            <td className="py-2 px-3 text-gray-900 font-semibold">{r.stock}</td>
+                            <td className="font-mono text-[12px] text-[var(--text-2)]">{r.barcode || <span className="text-[11.5px] text-[var(--warn)]">Will generate</span>}</td>
+                            <td className="text-[var(--muted)]">{r.category || "—"}</td>
+                            <td className="text-right font-mono">Rs {r.sellingPrice.toLocaleString()}</td>
+                            <td className="text-right font-mono text-[var(--muted)]">Rs {r.costPrice.toLocaleString()}</td>
+                            <td className="text-right font-mono">{r.stock}</td>
                           </tr>
                         ))}
                       </tbody>
                     </table>
                   </div>
-                  {rows.length > 50 && (
-                    <p className="text-[11px] text-gray-400 text-center italic">
-                      Showing first 50 rows of {rows.length} total products.
-                    </p>
-                  )}
+                  {rows.length > 50 && <p className="m-0 text-center text-[12px] text-[var(--muted)]">Showing the first 50 of {rows.length} rows.</p>}
                 </div>
               )}
-            </>
+            </div>
           )}
         </div>
 
-        {/* Footer / Action Buttons */}
         {!importResult && (
-          <div className="flex items-center justify-between border-t border-gray-100 px-6 py-4 bg-gray-50/50">
-            <button
-              type="button"
-              onClick={onClose}
-              className="px-5 py-2.5 rounded-full border border-gray-300 text-xs font-bold text-gray-700 hover:bg-gray-100 transition cursor-pointer"
-            >
+          <div className={`${ui.sectionFooter} pb-[calc(14px+env(safe-area-inset-bottom))]`}>
+            <button type="button" onClick={onClose} className={ui.secondary}>
               Cancel
             </button>
-
             {rows.length > 0 && (
-              <button
-                type="button"
-                disabled={importing || validCount === 0}
-                onClick={handleImportSubmit}
-                className="inline-flex items-center gap-2 px-6 py-2.5 rounded-full bg-[#00875A] font-extrabold text-white text-xs shadow-md hover:bg-[#006b3f] transition disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer"
-              >
+              <button type="button" disabled={importing || validCount === 0} onClick={handleImportSubmit} className={ui.primary}>
                 {importing ? (
                   <>
-                    <svg className="size-4 animate-spin text-white" viewBox="0 0 24 24" fill="none">
-                      <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
-                      <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z" />
-                    </svg>
-                    Importing Products...
+                    <span className="size-3.5 rounded-full border-2 border-current border-t-transparent [animation:almadelSpin_700ms_linear_infinite]" />
+                    Importing…
                   </>
                 ) : (
-                  <>Import {validCount} Products</>
+                  <>
+                    <Icon name="upload" size={14} />
+                    Import {validCount} products
+                  </>
                 )}
               </button>
             )}

@@ -9,6 +9,9 @@ import { useToast } from "@/app/components/toast-context";
 import { ActivityCategory, ActivityLog, clearAllLogs } from "@/app/lib/logger";
 import { api } from "@/app/lib/api";
 import ui from "@/app/components/workspace-ui.module.css";
+import { Icon } from "@/app/components/icons";
+import { PageHeader, TableEmptyRow, TableSkeletonRows } from "@/app/components/page-layout";
+import { PaginationControls } from "@/app/components/pagination-controls";
 import { useNavRole } from "@/hooks/useNavRole";
 import { devLog, devWarn } from "@/app/lib/dev-console";
 import { isAuthSessionMessage } from "@/app/lib/auth-session";
@@ -52,24 +55,25 @@ function formatFullDate(dateString: string): string {
   });
 }
 
-function getActionBadgeStyle(action: string, category: ActivityCategory): { bg: string; color: string; border: string } {
-  if (action.includes("DELETE")) {
-    return { bg: "#fee2e2", color: "#dc2626", border: "#fecaca" };
-  }
-  if (action.includes("CREATE") || action.includes("ADD") || action.includes("SIGNUP")) {
-    return { bg: "#e6f4ed", color: "#006b3f", border: "#c3e9d7" };
-  }
-  if (action.includes("UPDATE") || action.includes("EDIT")) {
-    return { bg: "#eef4ff", color: "#1d4ed8", border: "#dbeafe" };
-  }
-  if (action.includes("LOGIN") || action.includes("LOGOUT") || category === "Auth") {
-    return { bg: "#f4f0fd", color: "#6b21a8", border: "#f3e8ff" };
-  }
-  if (category === "Visit") {
-    return { bg: "#f3f4f6", color: "#4b5563", border: "#e5e7eb" };
-  }
-  return { bg: "#fff3eb", color: "#c2410c", border: "#ffedd5" };
+function actionTone(action: string, category: ActivityCategory): "neg" | "pos" | "info" | "warn" | "neutral" {
+  if (action.includes("DELETE")) return "neg";
+  if (action.includes("CREATE") || action.includes("ADD") || action.includes("SIGNUP")) return "pos";
+  if (action.includes("UPDATE") || action.includes("EDIT")) return "info";
+  if (action.includes("LOGIN") || action.includes("LOGOUT") || category === "Auth" || category === "Visit") return "neutral";
+  return "warn";
 }
+
+const TONE_CHIP = { neg: ui.chipNeg, pos: ui.chipPos, info: ui.chipInfo, warn: ui.chipWarn, neutral: "" } as const;
+
+const LOG_TABS = [
+  "All",
+  "Product & Stock",
+  "Customers & Suppliers",
+  "Finance & Accounts",
+  "Staff",
+  "Auth & Sessions",
+  "Page Visits",
+] as const;
 
 export default function LogsPage() {
   const { user, isAuthenticated, isLoading: authLoading } = useAuth();
@@ -293,328 +297,136 @@ export default function LogsPage() {
 
   return (
     <WorkspaceShell>
-      <div className={ui.head}>
-        <div>
-          <label>Audit & Security</label>
-          <h1>System Activity Logs</h1>
-          <p>Complete database audit log of product updates, stock shifts, category edits, and staff operations in PostgreSQL.</p>
-        </div>
-        <button className={ui.danger} onClick={handleClearAll} title="Clear database log records">
-          Clear Database Logs
-        </button>
-      </div>
+      <PageHeader
+        eyebrow="Audit & security"
+        title="Activity logs"
+        description="A complete audit trail of product updates, stock movements, category edits and staff operations."
+        actions={
+          <>
+            <button className={ui.secondary} onClick={loadLogs} disabled={loading}>
+              <Icon name="refresh" size={14} className={loading ? "[animation:almadelSpin_800ms_linear_infinite]" : ""} />
+              {loading ? "Refreshing…" : "Refresh"}
+            </button>
+            <button className={ui.danger} onClick={handleClearAll} title="Clear database log records">
+              <Icon name="trash" size={14} />
+              Clear logs
+            </button>
+          </>
+        }
+      />
 
       {serverNotice && (
-        <div style={{ padding: "10px 16px", borderRadius: 12, background: "#fffbeb", border: "1px solid #fef3c7", color: "#92400e", fontSize: 12, fontWeight: 600, marginBottom: 16 }}>
+        <div className={`${ui.notice} !border-[color-mix(in_oklab,var(--warn)_25%,transparent)] !bg-[var(--warn-soft)] !text-[var(--warn)]`} role="status">
+          <Icon name="info" size={15} className="mt-px shrink-0" />
           {serverNotice}
         </div>
       )}
 
-      {/* Category Tabs */}
-      <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginBottom: 18 }}>
-        {(
-          [
-            "All",
-            "Product & Stock",
-            "Customers & Suppliers",
-            "Finance & Accounts",
-            "Staff",
-            "Auth & Sessions",
-            "Page Visits",
-          ] as const
-        ).map((tab) => (
-          <button
-            key={tab}
-            className={activeTab === tab ? ui.tabActive : ui.tab}
-            onClick={() => {
-              setActiveTab(tab);
-              setCurrentPage(1);
-            }}
-          >
-            {tab}
-          </button>
-        ))}
-      </div>
+      <section className={`${ui.panel} ${ui.panelFlush}`}>
+        <div className={`${ui.panelHead} flex-col !items-stretch gap-3`}>
+          <div className={ui.pillRow} role="tablist" aria-label="Log category">
+            {LOG_TABS.map((tab) => (
+              <button
+                key={tab}
+                role="tab"
+                aria-selected={activeTab === tab}
+                className={`${ui.pill} ${activeTab === tab ? ui.pillActive : ""}`}
+                onClick={() => {
+                  setActiveTab(tab);
+                  setCurrentPage(1);
+                }}
+              >
+                {tab}
+              </button>
+            ))}
+          </div>
+          <input
+            type="text"
+            className={`${ui.input} ${ui.search}`}
+            placeholder="Search by user, action, target or keyword…"
+            value={query}
+            onChange={(e) => setQuery(e.target.value)}
+            aria-label="Search logs"
+          />
+        </div>
 
-      {/* Search Input & Limit Controls */}
-      <div style={{ display: "flex", gap: 10, alignItems: "center", marginBottom: 20 }}>
-        <input
-          type="text"
-          className={ui.input}
-          placeholder="Search logs by user, action, target, keyword, or timestamp..."
-          value={query}
-          onChange={(e) => setQuery(e.target.value)}
-          style={{ flex: 1 }}
-        />
-        <button className={ui.secondary} onClick={loadLogs} disabled={loading}>
-          {loading ? "Refreshing..." : "Refresh"}
-        </button>
-      </div>
-
-      {/* Logs Table */}
-      <section className={ui.card}>
-        <div className={ui.tableWrapper}>
+        <div className={`${ui.tableWrap} ${ui.tableBare}`}>
           <table className={ui.table}>
             <thead>
               <tr>
-                <th>Timestamp</th>
-                <th>User / Operator</th>
-                <th>Action & Category</th>
-                <th>Activity Details</th>
-                <th>Target / Resource</th>
+                <th>When</th>
+                <th>Operator</th>
+                <th>Action</th>
+                <th>Details</th>
+                <th>Target</th>
               </tr>
             </thead>
             <tbody>
-              {paginatedLogs.map((log) => {
-                const badgeStyle = getActionBadgeStyle(log.action, log.category);
-                const initial = log.user.name[0]?.toUpperCase() || "U";
-                return (
-                  <tr
-                    key={log.id}
-                    onClick={() => setSelectedLog(log)}
-                    style={{ cursor: "pointer" }}
-                    title="Click to view detailed log breakdown"
-                  >
-                    <td style={{ whiteSpace: "nowrap" }}>
-                      <strong style={{ display: "block", fontSize: 13, color: "#111827" }}>
-                        {timeAgo(log.timestamp)}
-                      </strong>
-                      <span className={ui.muted} style={{ fontSize: 11 }}>
-                        {formatFullDate(log.timestamp)}
-                      </span>
-                    </td>
-                    <td>
-                      <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-                        <div
-                          style={{
-                            width: 32,
-                            height: 32,
-                            borderRadius: 10,
-                            background: log.user.role === "admin" ? "#e6f4ed" : "#eef4ff",
-                            color: log.user.role === "admin" ? "#00875a" : "#1d4ed8",
-                            fontWeight: 800,
-                            fontSize: 12,
-                            display: "grid",
-                            placeItems: "center",
-                            flexShrink: 0,
-                          }}
-                        >
-                          {initial}
-                        </div>
-                        <div>
-                          <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
-                            <strong style={{ fontSize: 13, color: "#111827" }}>{log.user.name}</strong>
-                            <span
-                              style={{
-                                fontSize: 10,
-                                fontWeight: 800,
-                                padding: "2px 6px",
-                                borderRadius: 9999,
-                                background: log.user.role === "admin" ? "#e6f4ed" : "#f3f4f6",
-                                color: log.user.role === "admin" ? "#006b3f" : "#4b5563",
-                                textTransform: "capitalize",
-                              }}
-                            >
-                              {log.user.role}
-                            </span>
+              {loading && !logs.length ? (
+                <TableSkeletonRows cols={5} rows={6} />
+              ) : !paginatedLogs.length ? (
+                <TableEmptyRow
+                  colSpan={5}
+                  icon="logs"
+                  title={query ? "No logs match your search" : "No activity recorded yet"}
+                  body={query ? "Try a different keyword or category." : "Actions taken in your workspace will be recorded here."}
+                />
+              ) : (
+                paginatedLogs.map((log) => {
+                  const tone = actionTone(log.action, log.category);
+                  const initial = log.user.name[0]?.toUpperCase() || "U";
+                  const isAdmin = log.user.role === "admin";
+                  return (
+                    <tr key={log.id} onClick={() => setSelectedLog(log)} className="cursor-pointer" title="View log details">
+                      <td className="whitespace-nowrap">
+                        <span className="block font-medium">{timeAgo(log.timestamp)}</span>
+                        <span className="font-mono text-[11.5px] text-[var(--faint)]">{formatFullDate(log.timestamp)}</span>
+                      </td>
+                      <td>
+                        <div className="flex min-w-0 items-center gap-2.5">
+                          <span
+                            className={`grid size-8 shrink-0 place-items-center rounded-[9px] text-[12px] font-semibold ${
+                              isAdmin ? "bg-[var(--brand-soft)] text-[var(--brand-ink)]" : "bg-[var(--info-soft)] text-[var(--info)]"
+                            }`}
+                          >
+                            {initial}
+                          </span>
+                          <div className="min-w-0">
+                            <div className="flex items-center gap-1.5">
+                              <span className="truncate font-medium">{log.user.name}</span>
+                              <span className={`${ui.chip} ${ui.chipXs} ${isAdmin ? ui.chipPos : ""} capitalize`}>{log.user.role}</span>
+                            </div>
+                            <span className="block truncate text-[12px] text-[var(--muted)]">{log.user.email}</span>
                           </div>
-                          <span className={ui.muted} style={{ fontSize: 11 }}>{log.user.email}</span>
                         </div>
-                      </div>
-                    </td>
-                    <td>
-                      <span
-                        style={{
-                          display: "inline-block",
-                          padding: "4px 10px",
-                          borderRadius: 9999,
-                          fontSize: 11,
-                          fontWeight: 800,
-                          background: badgeStyle.bg,
-                          color: badgeStyle.color,
-                          border: `1px solid ${badgeStyle.border}`,
-                        }}
-                      >
-                        {log.action.replace(/_/g, " ")}
-                      </span>
-                    </td>
-                    <td>
-                      <span style={{ fontSize: 13, fontWeight: 600, color: "#374151" }}>
-                        {log.details}
-                      </span>
-                    </td>
-                    <td>
-                      {log.target ? (
-                        <span
-                          style={{
-                            display: "inline-block",
-                            padding: "3px 8px",
-                            borderRadius: 6,
-                            background: "#f3f4f6",
-                            color: "#4b5563",
-                            fontSize: 11.5,
-                            fontFamily: "monospace",
-                            fontWeight: 700,
-                          }}
-                        >
-                          {log.target}
-                        </span>
-                      ) : (
-                        <span className={ui.muted}>-</span>
-                      )}
-                    </td>
-                  </tr>
-                );
-              })}
-              {!loading && !paginatedLogs.length && (
-                <tr>
-                  <td colSpan={5} className={ui.empty}>
-                    {query ? "No activity logs match your search filter." : "No activity logs recorded in the database yet."}
-                  </td>
-                </tr>
-              )}
-              {loading && !logs.length && (
-                <tr>
-                  <td colSpan={5} className={ui.empty}>
-                    Loading activity logs from database...
-                  </td>
-                </tr>
+                      </td>
+                      <td>
+                        <span className={`${ui.chip} ${TONE_CHIP[tone]} font-mono text-[11px] uppercase tracking-[0.02em]`}>{log.action.replace(/_/g, " ")}</span>
+                      </td>
+                      <td className="min-w-[240px] text-[var(--text-2)]">{log.details}</td>
+                      <td>{log.target ? <span className={`${ui.chip} font-mono`}>{log.target}</span> : <span className="text-[var(--faint)]">—</span>}</td>
+                    </tr>
+                  );
+                })
               )}
             </tbody>
           </table>
         </div>
 
-        {/* Modern Pagination Bar */}
         {totalItems > 0 && (
-          <div
-            style={{
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "space-between",
-              flexWrap: "wrap",
-              gap: 12,
-              padding: "16px 20px",
-              borderTop: "1px solid #f1f5f9",
-              background: "#fafbfd",
-              borderRadius: "0 0 24px 24px",
-            }}
-          >
-            {/* Left: Summary text */}
-            <div style={{ fontSize: 13, color: "#64748b", fontWeight: 600 }}>
-              Showing <strong style={{ color: "#0f172a" }}>{startIndex + 1}</strong> to{" "}
-              <strong style={{ color: "#0f172a" }}>{endIndex}</strong> of{" "}
-              <strong style={{ color: "#0f172a" }}>{totalItems}</strong> entries
-            </div>
-
-            {/* Center: Rows per page selector */}
-            <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-              <span style={{ fontSize: 12.5, color: "#64748b", fontWeight: 600 }}>Rows per page:</span>
-              <select
-                value={pageSize}
-                onChange={(e) => setPageSize(Number(e.target.value))}
-                style={{
-                  padding: "6px 12px",
-                  borderRadius: 10,
-                  border: "1px solid #e2e8f0",
-                  background: "#ffffff",
-                  fontSize: 12.5,
-                  fontWeight: 700,
-                  color: "#334155",
-                  outline: "none",
-                  cursor: "pointer",
-                }}
-              >
-                <option value={10}>10</option>
-                <option value={25}>25</option>
-                <option value={50}>50</option>
-                <option value={100}>100</option>
-              </select>
-            </div>
-
-            {/* Right: Page Navigation buttons */}
-            <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
-              <button
-                onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
-                disabled={currentPage === 1}
-                style={{
-                  padding: "6px 14px",
-                  borderRadius: 10,
-                  border: "1px solid #e2e8f0",
-                  background: currentPage === 1 ? "#f8fafc" : "#ffffff",
-                  color: currentPage === 1 ? "#94a3b8" : "#1e293b",
-                  fontSize: 12.5,
-                  fontWeight: 700,
-                  cursor: currentPage === 1 ? "not-allowed" : "pointer",
-                  transition: "all 0.15s ease",
-                }}
-              >
-                Previous
-              </button>
-
-              {/* Page Number Pills */}
-              {Array.from({ length: totalPages }, (_, i) => i + 1)
-                .filter((p) => p === 1 || p === totalPages || Math.abs(p - currentPage) <= 1)
-                .reduce<(number | string)[]>((acc, p, idx, arr) => {
-                  if (idx > 0 && (p as number) - (arr[idx - 1] as number) > 1) {
-                    acc.push("...");
-                  }
-                  acc.push(p);
-                  return acc;
-                }, [])
-                .map((item, idx) => {
-                  if (typeof item === "string") {
-                    return (
-                      <span key={`dots-${idx}`} style={{ padding: "0 4px", color: "#94a3b8", fontWeight: 700, fontSize: 13 }}>
-                        ...
-                      </span>
-                    );
-                  }
-                  const isActive = currentPage === item;
-                  return (
-                    <button
-                      key={item}
-                      onClick={() => setCurrentPage(item)}
-                      style={{
-                        minWidth: 32,
-                        height: 32,
-                        borderRadius: 10,
-                        border: isActive ? "1px solid #00875a" : "1px solid #e2e8f0",
-                        background: isActive ? "#00875a" : "#ffffff",
-                        color: isActive ? "#ffffff" : "#334155",
-                        fontSize: 12.5,
-                        fontWeight: 800,
-                        cursor: "pointer",
-                        transition: "all 0.15s ease",
-                      }}
-                    >
-                      {item}
-                    </button>
-                  );
-                })}
-
-              <button
-                onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))}
-                disabled={currentPage === totalPages || totalPages === 0}
-                style={{
-                  padding: "6px 14px",
-                  borderRadius: 10,
-                  border: "1px solid #e2e8f0",
-                  background: currentPage === totalPages || totalPages === 0 ? "#f8fafc" : "#ffffff",
-                  color: currentPage === totalPages || totalPages === 0 ? "#94a3b8" : "#1e293b",
-                  fontSize: 12.5,
-                  fontWeight: 700,
-                  cursor: currentPage === totalPages || totalPages === 0 ? "not-allowed" : "pointer",
-                  transition: "all 0.15s ease",
-                }}
-              >
-                Next
-              </button>
-            </div>
-          </div>
+          <PaginationControls
+            currentPage={currentPage}
+            totalItems={totalItems}
+            pageSize={pageSize}
+            onPageChange={setCurrentPage}
+            onPageSizeChange={(size) => setPageSize(size)}
+            pageSizeOptions={[10, 25, 50, 100]}
+            itemLabel="entries"
+          />
         )}
       </section>
 
-      {/* Log Detail Modal */}
+      {/* Log Detail Sheet */}
       {selectedLog && (
         <div
           className={ui.modal}
@@ -622,49 +434,67 @@ export default function LogsPage() {
             if (e.target === e.currentTarget) setSelectedLog(null);
           }}
         >
-          <div className={ui.sheet}>
+          <div className={ui.sheet} role="dialog" aria-modal="true" aria-label="Log record">
             <div className={ui.sheetHead}>
-              <h2>Database Log Record</h2>
-              <button className={ui.secondary} onClick={() => setSelectedLog(null)}>
-                Close
+              <div className="flex min-w-0 items-center gap-2.5">
+                <span className={ui.iconTile}>
+                  <Icon name="logs" size={15} />
+                </span>
+                <div className="min-w-0">
+                  <h2>Log record</h2>
+                  <span className={`${ui.chip} ${TONE_CHIP[actionTone(selectedLog.action, selectedLog.category)]} mt-1 font-mono text-[11px] uppercase`}>
+                    {selectedLog.action.replace(/_/g, " ")}
+                  </span>
+                </div>
+              </div>
+              <button className={ui.iconButton} onClick={() => setSelectedLog(null)} aria-label="Close">
+                <Icon name="x" size={15} />
               </button>
             </div>
-            <div className="space-y-4 text-xs font-medium text-gray-700">
-              <div className="grid grid-cols-2 gap-3 p-4 rounded-2xl bg-gray-50 border border-gray-200">
-                <div>
-                  <span className="text-gray-500 font-bold block">Database ID:</span>
-                  <strong className="text-gray-900 font-mono">{selectedLog.id}</strong>
-                </div>
-                <div>
-                  <span className="text-gray-500 font-bold block">Timestamp:</span>
-                  <strong className="text-gray-900">{formatFullDate(selectedLog.timestamp)}</strong>
-                </div>
-                <div>
-                  <span className="text-gray-500 font-bold block">Operator:</span>
-                  <strong className="text-gray-900">{selectedLog.user.name} ({selectedLog.user.email})</strong>
-                </div>
-                <div>
-                  <span className="text-gray-500 font-bold block">Role:</span>
-                  <strong className="text-gray-900 capitalize">{selectedLog.user.role}</strong>
-                </div>
-              </div>
 
+            <p className="m-0 mb-5 text-[14px] leading-relaxed text-[var(--text)]">{selectedLog.details}</p>
+
+            <dl className={ui.kv}>
               <div>
-                <span className="text-gray-500 font-bold block mb-1">Full Description:</span>
-                <p className="p-3.5 rounded-2xl bg-[#e6f4ed] border border-[#c3e9d7] text-[#006b3f] font-bold text-sm">
-                  {selectedLog.details}
-                </p>
+                <dt>Record ID</dt>
+                <dd className="font-mono text-[12.5px]">{selectedLog.id}</dd>
               </div>
-
-              {selectedLog.meta && Object.keys(selectedLog.meta).length > 0 && (
+              <div>
+                <dt>Timestamp</dt>
+                <dd className="font-mono text-[12.5px]">{formatFullDate(selectedLog.timestamp)}</dd>
+              </div>
+              <div>
+                <dt>Operator</dt>
+                <dd>
+                  {selectedLog.user.name}
+                  <span className="block text-[12px] font-normal text-[var(--muted)]">{selectedLog.user.email}</span>
+                </dd>
+              </div>
+              <div>
+                <dt>Role</dt>
+                <dd className="capitalize">{selectedLog.user.role}</dd>
+              </div>
+              <div>
+                <dt>Category</dt>
+                <dd>{selectedLog.category}</dd>
+              </div>
+              {selectedLog.target && (
                 <div>
-                  <span className="text-gray-500 font-bold block mb-1">Metadata Payload:</span>
-                  <pre className="p-3 bg-gray-900 text-green-400 rounded-2xl overflow-x-auto text-[11px] font-mono">
-                    {JSON.stringify(selectedLog.meta, null, 2)}
-                  </pre>
+                  <dt>Target</dt>
+                  <dd className="font-mono text-[12.5px]">{selectedLog.target}</dd>
                 </div>
               )}
-            </div>
+            </dl>
+
+            {selectedLog.meta && Object.keys(selectedLog.meta).length > 0 && (
+              <div className="mt-5">
+                <p className="mb-2 mt-0 text-[12.5px] font-medium text-[var(--text-2)]">Metadata</p>
+                <pre className="m-0 max-h-64 overflow-auto rounded-[10px] border border-[var(--border)] bg-[var(--sunken)] p-3.5 font-mono text-[11.5px] leading-relaxed text-[var(--text-2)]">
+                  {JSON.stringify(selectedLog.meta, null, 2)}
+                </pre>
+              </div>
+            )}
+
             <div className={ui.formActions}>
               <button className={ui.primary} onClick={() => setSelectedLog(null)}>
                 Done

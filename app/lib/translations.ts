@@ -43,6 +43,17 @@ export const translations: TranslationDictionary = {
   "shell.setup_business": { en: "+ Set up your business", ur: "+ Nayi dukaan banayein" },
   "shell.more": { en: "More", ur: "Mazeed" },
   "shell.sign_out": { en: "Sign out", ur: "Logout Karein" },
+  "shell.workspace_pos": { en: "POS", ur: "POS" },
+  "shell.workspace_financial": { en: "Financial", ur: "Hisab Kitab" },
+  "shell.businesses": { en: "Businesses", ur: "Dukaanein" },
+  "shell.store_settings": { en: "Store settings", ur: "Dukaan Tarteebat" },
+  "shell.jump_to": { en: "Jump to a page…", ur: "Safha talaash karein…" },
+  "shell.jump_placeholder": { en: "Search pages — Khata, Stock, Daily Closing…", ur: "Safha dhoondein — Khata, Stock, Closing…" },
+  "shell.live": { en: "Live", ur: "Live" },
+  "shell.offline": { en: "Offline", ur: "Offline" },
+  "nav.group_overview": { en: "Overview", ur: "Khulasa" },
+  "nav.group_books": { en: "Books", ur: "Hisab Kitab" },
+  "nav.group_store": { en: "Store", ur: "Dukaan" },
   "shell.loading": { en: "Loading Almadel workspace...", ur: "Almadel load ho raha hai..." },
 
   // ================= USER ROLES =================
@@ -52,8 +63,8 @@ export const translations: TranslationDictionary = {
 
   // ================= COMMON UI ACTIONS =================
   "action.add_product": { en: "+ Add product", ur: "+ Naya Samaan Dalein" },
-  "action.export_csv": { en: "📥 Export CSV", ur: "📥 CSV Download Karein" },
-  "action.import_csv": { en: "📤 Import CSV", ur: "📤 CSV Upload Karein" },
+  "action.export_csv": { en: "Export CSV", ur: "CSV Download Karein" },
+  "action.import_csv": { en: "Import CSV", ur: "CSV Upload Karein" },
   "action.refresh": { en: "Refresh", ur: "Taaza Karein" },
   "action.search": { en: "Search...", ur: "Talaash karein..." },
   "action.save": { en: "Save", ur: "Mehfooz Karein" },
@@ -145,8 +156,8 @@ export const translations: TranslationDictionary = {
 
   // ================= BARCODE STICKER GENERATOR =================
   "stickers.title": { en: "Barcode Sticker Generator", ur: "Barcode Sticker Generator" },
-  "stickers.print_btn": { en: "🏷️ Print Barcode Labels", ur: "🏷️ Barcode Stickers Print Karein" },
-  "stickers.print_selected": { en: "🏷️ Print Labels", ur: "🏷️ Stickers Print Karein" },
+  "stickers.print_btn": { en: "Print Barcode Labels", ur: "Barcode Stickers Print Karein" },
+  "stickers.print_selected": { en: "Print Labels", ur: "Stickers Print Karein" },
 
   // ================= CUSTOMERS & KHATA =================
   "customers.title": { en: "Customers & Khata", ur: "Grahak & Khata Register" },
@@ -235,7 +246,7 @@ export const translations: TranslationDictionary = {
   "table.payment_mode": { en: "Payment Mode", ur: "Adaigi Ka Zariya" },
   "table.actions": { en: "Actions", ur: "Karwaiyan" },
   "table.no_records": { en: "No records found.", ur: "Koi record nahi mila." },
-  "table.view": { en: "📄 View", ur: "📄 Raseed Dekhein" },
+  "table.view": { en: "View", ur: "Raseed Dekhein" },
   "table.previous": { en: "Previous", ur: "Pichla (Previous)" },
   "table.next": { en: "Next", ur: "Agla (Next)" },
   "table.page": { en: "Page", ur: "Safha" },

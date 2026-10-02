@@ -150,51 +150,51 @@ export default function SalesPage() {
 
   return (
     <WorkspaceShell>
-      <div className="space-y-6 pb-12">
+      <div className="flex flex-col gap-5 pb-6">
         {/* Top Header & Action Controls */}
-        <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 border-b border-slate-200 dark:border-slate-800 pb-5">
+        <div className="flex flex-col md:flex-row md:items-end justify-between gap-4">
           <div>
             <div className="flex items-center gap-2">
-              <span className="text-xs font-semibold px-2.5 py-0.5 rounded-full bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300">
+              <span className="inline-flex items-center h-[22px] text-[11.5px] font-medium px-2 rounded-full bg-[var(--brand-soft)] text-[var(--brand-ink)]">
                 Point of Sale
               </span>
-              <span className="text-xs text-slate-500 dark:text-slate-400">
+              <span className="text-[12.5px] text-[var(--muted)]">
                 {activeBusiness?.name || "Retail Counter"}
               </span>
             </div>
-            <h1 className="text-2xl md:text-3xl font-bold tracking-tight text-slate-900 dark:text-white mt-1">
+            <h1 className="m-0 mt-2 text-[24px] md:text-[26px] font-semibold tracking-[-0.025em] text-[var(--text)]">
               Sales & Billing Counter
             </h1>
-            <p className="text-sm text-slate-500 dark:text-slate-400">
+            <p className="m-0 mt-1.5 text-[13.5px] text-[var(--muted)]">
               Create instant retail bills, scan barcodes, print customer receipts, and track sales history.
             </p>
           </div>
 
           <div className="flex items-center gap-3 flex-wrap">
             {/* View Switcher Toggle */}
-            <div className="inline-flex rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-100 dark:bg-slate-800 p-1 text-xs font-medium">
+            <div className="inline-flex rounded-[10px] border border-[var(--border)] bg-[var(--sunken)] p-[3px] gap-0.5 text-[12.5px] font-medium" role="tablist">
               <button
                 type="button"
                 onClick={() => setViewMode("pos")}
-                className={`px-3 py-1.5 rounded-md transition-all flex items-center gap-1.5 ${
+                className={`h-8 px-3 rounded-[7px] transition-colors flex items-center gap-1.5 ${
                   viewMode === "pos"
-                    ? "bg-white dark:bg-slate-900 text-emerald-600 dark:text-emerald-400 shadow-sm font-semibold"
-                    : "text-slate-600 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white"
+                    ? "bg-[var(--surface)] text-[var(--text)] shadow-[var(--shadow-xs),0_0_0_1px_var(--border)]"
+                    : "text-slate-600 hover:text-slate-900 "
                 }`}
               >
-                <span>🛒</span>
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" aria-hidden><path d="M3 4h2l2.4 11.2a1 1 0 0 0 1 .8h9.7a1 1 0 0 0 1-.8L21 8H6.2M9 20.5h.01M18 20.5h.01" /></svg>
                 <span>POS Counter</span>
               </button>
               <button
                 type="button"
                 onClick={() => setViewMode("history")}
-                className={`px-3 py-1.5 rounded-md transition-all flex items-center gap-1.5 ${
+                className={`h-8 px-3 rounded-[7px] transition-colors flex items-center gap-1.5 ${
                   viewMode === "history"
-                    ? "bg-white dark:bg-slate-900 text-emerald-600 dark:text-emerald-400 shadow-sm font-semibold"
-                    : "text-slate-600 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white"
+                    ? "bg-[var(--surface)] text-[var(--text)] shadow-[var(--shadow-xs),0_0_0_1px_var(--border)]"
+                    : "text-slate-600 hover:text-slate-900 "
                 }`}
               >
-                <span>📋</span>
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" aria-hidden><path d="M14 2.5H6.5v19h11V6zM14 2.5V6h3.5M9.5 11h5M9.5 15h5" /></svg>
                 <span>Sales History ({totalSalesCount})</span>
               </button>
             </div>
@@ -203,7 +203,7 @@ export default function SalesPage() {
             <button
               type="button"
               onClick={() => setAddSaleModalOpen(true)}
-              className="inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white font-medium text-sm shadow-sm transition active:scale-95 cursor-pointer"
+              className="inline-flex items-center gap-2 h-9 px-3.5 rounded-[9px] border border-[var(--border)] bg-[var(--surface)] hover:border-[var(--border-strong)] text-[var(--text)] font-medium text-[13px] shadow-[var(--shadow-xs)] transition active:scale-[0.98] cursor-pointer"
             >
               <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M12 4v16m8-8H4" />
@@ -215,66 +215,66 @@ export default function SalesPage() {
 
         {/* VIEW 1: POS COUNTER TERMINAL */}
         {viewMode === "pos" && (
-          <div className="transition-all duration-300">
+          <div className="al-page-enter">
             <PosTerminal onSaleCompleted={handleSaleCompleted} />
           </div>
         )}
 
         {/* VIEW 2: SALES HISTORY & INVOICES */}
         {viewMode === "history" && (
-          <div className="space-y-6">
+          <div className="flex flex-col gap-5 al-page-enter">
             {/* KPI Metric Cards */}
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-              <div className="p-4 rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 shadow-sm">
-                <div className="text-xs font-medium text-slate-500 dark:text-slate-400 uppercase tracking-wider">
+            <div className="grid grid-cols-2 lg:grid-cols-4 rounded-[14px] border border-[var(--border)] bg-[var(--surface)] shadow-[var(--shadow-xs)] overflow-hidden [&>div]:border-[var(--border)] [&>div:nth-child(n+2)]:lg:border-l [&>div:nth-child(even)]:border-l [&>div:nth-child(n+3)]:max-lg:border-t">
+              <div className="p-4">
+                <div className="text-[12.5px] text-[var(--text-2)]">
                   Today&apos;s Revenue
                 </div>
-                <div className="text-2xl font-bold text-emerald-600 dark:text-emerald-400 mt-1">
+                <div className="text-[24px] font-semibold tracking-[-0.03em] tabular-nums text-[var(--text)] mt-1.5">
                   Rs {metrics.todayRevenue.toLocaleString()}
                 </div>
-                <div className="text-xs text-slate-400 mt-1">Cash & Online collections today</div>
+                <div className="text-[12px] text-[var(--muted)] mt-1">Cash & Online collections today</div>
               </div>
 
-              <div className="p-4 rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 shadow-sm">
-                <div className="text-xs font-medium text-slate-500 dark:text-slate-400 uppercase tracking-wider">
+              <div className="p-4">
+                <div className="text-[12.5px] text-[var(--text-2)]">
                   Today&apos;s Invoices
                 </div>
-                <div className="text-2xl font-bold text-slate-900 dark:text-white mt-1">
+                <div className="text-[24px] font-semibold tracking-[-0.03em] tabular-nums text-[var(--text)] mt-1.5">
                   {metrics.todayInvoices}
                 </div>
-                <div className="text-xs text-slate-400 mt-1">Orders processed today</div>
+                <div className="text-[12px] text-[var(--muted)] mt-1">Orders processed today</div>
               </div>
 
-              <div className="p-4 rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 shadow-sm">
-                <div className="text-xs font-medium text-slate-500 dark:text-slate-400 uppercase tracking-wider">
+              <div className="p-4">
+                <div className="text-[12.5px] text-[var(--text-2)]">
                   Items Sold Today
                 </div>
-                <div className="text-2xl font-bold text-slate-900 dark:text-white mt-1">
+                <div className="text-[24px] font-semibold tracking-[-0.03em] tabular-nums text-[var(--text)] mt-1.5">
                   {metrics.todayItems}
                 </div>
-                <div className="text-xs text-slate-400 mt-1">Total product units dispensed</div>
+                <div className="text-[12px] text-[var(--muted)] mt-1">Total product units dispensed</div>
               </div>
 
-              <div className="p-4 rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 shadow-sm">
-                <div className="text-xs font-medium text-slate-500 dark:text-slate-400 uppercase tracking-wider">
+              <div className="p-4">
+                <div className="text-[12.5px] text-[var(--text-2)]">
                   Total Recorded Invoices
                 </div>
-                <div className="text-2xl font-bold text-slate-900 dark:text-white mt-1">
+                <div className="text-[24px] font-semibold tracking-[-0.03em] tabular-nums text-[var(--text)] mt-1.5">
                   {metrics.allTimeCount}
                 </div>
-                <div className="text-xs text-slate-400 mt-1">Across all dates</div>
+                <div className="text-[12px] text-[var(--muted)] mt-1">Across all dates</div>
               </div>
             </div>
 
             {/* Filter and Search Bar */}
-            <div className="flex flex-col sm:flex-row items-center justify-between gap-3 p-3 bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 shadow-sm">
+            <div className="flex flex-col sm:flex-row items-center justify-between gap-3">
               <div className="relative w-full sm:w-80">
                 <input
                   type="text"
                   placeholder="Search invoice # or customer..."
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
-                  className="w-full pl-9 pr-3 py-2 text-sm rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-emerald-500"
+                  className="w-full h-9 pl-9 pr-3 text-[13.5px] rounded-[9px] border border-[var(--border)] bg-[var(--surface)] text-[var(--text)] shadow-[var(--shadow-xs)] outline-none focus:border-[var(--brand)] focus:shadow-[0_0_0_3px_var(--ring)]"
                 />
                 <svg
                   className="w-4 h-4 absolute left-3 top-2.5 text-slate-400"
@@ -292,14 +292,14 @@ export default function SalesPage() {
               </div>
 
               <div className="flex items-center gap-2 w-full sm:w-auto justify-end">
-                <div className="inline-flex rounded-lg border border-slate-200 dark:border-slate-700 p-0.5 text-xs bg-slate-50 dark:bg-slate-800">
+                <div className="inline-flex rounded-lg border border-slate-200 p-0.5 text-xs bg-slate-50">
                   <button
                     type="button"
                     onClick={() => setFilterPayment("ALL")}
-                    className={`px-2.5 py-1 rounded-md transition ${
+                    className={`h-7 px-2.5 rounded-md transition ${
                       filterPayment === "ALL"
-                        ? "bg-white dark:bg-slate-700 font-semibold text-slate-900 dark:text-white shadow-xs"
-                        : "text-slate-500 hover:text-slate-800 dark:hover:text-slate-200"
+                        ? "bg-[var(--surface)] text-[var(--text)] font-medium shadow-[var(--shadow-xs),0_0_0_1px_var(--border)]"
+                        : "text-slate-500 hover:text-slate-800 "
                     }`}
                   >
                     All
@@ -307,10 +307,10 @@ export default function SalesPage() {
                   <button
                     type="button"
                     onClick={() => setFilterPayment("CASH")}
-                    className={`px-2.5 py-1 rounded-md transition ${
+                    className={`h-7 px-2.5 rounded-md transition ${
                       filterPayment === "CASH"
-                        ? "bg-emerald-600 text-white font-semibold shadow-xs"
-                        : "text-slate-500 hover:text-slate-800 dark:hover:text-slate-200"
+                        ? "bg-[var(--surface)] text-[var(--text)] font-medium shadow-[var(--shadow-xs),0_0_0_1px_var(--border)]"
+                        : "text-slate-500 hover:text-slate-800 "
                     }`}
                   >
                     Cash
@@ -318,10 +318,10 @@ export default function SalesPage() {
                   <button
                     type="button"
                     onClick={() => setFilterPayment("ONLINE")}
-                    className={`px-2.5 py-1 rounded-md transition ${
+                    className={`h-7 px-2.5 rounded-md transition ${
                       filterPayment === "ONLINE"
-                        ? "bg-blue-600 text-white font-semibold shadow-xs"
-                        : "text-slate-500 hover:text-slate-800 dark:hover:text-slate-200"
+                        ? "bg-[var(--surface)] text-[var(--text)] font-medium shadow-[var(--shadow-xs),0_0_0_1px_var(--border)]"
+                        : "text-slate-500 hover:text-slate-800 "
                     }`}
                   >
                     Online
@@ -332,7 +332,7 @@ export default function SalesPage() {
                   type="button"
                   onClick={() => loadSalesHistory()}
                   disabled={loadingHistory}
-                  className="p-2 text-slate-500 hover:text-slate-900 dark:hover:text-white rounded-lg border border-slate-200 dark:border-slate-700 hover:bg-slate-100 dark:hover:bg-slate-800 transition"
+                  className="p-2 text-slate-500 hover:text-slate-900 rounded-lg border border-slate-200 hover:bg-slate-100 transition"
                   title="Refresh Sales"
                 >
                   <svg
@@ -353,21 +353,24 @@ export default function SalesPage() {
             </div>
 
             {/* Sales Table / Empty State */}
-            <div className="bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 shadow-sm overflow-hidden">
+            <div className="bg-[var(--surface)] rounded-[14px] border border-[var(--border)] shadow-[var(--shadow-xs)] overflow-hidden">
               {loadingHistory && sales.length === 0 ? (
-                <div className="py-16 text-center text-slate-400">
-                  <div className="inline-block animate-spin w-8 h-8 border-3 border-emerald-500 border-t-transparent rounded-full mb-3" />
-                  <p className="text-sm">Loading sales history...</p>
+                <div className="flex flex-col gap-3 p-4" aria-busy="true" aria-label="Loading sales history">
+                  {Array.from({ length: 5 }).map((_, i) => (
+                    <div key={i} className="flex items-center gap-4">
+                      <span className="al-skeleton block h-3.5 w-24" />
+                      <span className="al-skeleton block h-3.5 flex-1" />
+                      <span className="al-skeleton block h-3.5 w-16" />
+                    </div>
+                  ))}
                 </div>
               ) : filteredSales.length === 0 ? (
                 <div className="py-16 text-center px-4">
-                  <div className="w-16 h-16 rounded-full bg-emerald-50 dark:bg-emerald-950/40 text-emerald-600 flex items-center justify-center mx-auto mb-4 text-2xl">
-                    🧾
-                  </div>
-                  <h3 className="text-lg font-semibold text-slate-900 dark:text-white">
+                  <div className="size-11 rounded-xl bg-[var(--surface-2)] text-[var(--muted)] shadow-[inset_0_0_0_1px_var(--border)] grid place-items-center mx-auto mb-3"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" aria-hidden><path d="M14 2.5H6.5v19h11V6zM14 2.5V6h3.5M9.5 11h5M9.5 15h5" /></svg></div>
+                  <h3 className="text-lg font-semibold text-slate-900">
                     {searchQuery ? "No matching invoices found" : "No sales recorded yet"}
                   </h3>
-                  <p className="text-sm text-slate-500 dark:text-slate-400 max-w-md mx-auto mt-1 mb-6">
+                  <p className="text-sm text-slate-500 max-w-md mx-auto mt-1 mb-6">
                     {searchQuery
                       ? "Try searching with a different invoice number or customer name."
                       : "Start processing retail orders at your counter to see invoices and print receipts."}
@@ -376,14 +379,14 @@ export default function SalesPage() {
                     <button
                       type="button"
                       onClick={() => setViewMode("pos")}
-                      className="px-4 py-2 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white font-medium text-sm transition shadow-sm cursor-pointer"
+                      className="px-4 py-2 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white font-medium text-sm transition shadow-[var(--shadow-xs)] cursor-pointer"
                     >
-                      🛒 Open POS Counter
+                      Open POS Counter
                     </button>
                     <button
                       type="button"
                       onClick={() => setAddSaleModalOpen(true)}
-                      className="px-4 py-2 rounded-lg border border-slate-300 dark:border-slate-700 text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-800 font-medium text-sm transition cursor-pointer"
+                      className="px-4 py-2 rounded-lg border border-slate-300 text-slate-700 hover:bg-slate-50 font-medium text-sm transition cursor-pointer"
                     >
                       + Quick Add Sale
                     </button>
@@ -393,17 +396,17 @@ export default function SalesPage() {
                 <div className="overflow-x-auto">
                   <table className="w-full text-left border-collapse text-sm">
                     <thead>
-                      <tr className="border-b border-slate-200 dark:border-slate-800 bg-slate-50/75 dark:bg-slate-800/50 text-slate-500 dark:text-slate-400 text-xs uppercase font-semibold">
-                        <th className="px-4 py-3.5">Invoice #</th>
-                        <th className="px-4 py-3.5">Date & Time</th>
-                        <th className="px-4 py-3.5">Customer</th>
-                        <th className="px-4 py-3.5 text-center">Items</th>
-                        <th className="px-4 py-3.5">Payment</th>
-                        <th className="px-4 py-3.5 text-right">Amount</th>
-                        <th className="px-4 py-3.5 text-right">Actions</th>
+                      <tr className="border-b border-[var(--border)] bg-[var(--surface-2)] text-[var(--muted)] text-[11.5px] font-medium">
+                        <th className="px-4 py-2.5">Invoice #</th>
+                        <th className="px-4 py-2.5">Date & Time</th>
+                        <th className="px-4 py-2.5">Customer</th>
+                        <th className="px-4 py-2.5 text-center">Items</th>
+                        <th className="px-4 py-2.5">Payment</th>
+                        <th className="px-4 py-2.5 text-right">Amount</th>
+                        <th className="px-4 py-2.5 text-right">Actions</th>
                       </tr>
                     </thead>
-                    <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
+                    <tbody className="divide-y divide-slate-100">
                       {filteredSales.map((sale) => {
                         const dateFormatted = new Date(sale.createdAt).toLocaleString("en-PK", {
                           dateStyle: "medium",
@@ -417,44 +420,42 @@ export default function SalesPage() {
                         return (
                           <tr
                             key={sale.id}
-                            className="hover:bg-slate-50/80 dark:hover:bg-slate-800/40 transition-colors"
+                            className="hover:bg-[var(--hl)] transition-colors"
                           >
-                            <td className="px-4 py-3 font-mono font-medium text-slate-900 dark:text-white">
+                            <td className="px-4 py-3 font-mono text-[12.5px] text-[var(--text)]">
                               {sale.invoiceNumber}
                             </td>
-                            <td className="px-4 py-3 text-slate-500 dark:text-slate-400 text-xs">
+                            <td className="px-4 py-3 text-slate-500 text-xs">
                               {dateFormatted}
                             </td>
                             <td className="px-4 py-3">
-                              <div className="font-medium text-slate-800 dark:text-slate-200">
+                              <div className="font-medium text-slate-800">
                                 {customerDisplay}
                               </div>
                               {customerMobile && (
-                                <div className="text-xs text-slate-400 font-mono">
+                                <div className="font-mono text-[11.5px] text-[var(--faint)]">
                                   {customerMobile}
                                 </div>
                               )}
                             </td>
                             <td className="px-4 py-3 text-center">
-                              <span className="inline-block px-2 py-0.5 text-xs font-semibold rounded-full bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300">
-                                {sale.itemCount || 1} items
-                              </span>
+                              <span className="font-mono text-[12.5px] text-[var(--text-2)]">{sale.itemCount || 1}</span>
                             </td>
                             <td className="px-4 py-3">
                               <span
-                                className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium ${
+                                className={`inline-flex h-[22px] items-center rounded-[6px] px-2 text-[11.5px] font-medium capitalize ${
                                   sale.paymentMethod?.toUpperCase() === "CASH"
-                                    ? "bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300"
-                                    : "bg-blue-100 text-blue-800 dark:bg-blue-950 dark:text-blue-300"
+                                    ? "bg-[var(--brand-soft)] text-[var(--pos)] shadow-[inset_0_0_0_1px_var(--brand-line)]"
+                                    : "bg-[var(--info-soft)] text-[var(--info)]"
                                 }`}
                               >
                                 {sale.paymentMethod || "CASH"}
                               </span>
                             </td>
-                            <td className="px-4 py-3 text-right font-bold text-slate-900 dark:text-white">
+                            <td className="px-4 py-3 text-right font-semibold tabular-nums text-[var(--text)]">
                               Rs {sale.totalAmount.toLocaleString()}
                               {sale.discountAmount > 0 && (
-                                <span className="block text-[11px] font-normal text-emerald-600 dark:text-emerald-400">
+                                <span className="block font-mono text-[11px] font-normal text-[var(--pos)]">
                                   -Rs {sale.discountAmount.toLocaleString()} off
                                 </span>
                               )}
@@ -464,10 +465,10 @@ export default function SalesPage() {
                                 type="button"
                                 onClick={() => handleViewReceipt(sale)}
                                 disabled={loadingReceiptId === sale.id}
-                                className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-slate-200 dark:border-slate-700 hover:border-emerald-500 hover:text-emerald-600 text-slate-700 dark:text-slate-300 dark:hover:text-emerald-400 text-xs font-medium transition cursor-pointer"
+                                className="inline-flex h-[30px] items-center gap-1.5 rounded-[8px] border border-[var(--border)] bg-[var(--surface)] px-2.5 text-[12px] font-medium text-[var(--text)] transition hover:border-[var(--border-strong)] hover:bg-[var(--surface-2)] cursor-pointer"
                               >
                                 {loadingReceiptId === sale.id ? (
-                                  <span className="w-3 h-3 border-2 border-emerald-500 border-t-transparent rounded-full animate-spin" />
+                                  <span className="size-3 rounded-full border-2 border-[var(--brand)] border-t-transparent [animation:almadelSpin_700ms_linear_infinite]" />
                                 ) : (
                                   <svg
                                     className="w-3.5 h-3.5"

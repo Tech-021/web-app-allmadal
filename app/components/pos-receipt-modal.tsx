@@ -1,6 +1,8 @@
 "use client";
 
 import React, { useRef, useState } from "react";
+import { Icon } from "@/app/components/icons";
+import ui from "@/app/components/workspace-ui.module.css";
 import { useBusiness } from "@/app/components/business-context";
 import { resolveImageUrl } from "@/app/lib/api";
 import { useLanguage } from "@/app/components/language-context";
@@ -188,13 +190,14 @@ export function PosReceiptModal({
       {/* Screen Backdrop & Modal Shell */}
       <div
         id="pos-print-wrapper"
-        className="fixed inset-0 z-[99999] flex items-start justify-center p-3 sm:p-6 bg-slate-950/75 backdrop-blur-xs overflow-y-auto"
+        className="al-overlay fixed inset-0 z-[99999] flex items-start justify-center p-3 sm:p-6 bg-[var(--scrim)] backdrop-blur-[3px] overflow-y-auto"
         role="dialog"
         aria-modal="true"
       >
         <div
           id="pos-receipt-card"
-          className="relative w-full max-w-sm sm:max-w-md bg-white rounded-3xl shadow-2xl border border-slate-200 p-5 sm:p-6 my-auto font-sans text-slate-800 transition-all"
+          data-theme="light"
+          className="relative w-full max-w-sm sm:max-w-md bg-white rounded-3xl shadow-[var(--shadow-lg)] border border-slate-200 p-5 sm:p-6 my-auto font-sans text-slate-800 transition-all"
         >
           {/* Top Controls Toolbar (Hidden in Print) */}
           <div className="no-print flex items-center justify-between pb-3 mb-3 border-b border-slate-100">
@@ -225,11 +228,11 @@ export function PosReceiptModal({
                   <img
                     src={resolvedLogo}
                     alt={activeBusiness?.name || "Store Logo"}
-                    className="max-h-16 max-w-[170px] object-contain mx-auto rounded-xl border border-slate-100 shadow-xs p-1"
+                    className="max-h-16 max-w-[170px] object-contain mx-auto rounded-xl border border-slate-100 shadow-[var(--shadow-xs)] p-1"
                   />
                 </div>
               ) : (
-                <div className="size-12 rounded-2xl bg-[#00875a] text-white flex items-center justify-center text-xl font-black mx-auto shadow-md shadow-[#00875a]/20 border-2 border-emerald-700">
+                <div className="size-12 rounded-2xl bg-[var(--brand)] text-white flex items-center justify-center text-xl font-black mx-auto shadow-[var(--shadow-md)]  border-2 border-emerald-700">
                   {activeBusiness?.name ? activeBusiness.name[0]?.toUpperCase() : "A"}
                 </div>
               )}
@@ -351,7 +354,7 @@ export function PosReceiptModal({
               <div className="flex justify-between text-base font-black text-slate-900 pt-1.5 border-t border-slate-200 items-baseline">
                 <span>Grand Total</span>
                 <div className="text-right">
-                  <span className="text-[#00875a] text-lg font-black">
+                  <span className="text-[var(--brand)] text-lg font-black">
                     ₨ {activeReceipt.totalAmount.toLocaleString()}
                   </span>
                   <span className="block text-[10px] font-bold text-emerald-700 uppercase tracking-wider">
@@ -382,7 +385,7 @@ export function PosReceiptModal({
 
             {/* OFFICIAL ALMADEL "PAID" STAMP */}
             <div className="flex justify-center pt-2">
-              <div className="relative inline-flex flex-col items-center justify-center border-4 border-double border-emerald-600 text-emerald-700 px-5 py-2.5 rounded-2xl transform -rotate-3 select-none bg-emerald-50/60 shadow-xs">
+              <div className="relative inline-flex flex-col items-center justify-center border-4 border-double border-emerald-600 text-emerald-700 px-5 py-2.5 rounded-2xl transform -rotate-3 select-none bg-emerald-50/60 shadow-[var(--shadow-xs)]">
                 <div className="flex items-center gap-1.5 text-[9px] font-black uppercase tracking-widest text-emerald-700">
                   <span>★</span>
                   <span>ALMADEL OFFICIAL STAMP</span>
@@ -414,9 +417,9 @@ export function PosReceiptModal({
 
             {/* Shukriya / Thank You Note */}
             <div className="text-center pt-2 border-t border-dashed border-slate-300">
-              <p className="text-sm font-extrabold text-[#00875a]">Shukriya! (Thank You)</p>
+              <p className="text-sm font-extrabold text-[var(--brand)]">Shukriya! (Thank You)</p>
               <p className="text-[11px] font-semibold text-slate-500 mt-0.5">
-                Dobara Tashreef Layen 🤍
+                Dobara Tashreef Layen
               </p>
               <p className="text-[9px] text-slate-400 mt-1.5 font-mono">
                 Powered by Almadel POS &bull; Store Management Portal
@@ -425,35 +428,17 @@ export function PosReceiptModal({
           </div>
 
           {/* Action Buttons (Hidden on Print) */}
-          <div className="no-print mt-5 flex flex-col gap-2">
-            <div className="flex gap-2">
-              <button
-                type="button"
-                onClick={handlePrint}
-                className="flex-1 py-3 px-4 rounded-2xl bg-[#00875a] hover:bg-[#00744e] text-white font-extrabold text-xs sm:text-sm shadow-lg shadow-[#00875a]/25 transition flex items-center justify-center gap-2 cursor-pointer active:scale-[0.99]"
-              >
-                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    strokeWidth={2}
-                    d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z"
-                  />
-                </svg>
-                <span>{t("action.print_receipt", "Print Receipt")}</span>
+          <div className="no-print mt-4 flex flex-col gap-2">
+            <div className="grid grid-cols-2 gap-2">
+              <button type="button" onClick={handlePrint} className={`${ui.primary} ${ui.btnLg}`}>
+                <Icon name="printer" size={15} />
+                {t("action.print_receipt", "Print Receipt")}
               </button>
-
-              <button
-                type="button"
-                onClick={() => void handleDownloadPdf()}
-                disabled={downloadingPdf}
-                className="flex-1 py-3 px-4 rounded-2xl bg-slate-800 hover:bg-slate-900 text-white font-extrabold text-xs sm:text-sm shadow-md transition flex items-center justify-center gap-2 cursor-pointer active:scale-[0.99] disabled:opacity-50"
-              >
-                <span>📥</span>
-                <span>{downloadingPdf ? "Generating PDF..." : "Download PDF"}</span>
+              <button type="button" onClick={() => void handleDownloadPdf()} disabled={downloadingPdf} className={`${ui.secondary} ${ui.btnLg}`}>
+                <Icon name="download" size={15} />
+                {downloadingPdf ? "Generating…" : "Download PDF"}
               </button>
             </div>
-
             <div className="flex gap-2">
               {onNewSale && (
                 <button
@@ -462,16 +447,13 @@ export function PosReceiptModal({
                     onClose();
                     onNewSale();
                   }}
-                  className="flex-1 py-2.5 px-3 rounded-xl bg-emerald-50 hover:bg-emerald-100 text-[#00875a] font-bold text-xs transition cursor-pointer"
+                  className={`${ui.secondary} flex-1`}
                 >
-                  {t("action.new_sale", "+ New Sale")}
+                  <Icon name="plus" size={14} />
+                  {t("action.new_sale", "+ New Sale").replace(/^\+\s*/, "")}
                 </button>
               )}
-              <button
-                type="button"
-                onClick={onClose}
-                className="flex-1 py-2.5 px-3 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-xs transition cursor-pointer"
-              >
+              <button type="button" onClick={onClose} className={`${ui.secondary} flex-1`}>
                 {t("action.cancel", "Close")}
               </button>
             </div>

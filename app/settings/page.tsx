@@ -16,7 +16,8 @@ import {
   validateText,
 } from "@/app/lib/validators";
 import ui from "@/app/components/workspace-ui.module.css";
-import { PageHeader, PageSection, PageStack } from "@/app/components/page-layout";
+import { PageHeader } from "@/app/components/page-layout";
+import { Icon } from "@/app/components/icons";
 
 export default function SettingsPage() {
   const { user, updateUser } = useAuth();
@@ -202,220 +203,180 @@ export default function SettingsPage() {
   }
 
   const resolvedPreview = resolveImageUrl(logoUrl);
-  const inputErrorClass = "border-rose-400 ring-1 ring-rose-200";
+
+  const err = (key: string) =>
+    fieldErrors[key] ? (
+      <span className={ui.fieldError}>
+        <Icon name="alert" size={12} />
+        {fieldErrors[key]}
+      </span>
+    ) : null;
+  const inv = (key: string) => (fieldErrors[key] ? ui.invalid : "");
 
   return (
     <WorkspaceShell>
-      <PageStack>
-      <PageHeader
-        eyebrow="Workspace"
-        title="Settings & Store Branding"
-        description="Update your business logo, contact details, and account preferences."
-      />
+      <PageHeader eyebrow="Workspace" title="Settings" description="Your store branding, contact details and counter preferences." />
 
-      <PageSection>
-      <form className="max-w-3xl" onSubmit={submit} noValidate>
-        
-        {/* Store Logo Section */}
-        <div className="mb-6 pb-6 border-b border-slate-200">
-          <label className="block text-xs font-extrabold uppercase tracking-wider text-slate-700 mb-2">
-            Store Logo &amp; Branding
-          </label>
-          <p className="text-xs text-slate-500 mb-4">
-            This logo will appear on customer bills, thermal/A4 receipts, and your workspace sidebar.
-          </p>
-
-          <div className="flex items-center gap-5">
-            {/* Logo Preview Box */}
-            <div className="size-20 rounded-2xl border-2 border-dashed border-slate-200 bg-slate-50 flex items-center justify-center overflow-hidden shrink-0 shadow-xs relative">
-              {resolvedPreview ? (
-                <img
-                  src={resolvedPreview}
-                  alt="Store Logo"
-                  className="size-full object-contain p-1"
-                />
-              ) : (
-                <div className="size-full bg-emerald-600 text-white font-black text-2xl flex items-center justify-center">
-                  {form.business ? form.business[0]?.toUpperCase() : "A"}
-                </div>
-              )}
-              {logoUploading && (
-                <div className="absolute inset-0 bg-white/80 flex items-center justify-center">
-                  <div className="w-5 h-5 border-2 border-emerald-600 border-t-transparent rounded-full animate-spin" />
-                </div>
-              )}
-            </div>
-
-            {/* Actions */}
-            <div className="space-y-2">
-              <input
-                ref={fileInputRef}
-                type="file"
-                accept="image/png,image/jpeg,image/webp,image/gif"
-                onChange={handleLogoFileChange}
-                className="hidden"
-                id="logo-file-input"
-              />
-              <div className="flex items-center gap-2">
-                <button
-                  type="button"
-                  onClick={() => fileInputRef.current?.click()}
-                  disabled={logoUploading}
-                  className="px-3.5 py-1.5 rounded-xl bg-emerald-50 hover:bg-emerald-100 text-emerald-800 text-xs font-bold transition border border-emerald-200 cursor-pointer"
-                >
-                  {resolvedPreview ? "Change Logo" : "Upload Logo"}
-                </button>
-                {resolvedPreview && (
-                  <button
-                    type="button"
-                    onClick={removeLogo}
-                    className="px-3 py-1.5 rounded-xl bg-rose-50 hover:bg-rose-100 text-rose-700 text-xs font-bold transition border border-rose-200 cursor-pointer"
-                  >
-                    Remove
-                  </button>
+      <form onSubmit={submit} noValidate className={ui.sectionList}>
+        {/* Branding */}
+        <section className={ui.section}>
+          <div className={ui.sectionAside}>
+            <h2>Store logo</h2>
+            <p>Appears on customer bills, thermal / A4 receipts and in your workspace sidebar.</p>
+          </div>
+          <div className={ui.sectionBody}>
+            <div className="flex flex-wrap items-center gap-5">
+              <div className="relative grid size-20 shrink-0 place-items-center overflow-hidden rounded-[14px] border border-[var(--border)] bg-[var(--surface-2)] shadow-[var(--shadow-xs)]">
+                {resolvedPreview ? (
+                  <img src={resolvedPreview} alt="Store logo" className="size-full object-contain p-1.5" />
+                ) : (
+                  <span className="text-[26px] font-semibold text-[var(--brand)]">{form.business ? form.business[0]?.toUpperCase() : "A"}</span>
+                )}
+                {logoUploading && (
+                  <div className="absolute inset-0 grid place-items-center bg-[var(--glass)]">
+                    <span className="size-5 rounded-full border-2 border-[var(--brand)] border-t-transparent [animation:almadelSpin_700ms_linear_infinite]" />
+                  </div>
                 )}
               </div>
-              <p className="text-[11px] text-slate-400">
-                Recommended: Square PNG or JPG with transparent/white background (Max 3MB).
-              </p>
-              {fieldErrors.logo && (
-                <p className="text-[11px] font-bold text-rose-600">{fieldErrors.logo}</p>
-              )}
+              <div className="flex flex-col gap-2">
+                <input
+                  ref={fileInputRef}
+                  type="file"
+                  accept="image/png,image/jpeg,image/webp,image/gif"
+                  onChange={handleLogoFileChange}
+                  className="hidden"
+                  id="logo-file-input"
+                />
+                <div className="flex flex-wrap items-center gap-2">
+                  <button type="button" onClick={() => fileInputRef.current?.click()} disabled={logoUploading} className={ui.secondary}>
+                    <Icon name="upload" size={14} />
+                    {resolvedPreview ? "Change logo" : "Upload logo"}
+                  </button>
+                  {resolvedPreview && (
+                    <button type="button" onClick={removeLogo} className={`${ui.iconButton} hover:!text-[var(--neg)]`} aria-label="Remove logo" title="Remove logo">
+                      <Icon name="trash" size={14} />
+                    </button>
+                  )}
+                </div>
+                <span className="text-[12px] text-[var(--muted)]">Square PNG or JPG, transparent or white background · max 3MB</span>
+                {err("logo")}
+              </div>
             </div>
           </div>
-        </div>
+        </section>
 
-        {/* Store & Profile Fields */}
-        <div className={ui.formGrid}>
-          <div className={ui.field}>
-            <label>Business / Store Name</label>
-            <input
-              className={`${ui.input} ${fieldErrors.business ? inputErrorClass : ""}`}
-              required
-              maxLength={100}
-              value={form.business}
-              onChange={(e) => setForm({ ...form, business: e.target.value })}
-            />
-            {fieldErrors.business && (
-              <p className="text-[11px] font-bold text-rose-600 mt-1">{fieldErrors.business}</p>
-            )}
+        {/* Store details */}
+        <section className={ui.section}>
+          <div className={ui.sectionAside}>
+            <h2>Store details</h2>
+            <p>Printed on invoices so customers know where to find and reach you.</p>
           </div>
-
-          <div className={ui.field}>
-            <label>Store Phone Number (Receipt)</label>
-            <input
-              className={`${ui.input} ${fieldErrors.mobileNumber ? inputErrorClass : ""}`}
-              type="tel"
-              maxLength={16}
-              placeholder="e.g. 03001234567"
-              value={form.mobileNumber}
-              onChange={(e) => setForm({ ...form, mobileNumber: sanitizePhoneInput(e.target.value) })}
-            />
-            {fieldErrors.mobileNumber && (
-              <p className="text-[11px] font-bold text-rose-600 mt-1">{fieldErrors.mobileNumber}</p>
-            )}
+          <div className={`${ui.sectionBody} ${ui.formGrid}`}>
+            <div className={`${ui.field} ${ui.span2}`}>
+              <label htmlFor="st-business">Business / store name</label>
+              <input id="st-business" className={`${ui.input} ${inv("business")}`} required maxLength={100} value={form.business} onChange={(e) => setForm({ ...form, business: e.target.value })} />
+              {err("business")}
+            </div>
+            <div className={ui.field}>
+              <label htmlFor="st-phone">Store phone (on receipt)</label>
+              <input
+                id="st-phone"
+                className={`${ui.input} ${ui.inputMono} ${inv("mobileNumber")}`}
+                type="tel"
+                maxLength={16}
+                placeholder="03001234567"
+                value={form.mobileNumber}
+                onChange={(e) => setForm({ ...form, mobileNumber: sanitizePhoneInput(e.target.value) })}
+              />
+              {err("mobileNumber")}
+            </div>
+            <div className={ui.field}>
+              <label htmlFor="st-wa">WhatsApp number</label>
+              <input
+                id="st-wa"
+                className={`${ui.input} ${ui.inputMono} ${inv("whatsappNumber")}`}
+                type="tel"
+                maxLength={16}
+                placeholder="03152944142"
+                value={form.whatsappNumber}
+                onChange={(e) => setForm({ ...form, whatsappNumber: sanitizePhoneInput(e.target.value) })}
+              />
+              {err("whatsappNumber")}
+            </div>
+            <div className={ui.field}>
+              <label htmlFor="st-city">City</label>
+              <input id="st-city" className={`${ui.input} ${inv("city")}`} maxLength={60} placeholder="Karachi, Lahore, Islamabad…" value={form.city} onChange={(e) => setForm({ ...form, city: e.target.value })} />
+              {err("city")}
+            </div>
+            <div className={ui.field}>
+              <label htmlFor="st-address">Store address</label>
+              <input
+                id="st-address"
+                className={`${ui.input} ${inv("address")}`}
+                maxLength={200}
+                placeholder="Shop # 4, Main Commercial Market"
+                value={form.address}
+                onChange={(e) => setForm({ ...form, address: e.target.value })}
+              />
+              {err("address")}
+            </div>
           </div>
+        </section>
 
-          <div className={ui.field}>
-            <label>WhatsApp Number</label>
-            <input
-              className={`${ui.input} ${fieldErrors.whatsappNumber ? inputErrorClass : ""}`}
-              type="tel"
-              maxLength={16}
-              placeholder="e.g. 03152944142"
-              value={form.whatsappNumber}
-              onChange={(e) => setForm({ ...form, whatsappNumber: sanitizePhoneInput(e.target.value) })}
-            />
-            {fieldErrors.whatsappNumber && (
-              <p className="text-[11px] font-bold text-rose-600 mt-1">{fieldErrors.whatsappNumber}</p>
-            )}
+        {/* Owner account */}
+        <section className={ui.section}>
+          <div className={ui.sectionAside}>
+            <h2>Owner account</h2>
+            <p>The name and email used to sign in and receive account notices.</p>
           </div>
-
-          <div className={ui.field}>
-            <label>City</label>
-            <input
-              className={`${ui.input} ${fieldErrors.city ? inputErrorClass : ""}`}
-              maxLength={60}
-              placeholder="e.g. Karachi, Lahore, Islamabad"
-              value={form.city}
-              onChange={(e) => setForm({ ...form, city: e.target.value })}
-            />
-            {fieldErrors.city && (
-              <p className="text-[11px] font-bold text-rose-600 mt-1">{fieldErrors.city}</p>
-            )}
+          <div className={`${ui.sectionBody} ${ui.formGrid}`}>
+            <div className={ui.field}>
+              <label htmlFor="st-name">Full name</label>
+              <input id="st-name" className={`${ui.input} ${inv("name")}`} required maxLength={100} value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} />
+              {err("name")}
+            </div>
+            <div className={ui.field}>
+              <label htmlFor="st-email">Email address</label>
+              <input id="st-email" className={`${ui.input} ${inv("email")}`} required type="email" maxLength={100} value={form.email} onChange={(e) => setForm({ ...form, email: e.target.value })} />
+              {err("email")}
+            </div>
           </div>
+        </section>
 
-          <div className={`${ui.field} ${ui.span2}`}>
-            <label>Store Address (Prints on Invoices)</label>
-            <input
-              className={`${ui.input} ${fieldErrors.address ? inputErrorClass : ""}`}
-              maxLength={200}
-              placeholder="e.g. Shop # 4, Main Commercial Market, Malir"
-              value={form.address}
-              onChange={(e) => setForm({ ...form, address: e.target.value })}
-            />
-            {fieldErrors.address && (
-              <p className="text-[11px] font-bold text-rose-600 mt-1">{fieldErrors.address}</p>
-            )}
+        {/* POS rules */}
+        <section className={ui.section}>
+          <div className={ui.sectionAside}>
+            <h2>Counter rules</h2>
+            <p>Control how much pricing flexibility cashiers have at the POS.</p>
           </div>
-
-          <div className={ui.field}>
-            <label>Account Owner Name</label>
-            <input
-              className={`${ui.input} ${fieldErrors.name ? inputErrorClass : ""}`}
-              required
-              maxLength={100}
-              value={form.name}
-              onChange={(e) => setForm({ ...form, name: e.target.value })}
-            />
-            {fieldErrors.name && (
-              <p className="text-[11px] font-bold text-rose-600 mt-1">{fieldErrors.name}</p>
-            )}
+          <div className={ui.sectionBody}>
+            <label className={ui.switchRow}>
+              <span>
+                <strong>Allow discounts at the counter</strong>
+                <small>Cashiers can apply fixed (Rs) or percentage (%) discounts to a bill.</small>
+              </span>
+              <input type="checkbox" role="switch" className={ui.switch} checked={allowDiscounts} onChange={(e) => setAllowDiscounts(e.target.checked)} />
+            </label>
           </div>
+        </section>
 
-          <div className={ui.field}>
-            <label>Email Address</label>
-            <input
-              className={`${ui.input} ${fieldErrors.email ? inputErrorClass : ""}`}
-              required
-              type="email"
-              maxLength={100}
-              value={form.email}
-              onChange={(e) => setForm({ ...form, email: e.target.value })}
-            />
-            {fieldErrors.email && (
-              <p className="text-[11px] font-bold text-rose-600 mt-1">{fieldErrors.email}</p>
-            )}
-          </div>
-        </div>
-
-        {/* POS & Billing Preferences */}
-        <div style={{ marginTop: 24, padding: "20px 24px", background: "#f8fafc", borderRadius: 16, border: "1px solid #e2e8f0" }}>
-          <h3 style={{ fontSize: 15, fontWeight: 800, color: "#0f172a", marginBottom: 4 }}>
-            POS Billing & Discount Rules
-          </h3>
-          <p style={{ fontSize: 12, color: "#64748b", marginBottom: 14 }}>
-            Control pricing flexibility for cashiers and counter staff.
-          </p>
-          <label style={{ display: "flex", alignItems: "center", gap: 10, cursor: "pointer", fontSize: 13, fontWeight: 700, color: "#1e293b" }}>
-            <input
-              type="checkbox"
-              checked={allowDiscounts}
-              onChange={(e) => setAllowDiscounts(e.target.checked)}
-              style={{ width: 18, height: 18, accentColor: "#00875a", cursor: "pointer" }}
-            />
-            <span>Enable Discounts at POS Counter (Allow cashiers to apply Fixed ₨ or Percent % discounts)</span>
-          </label>
-        </div>
-
-        <div className={ui.formActions}>
+        <div className={ui.sectionFooter}>
+          <p>Changes apply to new receipts immediately.</p>
           <button className={ui.primary} disabled={saving || logoUploading}>
-            {saving ? "Saving Changes..." : "Save Changes"}
+            {saving ? (
+              <>
+                <span className="size-3.5 rounded-full border-2 border-current border-t-transparent [animation:almadelSpin_700ms_linear_infinite]" />
+                Saving…
+              </>
+            ) : (
+              <>
+                <Icon name="check" size={15} />
+                Save changes
+              </>
+            )}
           </button>
         </div>
       </form>
-      </PageSection>
-      </PageStack>
     </WorkspaceShell>
   );
 }

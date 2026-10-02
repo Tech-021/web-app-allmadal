@@ -1,0 +1,76 @@
+.tools {
+  flex-wrap: wrap;
+  align-items: center;
+}
+
+.search {
+  display: flex;
+  gap: 8px;
+  flex: 1;
+  min-width: min(100%, 320px);
+  justify-content: flex-end;
+}
+
+.search > input {
+  max-width: 420px;
+}
+
+.checkCol {
+  width: 44px;
+  padding-right: 0 !important;
+  text-align: center;
+}
+
+.check {
+  width: 16px;
+  height: 16px;
+  min-height: 0 !important;
+  accent-color: var(--brand);
+  cursor: pointer;
+  vertical-align: middle;
+}
+
+.rowSelected,
+.rowSelected:hover {
+  background: color-mix(in oklab, var(--brand-soft) 70%, transparent) !important;
+}
+
+.formSection {
+  padding: 4px 0 18px;
+}
+
+.formSection + .formSection {
+  padding-top: 18px;
+  border-top: 1px solid var(--border);
+}
+
+.formSection h3 {
+  margin: 0 0 12px;
+  font-size: 12px;
+  font-weight: 560;
+  color: var(--muted);
+  letter-spacing: 0.01em;
+}
+
+.invalid,
+.invalid:hover {
+  border-color: var(--neg) !important;
+}
+
+.fieldError {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--neg);
+}
+
+@media (max-width: 640px) {
+  .search {
+    min-width: 100%;
+  }
+  .search > input {
+    max-width: none;
+  }
+}

@@ -11,6 +11,9 @@ import { validatePhone, validateEmail, validateText, validateNumber, sanitizePho
 import { useLanguage } from "./language-context";
 import { DetailedSaleReceipt, PosReceiptModal } from "./pos-receipt-modal";
 import { PaginationControls } from "./pagination-controls";
+import { Icon, type IconName } from "@/app/components/icons";
+import { EmptyState, PageHeader } from "@/app/components/page-layout";
+import { Skeleton } from "@/app/components/motion";
 import ui from "./workspace-ui.module.css";
 
 type Mode = "customers" | "suppliers" | "expenses" | "accounts" | "sales";
@@ -89,6 +92,44 @@ const config: Record<
       "paymentMethod",
       "itemCount",
     ],
+  },
+};
+
+const MODE_META: Record<Mode, { icon: IconName; eyebrow: string; description: string; emptyTitle: string; emptyBody: string }> = {
+  customers: {
+    icon: "users",
+    eyebrow: "Books",
+    description: "Customer khata — who owes you, how much they spend, and their purchase history.",
+    emptyTitle: "No customers yet",
+    emptyBody: "Add customers to track their khata balance and purchase history.",
+  },
+  suppliers: {
+    icon: "truck",
+    eyebrow: "Books",
+    description: "Supplier khata — payables, contacts and what you owe each vendor.",
+    emptyTitle: "No suppliers yet",
+    emptyBody: "Add suppliers to track payables and stock purchases.",
+  },
+  accounts: {
+    icon: "bank",
+    eyebrow: "Books",
+    description: "Cash drawers, bank accounts and wallets with their running balances.",
+    emptyTitle: "No accounts yet",
+    emptyBody: "Add your cash, bank and wallet accounts to keep books balanced.",
+  },
+  expenses: {
+    icon: "expense",
+    eyebrow: "Books",
+    description: "Rent, salaries, utilities and every other cost of running the store.",
+    emptyTitle: "No expenses recorded",
+    emptyBody: "Record expenses to see true profit in your reports.",
+  },
+  sales: {
+    icon: "receipt",
+    eyebrow: "Sales",
+    description: "Completed sales and their receipts.",
+    emptyTitle: "No sales yet",
+    emptyBody: "Completed sales appear here.",
   },
 };
 
@@ -408,118 +449,177 @@ export function BusinessManagementPage({ mode }: { mode: Mode }) {
 
   return (
     <WorkspaceShell>
-      <div className={ui.head}>
-        <div>
-          <label>{language === "ur" ? "Dukaan Intizam (Management)" : "Business Management"}</label>
-          <h1>{modeTitle}</h1>
-          <p>
-            {language === "ur"
-              ? "Mehfooz aur asaan hisab kitab, talaash aur mukammal ledger record."
-              : "Business-scoped records with debounced search, server-side pagination, and safe mutations."}
-          </p>
-        </div>
+      <div className={ui.pageStack}>
+      <PageHeader
+        eyebrow={language === "ur" ? "Dukaan Intizam (Management)" : MODE_META[mode].eyebrow}
+        title={modeTitle}
+        description={language === "ur" ? "Mehfooz aur asaan hisab kitab, talaash aur mukammal ledger record." : MODE_META[mode].description}
+        actions={
+          mode !== "sales" && (
+            <button className={ui.primary} onClick={() => begin()}>
+              <Icon name="plus" size={15} />
+              {modeAdd}
+            </button>
+          )
+        }
+      />
+
+      <section className={`${ui.panel} ${ui.panelFlush}`}>
         {mode !== "sales" && (
-          <button className={ui.primary} onClick={() => begin()}>
-            + {modeAdd}
-          </button>
+          <div className={ui.panelHead}>
+            <input
+              className={`${ui.input} ${ui.search} max-w-[440px]`}
+              value={query}
+              onChange={(e) => {
+                setQuery(e.target.value);
+                setPage(1);
+              }}
+              placeholder={language === "ur" ? "Talaash karein..." : `Search ${c.title.toLowerCase()}…`}
+              aria-label={`Search ${c.title.toLowerCase()}`}
+            />
+            <div className="flex items-center gap-2">
+              {total > 0 && (
+                <span className={`${ui.chip} max-sm:hidden`}>
+                  <span className="font-mono">{total}</span> {modeTitle.toLowerCase()}
+                </span>
+              )}
+              <button className={ui.iconButton} onClick={() => void load()} aria-label={t("action.refresh")} title={t("action.refresh")}>
+                <Icon name="refresh" size={15} className={loading ? "[animation:almadelSpin_800ms_linear_infinite]" : undefined} />
+              </button>
+            </div>
+          </div>
         )}
-      </div>
-
-      {mode !== "sales" && (
-        <div className={ui.toolbar}>
-          <input
-            className={`${ui.input} ${ui.search}`}
-            value={query}
-            onChange={(e) => {
-              setQuery(e.target.value);
-              setPage(1);
-            }}
-            placeholder={language === "ur" ? "Talaash karein..." : `Search ${c.title.toLowerCase()}...`}
-          />
-          <button className={ui.secondary} onClick={() => void load()}>
-            🔄 {t("action.refresh")}
-          </button>
-        </div>
-      )}
-
-      <section className={ui.panel}>
-        <div className={ui.tableWrap}>
+        <div className={`${ui.tableWrap} ${ui.tableBare}`}>
           <table className={ui.table}>
             <thead>
               <tr>
                 {c.columns.map((x) => (
-                  <th key={x}>{getColTitle(x)}</th>
+                  <th
+                    key={x}
+                    style={["amount", "balance", "currentBalance", "totalSpent", "totalAmount"].includes(x) ? { textAlign: "right" } : undefined}
+                  >
+                    {getColTitle(x)}
+                  </th>
                 ))}
-                <th>{t("table.actions")}</th>
+                <th style={{ textAlign: "right" }}>{t("table.actions")}</th>
               </tr>
             </thead>
             <tbody>
               {loading ? (
                 Array.from({ length: 5 }).map((_, i) => (
-                  <tr key={`skel-${i}`} className="animate-pulse">
+                  <tr key={`skel-${i}`}>
                     {c.columns.map((col) => (
                       <td key={col}>
-                        <div className="h-4 bg-slate-200/80 rounded-md w-3/4 my-1.5" />
+                        <Skeleton className="h-3.5 w-3/4 my-1" />
                       </td>
                     ))}
                     <td>
-                      <div className="h-4 bg-slate-200/80 rounded-md w-16 my-1.5" />
+                      <Skeleton className="h-3.5 w-16 my-1" />
                     </td>
                   </tr>
                 ))
               ) : rows.length === 0 ? (
                 <tr>
-                  <td colSpan={c.columns.length + 1} className={ui.empty}>
-                    {t("table.no_records")}
+                  <td colSpan={c.columns.length + 1} className={ui.emptyCell}>
+                    <EmptyState
+                      icon={query ? "search" : MODE_META[mode].icon}
+                      title={query ? "No matching records" : MODE_META[mode].emptyTitle}
+                      body={query ? "Try a different search term." : MODE_META[mode].emptyBody}
+                      action={
+                        !query &&
+                        mode !== "sales" && (
+                          <button className={ui.primary} onClick={() => begin()}>
+                            <Icon name="plus" size={15} />
+                            {modeAdd}
+                          </button>
+                        )
+                      }
+                    />
                   </td>
                 </tr>
               ) : (
                 rows.map((row) => (
                   <tr key={row.id}>
-                    {c.columns.map((x) => (
-                      <td key={x}>
-                        {[
-                          "amount",
-                          "balance",
-                          "currentBalance",
-                          "totalSpent",
-                          "totalAmount",
-                        ].includes(x) ? (
-                          <strong className="text-[#00875a]">
-                            {money(row[x])}
-                          </strong>
-                        ) : (
-                          String(row[x] ?? "—")
-                        )}
-                      </td>
-                    ))}
+                    {c.columns.map((x) => {
+                      const isMoney = ["amount", "balance", "currentBalance", "totalSpent", "totalAmount"].includes(x);
+                      if (isMoney) {
+                        const n = Number(row[x] || 0);
+                        const tone =
+                          x === "currentBalance"
+                            ? n > 0
+                              ? "text-[var(--warn)] font-semibold"
+                              : n < 0
+                              ? "text-[var(--neg)] font-semibold"
+                              : "text-[var(--muted)]"
+                            : "text-[var(--text)] font-medium";
+                        return (
+                          <td key={x} className="text-right tabular-nums whitespace-nowrap">
+                            <span className={`font-mono ${tone}`}>{money(row[x])}</span>
+                          </td>
+                        );
+                      }
+                      if (x === "name" && (mode === "customers" || mode === "suppliers" || mode === "accounts")) {
+                        const label = String(row[x] ?? "—");
+                        const ini = label.split(/\s+/).slice(0, 2).map((w) => w[0]).join("").toUpperCase();
+                        return (
+                          <td key={x}>
+                            <span className="flex items-center gap-2.5 min-w-0">
+                              <span className={`${ui.productThumbPlaceholder} text-[11px] font-semibold text-[var(--text-2)]`}>
+                                {ini || "—"}
+                              </span>
+                              <span className="font-medium truncate">{label}</span>
+                            </span>
+                          </td>
+                        );
+                      }
+                      if (x === "mobile") {
+                        return (
+                          <td key={x} className="font-mono text-[12.5px] text-[var(--text-2)]">
+                            {String(row[x] ?? "—")}
+                          </td>
+                        );
+                      }
+                      if (x === "occurredAt" || x === "createdAt") {
+                        const v = row[x];
+                        const d = v ? new Date(String(v)) : null;
+                        return (
+                          <td key={x} className="text-[var(--text-2)] whitespace-nowrap tabular-nums">
+                            {d && !Number.isNaN(d.getTime())
+                              ? d.toLocaleString("en-PK", { dateStyle: "medium", timeStyle: "short" })
+                              : String(v ?? "—")}
+                          </td>
+                        );
+                      }
+                      if (x === "type" || x === "category" || x === "paymentMethod") {
+                        return (
+                          <td key={x}>
+                            <span className={`${ui.chip} capitalize`}>{String(row[x] ?? "—")}</span>
+                          </td>
+                        );
+                      }
+                      return <td key={x}>{String(row[x] ?? "—")}</td>;
+                    })}
                     <td>
-                      <div className={ui.actions}>
+                      <div className="flex justify-end gap-1.5">
                         {mode === "customers" && (
-                          <button
-                            type="button"
-                            className={ui.secondary}
-                            onClick={() => void viewCustomerHistory(row)}
-                            title="View purchase history"
-                            style={{ display: "inline-flex", alignItems: "center", gap: 4 }}
-                          >
-                            <span>🛍️</span>
+                          <button type="button" className={`${ui.secondary} ${ui.btnSm}`} onClick={() => void viewCustomerHistory(row)} title="View purchase history">
+                            <Icon name="clock" size={13} />
                             <span>{language === "ur" ? "Tareekh" : "History"}</span>
                           </button>
                         )}
                         {mode !== "sales" && (
                           <>
-                            <button
-                              className={ui.secondary}
-                              onClick={() => begin(row)}
-                            >
+                            <button className={`${ui.secondary} ${ui.btnSm}`} onClick={() => begin(row)}>
+                              <Icon name="edit" size={13} />
                               {t("action.edit")}
                             </button>
                             <button
-                              className={ui.danger}
+                              className={`${ui.iconButton} hover:!text-[var(--neg)]`}
                               onClick={() => void remove(row)}
+                              aria-label={t("action.delete")}
+                              title={t("action.delete")}
                             >
-                              {t("action.delete")}
+                              <Icon name="trash" size={14} />
                             </button>
                           </>
                         )}
@@ -547,6 +647,7 @@ export function BusinessManagementPage({ mode }: { mode: Mode }) {
           />
         )}
       </section>
+      </div>
 
       {open && (
         <div
@@ -557,28 +658,25 @@ export function BusinessManagementPage({ mode }: { mode: Mode }) {
         >
           <form className={ui.sheet} onSubmit={submit}>
             <div className={ui.sheetHead}>
-              <h2>
-                {editing
-                  ? `${t("action.edit")} ${modeTitle}`
-                  : `+ ${modeAdd}`}
-              </h2>
-              <button
-                type="button"
-                className={ui.secondary}
-                onClick={() => setOpen(false)}
-              >
-                {t("form.close")}
+              <div className="flex items-center gap-2.5">
+                <span className={ui.iconTile}>
+                  <Icon name={editing ? "edit" : MODE_META[mode].icon} size={15} />
+                </span>
+                <h2>{editing ? `${t("action.edit")} ${modeTitle}` : modeAdd}</h2>
+              </div>
+              <button type="button" className={ui.iconButton} onClick={() => setOpen(false)} aria-label={t("form.close")}>
+                <Icon name="x" size={15} />
               </button>
             </div>
             <div className={ui.formGrid}>
               {c.fields.map((field) => (
                 <div className={ui.field} key={field.key}>
                   <label>
-                    {getFieldLabel(field)} {field.required && <span className="text-red-500">*</span>}
+                    {getFieldLabel(field)} {field.required && <span className="text-[var(--neg)]">*</span>}
                   </label>
                   {field.type === "select" ? (
                     <select
-                      className={ui.input}
+                      className={ui.select}
                       value={draft[field.key] || "cash"}
                       onChange={(e) => {
                         setDraft({ ...draft, [field.key]: e.target.value });
@@ -592,7 +690,7 @@ export function BusinessManagementPage({ mode }: { mode: Mode }) {
                     </select>
                   ) : field.type === "account" ? (
                     <select
-                      className={`${ui.input} ${fieldErrors[field.key] ? "border-red-500 bg-red-50/40" : ""}`}
+                      className={`${field.type === "account" ? ui.select : ui.input} ${field.key === "mobile" || String(field.type) === "number" ? ui.inputMono : ""} ${fieldErrors[field.key] ? ui.invalid : ""}`}
                       required
                       value={draft[field.key] || ""}
                       onChange={(e) => {
@@ -611,7 +709,7 @@ export function BusinessManagementPage({ mode }: { mode: Mode }) {
                     </select>
                   ) : field.key === "mobile" ? (
                     <input
-                      className={`${ui.input} ${fieldErrors[field.key] ? "border-red-500 bg-red-50/40" : ""}`}
+                      className={`${field.type === "account" ? ui.select : ui.input} ${field.key === "mobile" || String(field.type) === "number" ? ui.inputMono : ""} ${fieldErrors[field.key] ? ui.invalid : ""}`}
                       required={field.required}
                       type="tel"
                       maxLength={15}
@@ -625,7 +723,7 @@ export function BusinessManagementPage({ mode }: { mode: Mode }) {
                     />
                   ) : (
                     <input
-                      className={`${ui.input} ${fieldErrors[field.key] ? "border-red-500 bg-red-50/40" : ""}`}
+                      className={`${field.type === "account" ? ui.select : ui.input} ${field.key === "mobile" || String(field.type) === "number" ? ui.inputMono : ""} ${fieldErrors[field.key] ? ui.invalid : ""}`}
                       required={field.required}
                       type={field.type || "text"}
                       min={field.type === "number" ? "0" : undefined}
@@ -639,7 +737,8 @@ export function BusinessManagementPage({ mode }: { mode: Mode }) {
                     />
                   )}
                   {fieldErrors[field.key] && (
-                    <span className="text-[11px] font-bold text-red-600 mt-1 block">
+                    <span className={ui.fieldError}>
+                      <Icon name="alert" size={12} />
                       {fieldErrors[field.key]}
                     </span>
                   )}
@@ -674,99 +773,59 @@ export function BusinessManagementPage({ mode }: { mode: Mode }) {
             if (e.target === e.currentTarget) setHistoryCustomer(null);
           }}
         >
-          <div className={ui.sheet} style={{ maxWidth: 680 }}>
+          <div className={ui.sheet} style={{ width: "min(680px, 100%)" }} role="dialog" aria-modal="true" aria-label="Customer purchase history">
             <div className={ui.sheetHead}>
-              <div>
-                <h2 style={{ margin: 0, fontSize: 18, display: "flex", alignItems: "center", gap: 8 }}>
-                  <span>🛍️</span>
-                  <span>{String(historyCustomer.name || "Customer")}</span>
-                </h2>
-                <p style={{ margin: "4px 0 0", fontSize: 12, color: "#64748b" }}>
-                  Mobile: <strong style={{ color: "#1e293b" }}>{String(historyCustomer.mobile || "—")}</strong>
-                  {historyCustomer.email ? ` • Email: ${String(historyCustomer.email)}` : ""}
-                </p>
+              <div className="flex min-w-0 items-center gap-3">
+                <span className="grid size-10 shrink-0 place-items-center rounded-[11px] bg-[var(--brand-soft)] text-[13px] font-semibold text-[var(--brand-ink)]">
+                  {String(historyCustomer.name || "C").split(/\s+/).slice(0, 2).map((w) => w[0]).join("").toUpperCase()}
+                </span>
+                <div className="min-w-0">
+                  <h2 className="truncate">{String(historyCustomer.name || "Customer")}</h2>
+                  <p className="m-0 mt-0.5 truncate text-[12.5px] text-[var(--muted)]">
+                    <span className="font-mono">{String(historyCustomer.mobile || "—")}</span>
+                    {historyCustomer.email ? ` · ${String(historyCustomer.email)}` : ""}
+                  </p>
+                </div>
               </div>
-              <button
-                type="button"
-                className={ui.secondary}
-                onClick={() => setHistoryCustomer(null)}
-              >
-                Close
+              <button type="button" className={ui.iconButton} onClick={() => setHistoryCustomer(null)} aria-label="Close">
+                <Icon name="x" size={15} />
               </button>
             </div>
 
-            {/* Customer Stats Overview Cards */}
-            <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 12, margin: "16px 0" }}>
-              <div style={{ background: "#f8fafc", padding: "12px 14px", borderRadius: 12, border: "1px solid #e2e8f0" }}>
-                <span style={{ fontSize: 11, fontWeight: 700, color: "#64748b", display: "block" }}>Total Purchases</span>
-                <strong style={{ fontSize: 16, color: "#0f172a" }}>{customerSales.length} bills</strong>
+            <div className={`${ui.stats} mb-4`} style={{ gridTemplateColumns: "repeat(3, minmax(0, 1fr))" }}>
+              <div className={ui.stat}>
+                <small>Purchases</small>
+                <strong className="font-mono">{customerSales.length}</strong>
               </div>
-              <div style={{ background: "#f0fdf4", padding: "12px 14px", borderRadius: 12, border: "1px solid #bbf7d0" }}>
-                <span style={{ fontSize: 11, fontWeight: 700, color: "#166534", display: "block" }}>Total Spent</span>
-                <strong style={{ fontSize: 16, color: "#15803d" }}>
-                  Rs {customerSales.reduce((sum, s) => sum + (Number(s.totalAmount) || 0), 0).toLocaleString()}
-                </strong>
+              <div className={ui.stat}>
+                <small>Total spent</small>
+                <strong className="font-mono">Rs {customerSales.reduce((sum, s) => sum + (Number(s.totalAmount) || 0), 0).toLocaleString()}</strong>
               </div>
-              <div style={{ background: "#f8fafc", padding: "12px 14px", borderRadius: 12, border: "1px solid #e2e8f0" }}>
-                <span style={{ fontSize: 11, fontWeight: 700, color: "#64748b", display: "block" }}>Khata Balance</span>
-                <strong style={{ fontSize: 16, color: "#0f172a" }}>
-                  {money(historyCustomer.currentBalance)}
-                </strong>
+              <div className={ui.stat}>
+                <small>Khata balance</small>
+                <strong className={`font-mono ${Number(historyCustomer.currentBalance || 0) > 0 ? "!text-[var(--warn)]" : ""}`}>{money(historyCustomer.currentBalance)}</strong>
               </div>
             </div>
 
-            {/* Past Orders List */}
-            <div style={{ maxHeight: 420, overflowY: "auto", paddingRight: 4 }}>
+            <div className="max-h-[420px] overflow-y-auto">
               {historyLoading ? (
-                <div style={{ textAlign: "center", padding: "32px 0", color: "#94a3b8", fontSize: 13, fontWeight: 700 }}>
-                  Loading purchase history...
+                <div className="flex flex-col gap-2">
+                  {Array.from({ length: 3 }).map((_, i) => (
+                    <Skeleton key={i} className="h-[68px] w-full rounded-[10px]" />
+                  ))}
                 </div>
               ) : customerSales.length === 0 ? (
-                <div style={{ textAlign: "center", padding: "40px 16px", color: "#64748b" }}>
-                  <div style={{ fontSize: 32, marginBottom: 8 }}>🛒</div>
-                  <strong style={{ display: "block", fontSize: 14, color: "#1e293b", marginBottom: 4 }}>
-                    No purchase history yet
-                  </strong>
-                  <p style={{ margin: 0, fontSize: 12 }}>
-                    When this customer completes purchases at the POS counter, their receipts will automatically appear here.
-                  </p>
-                </div>
+                <EmptyState icon="cart" title="No purchase history yet" body="Receipts appear here automatically when this customer buys at the POS counter." />
               ) : (
-                <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
-                  {customerSales.map((sale) => (
-                    <div
-                      key={sale.invoiceNumber}
-                      style={{
-                        padding: "14px 16px",
-                        borderRadius: 14,
-                        background: "#ffffff",
-                        border: "1px solid #e2e8f0",
-                        display: "flex",
-                        justifyContent: "space-between",
-                        alignItems: "center",
-                        gap: 12,
-                      }}
-                    >
-                      <div style={{ flex: 1, minWidth: 0 }}>
-                        <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 4 }}>
-                          <span style={{ fontSize: 13, fontWeight: 800, color: "#0f172a" }}>
-                            #{sale.invoiceNumber}
-                          </span>
-                          <span
-                            style={{
-                              fontSize: 10,
-                              fontWeight: 800,
-                              padding: "2px 8px",
-                              borderRadius: 9999,
-                              background: "#dcfce7",
-                              color: "#166534",
-                              textTransform: "uppercase",
-                            }}
-                          >
-                            {sale.paymentMethod}
-                          </span>
+                <div className="overflow-hidden rounded-[10px] border border-[var(--border)]">
+                  {customerSales.map((sale, i) => (
+                    <div key={sale.invoiceNumber} className={`flex items-center justify-between gap-3 px-3.5 py-3 ${i > 0 ? "border-t border-[var(--border)]" : ""}`}>
+                      <div className="min-w-0 flex-1">
+                        <div className="mb-1 flex items-center gap-2">
+                          <span className="font-mono text-[12.5px] font-medium text-[var(--brand-ink)]">#{sale.invoiceNumber}</span>
+                          <span className={`${ui.chip} ${ui.chipXs} capitalize`}>{sale.paymentMethod}</span>
                         </div>
-                        <div style={{ fontSize: 11, color: "#64748b" }}>
+                        <div className="font-mono text-[11.5px] text-[var(--muted)]">
                           {new Date(sale.createdAt).toLocaleDateString("en-PK", {
                             day: "numeric",
                             month: "short",
@@ -774,39 +833,20 @@ export function BusinessManagementPage({ mode }: { mode: Mode }) {
                             hour: "2-digit",
                             minute: "2-digit",
                           })}{" "}
-                          &bull; {sale.items?.length || 0} item{(sale.items?.length || 0) > 1 ? "s" : ""}
+                          · {sale.items?.length || 0} item{(sale.items?.length || 0) > 1 ? "s" : ""}
                         </div>
                         {sale.items && sale.items.length > 0 && (
-                          <div style={{ fontSize: 11, color: "#475569", marginTop: 4, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-                            {sale.items.map((it) => `${it.name} (x${it.quantity})`).join(", ")}
-                          </div>
+                          <div className="mt-1 truncate text-[12px] text-[var(--text-2)]">{sale.items.map((it) => `${it.name} ×${it.quantity}`).join(", ")}</div>
                         )}
                       </div>
-                      <div style={{ textAlign: "right", flexShrink: 0 }}>
-                        <div style={{ fontSize: 14, fontWeight: 900, color: "#00875a" }}>
-                          Rs {Number(sale.totalAmount).toLocaleString()}
-                        </div>
+                      <div className="flex shrink-0 flex-col items-end gap-1">
+                        <span className="font-mono text-[14px] font-medium">Rs {Number(sale.totalAmount).toLocaleString()}</span>
                         {sale.discountAmount && sale.discountAmount > 0 ? (
-                          <div style={{ fontSize: 10, color: "#16a34a", fontWeight: 700 }}>
-                            Disc: -Rs {sale.discountAmount.toLocaleString()}
-                          </div>
+                          <span className="font-mono text-[11px] text-[var(--pos)]">−Rs {sale.discountAmount.toLocaleString()}</span>
                         ) : null}
-                        <button
-                          type="button"
-                          onClick={() => setSelectedReceipt(sale)}
-                          style={{
-                            marginTop: 6,
-                            padding: "4px 10px",
-                            fontSize: 11,
-                            fontWeight: 700,
-                            borderRadius: 6,
-                            background: "#f1f5f9",
-                            border: "1px solid #cbd5e1",
-                            color: "#334155",
-                            cursor: "pointer",
-                          }}
-                        >
-                          🧾 View Receipt
+                        <button type="button" onClick={() => setSelectedReceipt(sale)} className={`${ui.secondary} ${ui.btnSm}`}>
+                          <Icon name="eye" size={13} />
+                          Receipt
                         </button>
                       </div>
                     </div>
@@ -815,12 +855,8 @@ export function BusinessManagementPage({ mode }: { mode: Mode }) {
               )}
             </div>
 
-            <div className={ui.formActions} style={{ marginTop: 16 }}>
-              <button
-                type="button"
-                className={ui.secondary}
-                onClick={() => setHistoryCustomer(null)}
-              >
+            <div className={ui.formActions}>
+              <button type="button" className={ui.secondary} onClick={() => setHistoryCustomer(null)}>
                 Close
               </button>
             </div>

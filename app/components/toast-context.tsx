@@ -66,75 +66,86 @@ export function ToastProvider({ children }: { children: React.ReactNode }) {
     <ToastContext.Provider value={{ showToast, confirmDialog }}>
       {children}
 
-      {/* Floating Toast Containers */}
-      <div className="fixed bottom-5 right-5 z-[100] flex flex-col gap-2.5 max-w-sm w-full pointer-events-none px-4 sm:px-0">
+      {/* Floating toasts */}
+      <div
+        className="fixed bottom-[max(16px,env(safe-area-inset-bottom))] right-4 left-4 sm:left-auto sm:right-5 z-[100] flex flex-col items-stretch sm:items-end gap-2 pointer-events-none max-md:bottom-[96px]"
+        aria-live="polite"
+        role="status"
+      >
         {toasts.map((t) => (
           <div
             key={t.id}
-            className={`pointer-events-auto flex items-center justify-between gap-3 rounded-2xl p-4 shadow-xl border backdrop-blur-md transition-all duration-300 ${
-              t.type === "success"
-                ? "bg-[#056839]/95 text-white border-[#00875a]"
-                : t.type === "error"
-                ? "bg-red-900/95 text-white border-red-700"
-                : "bg-gray-900/95 text-white border-gray-700"
-            }`}
+            className="al-toast pointer-events-auto flex w-full sm:w-[380px] items-start gap-3 rounded-xl border border-[var(--border-strong)] bg-[var(--surface)] p-3 pr-2 shadow-[var(--shadow-lg)]"
           >
-            <div className="flex items-center gap-3">
-              <span
-                className={`grid size-7 shrink-0 place-items-center rounded-full text-xs font-bold ${
-                  t.type === "success"
-                    ? "bg-[#00875a] text-white"
-                    : t.type === "error"
-                    ? "bg-red-600 text-white"
-                    : "bg-gray-700 text-white"
-                }`}
-              >
-                {t.type === "success" ? "✓" : t.type === "error" ? "✕" : "ℹ"}
-              </span>
-              <p className="text-xs font-bold leading-snug">{t.message}</p>
-            </div>
+            <span
+              className={`mt-0.5 grid size-6 shrink-0 place-items-center rounded-full ${
+                t.type === "success"
+                  ? "bg-[var(--brand-soft)] text-[var(--brand)]"
+                  : t.type === "error"
+                  ? "bg-[var(--neg-soft)] text-[var(--neg)]"
+                  : "bg-[var(--info-soft)] text-[var(--info)]"
+              }`}
+              aria-hidden
+            >
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round">
+                <path d={t.type === "success" ? "M20 6L9 17l-5-5" : t.type === "error" ? "M18 6L6 18M6 6l12 12" : "M12 11v5M12 7.5h.01"} />
+              </svg>
+            </span>
+            <p className="m-0 flex-1 pt-0.5 text-[13px] font-medium leading-snug text-[var(--text)]">{t.message}</p>
             <button
               onClick={() => removeToast(t.id)}
-              className="text-white/60 hover:text-white text-xs font-bold px-1"
+              aria-label="Dismiss notification"
+              className="grid size-7 shrink-0 place-items-center rounded-lg text-[var(--muted)] transition hover:bg-[var(--surface-2)] hover:text-[var(--text)]"
             >
-              ✕
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><path d="M18 6L6 18M6 6l12 12" /></svg>
             </button>
           </div>
         ))}
       </div>
 
-      {/* Custom Confirmation Modal Dialog */}
+      {/* Confirmation dialog */}
       {confirmState && (
-        <div className="fixed inset-0 z-[110] grid place-items-center bg-black/45 backdrop-blur-sm p-4">
-          <div className="w-full max-w-md rounded-3xl bg-white p-6 shadow-2xl border border-gray-100">
-            <div className="flex items-center gap-3 mb-3">
+        <div className="al-overlay fixed inset-0 z-[110] grid place-items-center bg-[var(--scrim)] backdrop-blur-[3px] p-4">
+          <div
+            role="alertdialog"
+            aria-modal="true"
+            aria-labelledby="almadel-confirm-title"
+            className="al-dialog w-full max-w-md overflow-hidden rounded-[18px] border border-[var(--border-strong)] bg-[var(--surface)] shadow-[var(--shadow-lg)]"
+          >
+            <div className="flex items-start gap-3 p-5 pb-4">
               <span
-                className={`grid size-10 shrink-0 place-items-center rounded-2xl text-base font-extrabold ${
-                  confirmState.options.danger ? "bg-red-100 text-red-600" : "bg-[#e6f4ed] text-[#00875a]"
+                className={`grid size-10 shrink-0 place-items-center rounded-xl ${
+                  confirmState.options.danger ? "bg-[var(--neg-soft)] text-[var(--neg)]" : "bg-[var(--brand-soft)] text-[var(--brand)]"
                 }`}
+                aria-hidden
               >
-                {confirmState.options.danger ? "⚠️" : "❓"}
+                <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+                  <path d={confirmState.options.danger ? "M12 3l9.5 17h-19zM12 10v4M12 17.5h.01" : "M12 21a9 9 0 1 0 0-18 9 9 0 0 0 0 18zM12 11v5M12 7.5h.01"} />
+                </svg>
               </span>
-              <h3 className="text-lg font-extrabold text-gray-900">{confirmState.options.title}</h3>
+              <div className="min-w-0 flex-1">
+                <h3 id="almadel-confirm-title" className="m-0 text-[16px] font-semibold tracking-[-0.01em] text-[var(--text)]">
+                  {confirmState.options.title}
+                </h3>
+                <p className="mt-1.5 mb-0 text-[13px] leading-relaxed text-[var(--muted)]">{confirmState.options.message}</p>
+              </div>
             </div>
-            <p className="text-xs text-gray-600 leading-relaxed font-medium mb-6">
-              {confirmState.options.message}
-            </p>
-            <div className="flex items-center justify-end gap-3">
+            <div className="flex items-center justify-end gap-2 border-t border-[var(--border)] bg-[var(--surface-2)] px-5 py-3">
               <button
                 type="button"
                 onClick={() => handleConfirmResponse(false)}
-                className="rounded-full border border-gray-200 bg-white px-5 py-2.5 text-xs font-bold text-gray-700 hover:bg-gray-50 transition"
+                className="h-9 rounded-[9px] border border-[var(--border)] bg-[var(--surface)] px-4 text-[13px] font-medium text-[var(--text)] shadow-[var(--shadow-xs)] transition hover:border-[var(--border-strong)]"
               >
                 {confirmState.options.cancelLabel || "Cancel"}
               </button>
               <button
                 type="button"
+                autoFocus
                 onClick={() => handleConfirmResponse(true)}
-                className={`rounded-full px-5 py-2.5 text-xs font-extrabold text-white shadow-md transition ${
+                className={`h-9 rounded-[9px] px-4 text-[13px] font-medium transition active:scale-[0.98] ${
                   confirmState.options.danger
-                    ? "bg-red-600 hover:bg-red-700 shadow-red-600/20"
-                    : "bg-[#00875a] hover:bg-[#006b3f] shadow-[#00875a]/20"
+                    ? "bg-[var(--neg)] text-[var(--surface)] hover:opacity-90"
+                    : "bg-[var(--brand)] text-[var(--on-brand)] hover:bg-[var(--brand-strong)]"
                 }`}
               >
                 {confirmState.options.confirmLabel || "Confirm"}

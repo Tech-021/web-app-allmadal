@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import { useEffect, useState, useRef, useMemo } from "react";
+import { useEffect, useState, useRef, useMemo, useCallback } from "react";
 import { useAuth } from "@/hooks/useAuth";
 import { useBusiness } from "@/app/components/business-context";
 import { TrialExpiredModal } from "@/app/components/trial-expired-modal";
@@ -20,27 +20,28 @@ import {
 } from "@/app/lib/workspace-nav";
 import { useNavRole } from "@/hooks/useNavRole";
 import { useToast } from "@/app/components/toast-context";
+import { useRealtime } from "@/app/components/realtime-provider";
+import { useTheme } from "@/app/components/theme-context";
+import { BrandMark, Icon, routeIcon } from "@/app/components/icons";
 
-function ShoppingBagIcon() {
-  return (
-    <svg className="size-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
-      <path d="M6 2 3 6v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6l-3-4Z" />
-      <path d="M3 6h18" />
-      <path d="M16 10a4 4 0 0 1-8 0" />
-    </svg>
-  );
-}
+const COLLAPSE_KEY = "almadel_sidebar_collapsed";
 
-function StoreIcon() {
-  return (
-    <svg className="size-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-      <path d="m2 7 4.41-4.41A2 2 0 0 1 7.83 2h8.34a2 2 0 0 1 1.42.59L22 7" />
-      <path d="M4 12v8a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-8" />
-      <path d="M15 22v-4a2 2 0 0 0-2-2h-2a2 2 0 0 0-2 2v4" />
-      <path d="M2 7h20" />
-      <path d="M22 7v3a2 2 0 0 1-2 2v0a2.7 2.7 0 0 1-1.59-.63.7.7 0 0 0-.82 0A2.7 2.7 0 0 1 16 12a2.7 2.7 0 0 1-1.59-.63.7.7 0 0 0-.82 0A2.7 2.7 0 0 1 12 12a2.7 2.7 0 0 1-1.59-.63.7.7 0 0 0-.82 0A2.7 2.7 0 0 1 8 12a2.7 2.7 0 0 1-1.59-.63.7.7 0 0 0-.82 0A2.7 2.7 0 0 1 4 12v0a2 2 0 0 1-2-2V7" />
-    </svg>
-  );
+/** Presentation-only grouping of the existing nav links. */
+const NAV_GROUPS: Array<{ id: string; label: string; labelKey: string; hrefs: string[] }> = [
+  { id: "overview", label: "Overview", labelKey: "nav.group_overview", hrefs: ["/dashboard", "/sales", "/products"] },
+  {
+    id: "books",
+    label: "Books",
+    labelKey: "nav.group_books",
+    hrefs: ["/accounts", "/customers", "/suppliers", "/expenses", "/invoices", "/daily-closing", "/reports"],
+  },
+  { id: "store", label: "Store", labelKey: "nav.group_store", hrefs: ["/imei", "/payments", "/staff", "/logs", "/settings"] },
+];
+
+function initials(name?: string | null) {
+  if (!name) return "A";
+  const parts = name.trim().split(/\s+/);
+  return ((parts[0]?.[0] ?? "") + (parts[1]?.[0] ?? "")).toUpperCase() || "A";
 }
 
 export function WorkspaceShell({ children }: { children: React.ReactNode }) {
@@ -178,312 +179,682 @@ export function WorkspaceShell({ children }: { children: React.ReactNode }) {
     }
   }, [user, pathname, activeBusiness?.id]);
 
+  // ---------- Presentation-only state ----------
+  const { businesses, switchBusiness } = useBusiness();
+  const { socket } = useRealtime();
+  const { resolvedTheme, toggleTheme } = useTheme();
+  const [collapsed, setCollapsed] = useState(false);
+  const [bizMenuOpen, setBizMenuOpen] = useState(false);
+  const [paletteOpen, setPaletteOpen] = useState(false);
+  const [paletteQuery, setPaletteQuery] = useState("");
+  const [paletteIndex, setPaletteIndex] = useState(0);
+  const [liveConnected, setLiveConnected] = useState(false);
+  const bizMenuRef = useRef<HTMLDivElement | null>(null);
+  const paletteInputRef = useRef<HTMLInputElement | null>(null);
+
+  useEffect(() => {
+    try {
+      // eslint-disable-next-line react-hooks/set-state-in-effect
+      setCollapsed(localStorage.getItem(COLLAPSE_KEY) === "1");
+    } catch {
+      /* ignore */
+    }
+  }, []);
+
+  const toggleCollapsed = useCallback(() => {
+    setCollapsed((prev) => {
+      const next = !prev;
+      try {
+        localStorage.setItem(COLLAPSE_KEY, next ? "1" : "0");
+      } catch {
+        /* ignore */
+      }
+      return next;
+    });
+  }, []);
+
+  // Realtime connection indicator (reads the existing socket; never changes it)
+  useEffect(() => {
+    if (!socket) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect
+      setLiveConnected(false);
+      return;
+    }
+    const onConnect = () => setLiveConnected(true);
+    const onDisconnect = () => setLiveConnected(false);
+    setLiveConnected(socket.connected);
+    socket.on("connect", onConnect);
+    socket.on("disconnect", onDisconnect);
+    return () => {
+      socket.off("connect", onConnect);
+      socket.off("disconnect", onDisconnect);
+    };
+  }, [socket]);
+
+  // Close business menu on outside click / navigation
+  useEffect(() => {
+    if (!bizMenuOpen) return;
+    const onDown = (e: MouseEvent) => {
+      if (bizMenuRef.current && !bizMenuRef.current.contains(e.target as Node)) setBizMenuOpen(false);
+    };
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") setBizMenuOpen(false);
+    };
+    document.addEventListener("mousedown", onDown);
+    document.addEventListener("keydown", onKey);
+    return () => {
+      document.removeEventListener("mousedown", onDown);
+      document.removeEventListener("keydown", onKey);
+    };
+  }, [bizMenuOpen]);
+
+  useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    setBizMenuOpen(false);
+    setPaletteOpen(false);
+  }, [pathname]);
+
+  // ⌘K / Ctrl+K quick navigation
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "k") {
+        e.preventDefault();
+        setPaletteOpen((open) => !open);
+      }
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, []);
+
+  useEffect(() => {
+    if (!paletteOpen) return;
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    setPaletteQuery("");
+    setPaletteIndex(0);
+    const id = window.setTimeout(() => paletteInputRef.current?.focus(), 20);
+    return () => window.clearTimeout(id);
+  }, [paletteOpen]);
+
+  const flatDestinations = useMemo(() => {
+    const out: Array<{ href: string; label: string; parent?: string }> = [];
+    for (const link of accessibleLinks) {
+      out.push({ href: link.href, label: link.label });
+      for (const sub of link.subItems ?? []) {
+        if (sub.href !== link.href) out.push({ href: sub.href, label: sub.label, parent: link.label });
+      }
+    }
+    return out;
+  }, [accessibleLinks]);
+
+  const paletteResults = useMemo(() => {
+    const q = paletteQuery.trim().toLowerCase();
+    if (!q) return flatDestinations;
+    return flatDestinations.filter(
+      (d) => d.label.toLowerCase().includes(q) || d.href.toLowerCase().includes(q) || d.parent?.toLowerCase().includes(q),
+    );
+  }, [flatDestinations, paletteQuery]);
+
+  const groupedLinks = useMemo(() => {
+    const used = new Set<string>();
+    const groups = NAV_GROUPS.map((g) => {
+      const items = accessibleLinks.filter((l) => g.hrefs.includes(l.href));
+      items.forEach((l) => used.add(l.href));
+      return { ...g, items };
+    });
+    const rest = accessibleLinks.filter((l) => !used.has(l.href));
+    if (rest.length) groups[0].items.push(...rest);
+    return groups.filter((g) => g.items.length > 0);
+  }, [accessibleLinks]);
+
+  const currentTitle = useMemo(() => {
+    for (const d of flatDestinations) {
+      if (pathname === d.href) return d.label;
+    }
+    for (const d of flatDestinations) {
+      if (pathname.startsWith(`${d.href}/`)) return d.label;
+    }
+    if (pathname.startsWith("/setup-business")) return "Business Setup";
+    return "";
+  }, [flatDestinations, pathname]);
+
+  const canSell = navRole === "admin" || navRole === "staff";
+  const workspaceLabel =
+    workspaceMode === "financial" ? t("shell.workspace_financial", "Financial") : t("shell.workspace_pos", "POS");
+  const roleLabel =
+    navRole === "admin"
+      ? t("role.owner", "Store Owner")
+      : navRole === "accountant"
+      ? t("role.accountant", "Accountant")
+      : t("role.staff", "Staff Member");
+
+  const isPro =
+    !!activeBusiness && (activeBusiness.subscriptionStatus === "active" || Boolean(activeBusiness.stripeSubscriptionId));
+  const isTrialActive =
+    !!activeBusiness &&
+    activeBusiness.subscriptionStatus !== "active" &&
+    !activeBusiness.stripeSubscriptionId &&
+    (activeBusiness.isTrial || activeBusiness.subscriptionStatus === "trialing") &&
+    !activeBusiness.isTrialExpired;
+  const trialDays = activeBusiness?.trialDaysRemaining;
+  const trialPct = trialDays !== undefined ? Math.max(4, Math.min(100, (trialDays / 30) * 100)) : 100;
+
+  const handleSignOut = async () => {
+    setMobileDrawerOpen(false);
+    await logout();
+    showToast("You have been signed out.", "success");
+    router.push("/login");
+  };
+
+  const isActive = (x: { href: string; subItems?: Array<{ href: string }> }) =>
+    pathname === x.href ||
+    pathname.startsWith(`${x.href}/`) ||
+    Boolean(x.subItems && x.subItems.some((sub) => pathname === sub.href));
+
+  const goToPaletteResult = (href: string) => {
+    setPaletteOpen(false);
+    router.push(href);
+  };
+
   if (authLoading || !user) {
     return (
       <main className={styles.loading} aria-busy="true">
-        <div className={styles.loadingSpinner} aria-hidden />
-        <span>Loading Almadel workspace…</span>
+        <BrandMark size={40} />
+        <div className={styles.loadingBar} aria-hidden>
+          <span />
+        </div>
+        <span>{t("shell.loading", "Loading Almadel workspace…")}</span>
       </main>
     );
   }
 
-  return (
-    <div className={styles.page}>
-      {/* Desktop Sidebar */}
-      <aside className={styles.sidebar}>
-        <Link className={styles.brand} href="/dashboard">
-          <span><ShoppingBagIcon /></span>
-          <div>
-            <strong>Almadel</strong>
-            <small>{t("shell.store_management", "Store Management")}</small>
-          </div>
-        </Link>
+  const businessAvatar = (size: "sm" | "md" = "md") => (
+    <span className={`${styles.bizAvatar} ${size === "sm" ? styles.bizAvatarSm : ""}`}>
+      {resolvedLogo ? (
+        // eslint-disable-next-line @next/next/no-img-element
+        <img src={resolvedLogo} alt={activeBusiness?.name || "Business logo"} />
+      ) : (
+        initials(activeBusiness?.name)
+      )}
+    </span>
+  );
 
-        {/* Active Store Badge (Strict 1 Store per Admin) */}
-        <div className="px-2 mb-3">
+  return (
+    <div className={`${styles.page} ${collapsed ? styles.isCollapsed : ""}`} data-workspace={workspaceMode}>
+      {/* ================= Desktop / tablet sidebar ================= */}
+      <aside className={styles.sidebar} aria-label="Workspace navigation">
+        <div className={styles.brandRow}>
+          <Link className={styles.brand} href="/dashboard" aria-label="Almadel dashboard">
+            <BrandMark size={28} />
+            <span className={styles.brandText}>
+              <strong>Almadel</strong>
+              <small>{t("shell.store_management", "Store Management")}</small>
+            </span>
+          </Link>
+          <button
+            type="button"
+            className={styles.collapseBtn}
+            onClick={toggleCollapsed}
+            aria-label={collapsed ? "Expand sidebar" : "Collapse sidebar"}
+            title={collapsed ? "Expand sidebar" : "Collapse sidebar"}
+          >
+            <Icon name="panel" size={16} />
+          </button>
+        </div>
+
+        {/* Active business + switcher */}
+        <div className={styles.bizWrap} ref={bizMenuRef}>
           {activeBusiness ? (
-            <Link
-              href="/settings"
-              className="w-full flex items-center justify-between gap-2 p-2.5 rounded-2xl bg-white border border-gray-200/80 hover:border-[#00875a] shadow-xs transition text-left group"
-              title="Store Settings"
+            <button
+              type="button"
+              className={styles.bizButton}
+              onClick={() => setBizMenuOpen((o) => !o)}
+              aria-haspopup="menu"
+              aria-expanded={bizMenuOpen}
+              title={activeBusiness.name}
             >
-              <div className="flex items-center gap-2.5 overflow-hidden">
-                <span className="size-8 rounded-xl bg-[#e6f4ed] text-[#00875a] grid place-items-center shrink-0 overflow-hidden border border-emerald-100/60 shadow-xs">
-                  {resolvedLogo ? (
-                    <img
-                      src={resolvedLogo}
-                      alt={activeBusiness.name}
-                      className="size-full object-cover rounded-xl"
-                    />
-                  ) : (
-                    <StoreIcon />
-                  )}
-                </span>
-                <div className="overflow-hidden">
-                  <strong className="block text-xs font-extrabold text-gray-900 truncate leading-tight group-hover:text-[#00875a] transition">
-                    {activeBusiness.name}
-                  </strong>
-                  <span className="inline-block text-[10px] font-bold text-gray-500 capitalize truncate">
-                    {activeBusiness.businessType}
-                  </span>
-                </div>
-              </div>
-            </Link>
+              {businessAvatar()}
+              <span className={styles.bizText}>
+                <strong>{activeBusiness.name}</strong>
+                <small>{activeBusiness.businessType}</small>
+              </span>
+              <Icon name="updown" size={14} className={styles.bizChevron} />
+            </button>
           ) : (
-            <div className="p-2.5 rounded-2xl bg-amber-50 border border-amber-200 text-amber-800 text-xs font-bold">
-              <p>No active business</p>
-              <Link href="/setup-business" className="text-[#00875a] underline mt-0.5 block">
-                + Set up your business
+            <div className={styles.noBiz}>
+              <p>{t("shell.no_active_business", "No active business")}</p>
+              <Link href="/setup-business">{t("shell.setup_business", "+ Set up your business")}</Link>
+            </div>
+          )}
+
+          {bizMenuOpen && activeBusiness && (
+            <div className={`${styles.bizMenu} al-pop`} role="menu">
+              <div className={styles.menuLabel}>{t("shell.businesses", "Businesses")}</div>
+              {(businesses.length ? businesses : [activeBusiness]).map((b) => {
+                const current = b.id === activeBusiness.id;
+                return (
+                  <button
+                    key={b.id}
+                    type="button"
+                    role="menuitemradio"
+                    aria-checked={current}
+                    className={`${styles.menuItem} ${current ? styles.menuItemOn : ""}`}
+                    onClick={() => {
+                      if (!current) switchBusiness(b.id);
+                      setBizMenuOpen(false);
+                    }}
+                  >
+                    <span className={`${styles.bizAvatar} ${styles.bizAvatarSm}`}>{initials(b.name)}</span>
+                    <span className={styles.menuItemText}>
+                      <strong>{b.name}</strong>
+                      <small>
+                        {b.businessType} · {b.workspaceMode === "financial" ? "Financial" : "POS"}
+                      </small>
+                    </span>
+                    {current && <Icon name="check" size={15} strokeWidth={2} className={styles.menuCheck} />}
+                  </button>
+                );
+              })}
+              <div className={styles.menuSep} />
+              {navRole === "admin" && (
+                <Link href="/settings" className={styles.menuLink} role="menuitem">
+                  <Icon name="settings" size={15} />
+                  {t("shell.store_settings", "Store settings")}
+                </Link>
+              )}
+              <Link href="/setup-business" className={styles.menuLink} role="menuitem">
+                <Icon name="plus" size={15} />
+                {t("shell.setup_business", "+ Set up your business").replace(/^\+\s*/, "")}
               </Link>
             </div>
           )}
         </div>
 
-        {/* Pro Plan Active Badge */}
-        {activeBusiness && (activeBusiness.subscriptionStatus === "active" || Boolean(activeBusiness.stripeSubscriptionId)) && (
-          <div className="mx-2 mb-3 p-2.5 rounded-2xl bg-emerald-50 border border-emerald-200/80 flex items-center justify-between text-xs shadow-xs">
-            <div className="flex items-center gap-2 overflow-hidden">
-              <span className="text-base leading-none">🛡️</span>
-              <div className="overflow-hidden">
-                <span className="block font-black text-emerald-950 text-[11px] leading-tight truncate">
-                  Almadel Pro
-                </span>
-                <span className="block text-[10px] font-bold text-emerald-700">
-                  Active Plan
-                </span>
-              </div>
+        {/* Workspace mode indicator */}
+        <div className={styles.workspace} aria-label="Workspace mode">
+          <span className={workspaceMode === "pos" ? styles.wsOn : ""}>
+            <Icon name="cart" size={13} />
+            {t("shell.workspace_pos", "POS")}
+          </span>
+          <span className={workspaceMode === "financial" ? styles.wsOn : ""}>
+            <Icon name="wallet" size={13} />
+            {t("shell.workspace_financial", "Financial")}
+          </span>
+        </div>
+
+        <nav className={styles.nav}>
+          {groupedLinks.map((group) => (
+            <div key={group.id} className={styles.navGroup}>
+              <div className={styles.navHeading}>{t(group.labelKey, group.label)}</div>
+              {group.items.map((x) => {
+                const active = isActive(x);
+                return (
+                  <div key={x.href} className={styles.menuGroup}>
+                    <Link
+                      href={x.href}
+                      className={`${styles.navLink} ${active ? styles.active : ""}`}
+                      title={collapsed ? x.label : undefined}
+                      aria-current={pathname === x.href ? "page" : undefined}
+                    >
+                      <Icon name={routeIcon(x.href)} size={17} className={styles.navIcon} />
+                      <span className={styles.navLabel}>{x.label}</span>
+                      {x.subItems && x.subItems.length > 0 && (
+                        <Icon name="down" size={13} className={`${styles.navCaret} ${active ? styles.navCaretOpen : ""}`} />
+                      )}
+                    </Link>
+
+                    {x.subItems && active && (
+                      <div className={styles.subNav}>
+                        {x.subItems.map((sub) => (
+                          <Link
+                            key={sub.href}
+                            href={sub.href}
+                            className={`${styles.subLink} ${pathname === sub.href ? styles.subLinkActive : ""}`}
+                            aria-current={pathname === sub.href ? "page" : undefined}
+                          >
+                            {sub.label}
+                          </Link>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
             </div>
-            <Link
-              href="/payments"
-              className="shrink-0 px-2.5 py-1 rounded-lg bg-[#00875a] hover:bg-[#00744e] text-white text-[10px] font-extrabold transition shadow-xs"
-            >
-              Billing
-            </Link>
+          ))}
+        </nav>
+
+        {/* Subscription status */}
+        {isPro && (
+          <div className={styles.plan}>
+            <div className={styles.planRow}>
+              <span className={styles.planName}>
+                <Icon name="shield" size={14} />
+                Almadel Pro
+              </span>
+              <Link href="/payments" className={styles.planLink}>
+                {t("shell.billing", "Billing")}
+              </Link>
+            </div>
+            <small>{t("shell.active_plan", "Active Plan")}</small>
+          </div>
+        )}
+        {isTrialActive && (
+          <div className={styles.plan}>
+            <div className={styles.planRow}>
+              <span className={styles.planName}>
+                <Icon name="sparkle" size={14} />
+                {t("shell.free_trial", "30-Day Free Trial")}
+              </span>
+              <Link href="/payments" className={`${styles.planLink} ${styles.planLinkPrimary}`}>
+                {t("shell.subscribe", "Subscribe")}
+              </Link>
+            </div>
+            <div className={styles.planMeter} aria-hidden>
+              <span style={{ width: `${trialPct}%` }} />
+            </div>
+            <small>
+              {trialDays !== undefined
+                ? `${trialDays} ${t("shell.days_remaining", "days remaining")}`
+                : t("shell.active_trial", "Active Trial")}
+            </small>
           </div>
         )}
 
-        {/* 30-Day Free Trial Badge (Unsubscribed) */}
-        {activeBusiness &&
-          activeBusiness.subscriptionStatus !== "active" &&
-          !activeBusiness.stripeSubscriptionId &&
-          (activeBusiness.isTrial || activeBusiness.subscriptionStatus === "trialing") &&
-          !activeBusiness.isTrialExpired && (
-            <div className="mx-2 mb-3 p-2.5 rounded-2xl bg-emerald-50 border border-emerald-200/80 flex items-center justify-between text-xs shadow-xs">
-              <div className="flex items-center gap-2 overflow-hidden">
-                <span className="text-base leading-none">✨</span>
-                <div className="overflow-hidden">
-                  <span className="block font-black text-emerald-950 text-[11px] leading-tight truncate">
-                    30-Day Free Trial
-                  </span>
-                  <span className="block text-[10px] font-bold text-emerald-700">
-                    {activeBusiness.trialDaysRemaining !== undefined
-                      ? `${activeBusiness.trialDaysRemaining} days remaining`
-                      : "Active Trial"}
-                  </span>
-                </div>
-              </div>
-              <Link
-                href="/payments"
-                className="shrink-0 px-2 py-1 rounded-lg bg-[#00875a] hover:bg-[#00744e] text-white text-[10px] font-extrabold transition shadow-xs"
-              >
-                Subscribe
-              </Link>
-            </div>
-          )}
-
-
-        <nav>
-          {accessibleLinks.map((x) => {
-            const isSectionActive =
-              pathname === x.href ||
-              (x.subItems && x.subItems.some((sub) => pathname === sub.href));
-
-            return (
-              <div key={x.href} className={styles.menuGroup}>
-                <Link
-                  href={x.href}
-                  className={isSectionActive ? styles.active : ""}
-                >
-                  <i>{x.icon}</i>
-                  <span>{x.label}</span>
-                </Link>
-
-                {x.subItems && isSectionActive && (
-                  <div className={styles.subNav}>
-                    {x.subItems.map((sub) => (
-                      <Link
-                        key={sub.href}
-                        href={sub.href}
-                        className={`${styles.subLink} ${
-                          pathname === sub.href ? styles.subLinkActive : ""
-                        }`}
-                      >
-                        <span style={{ fontSize: 10, opacity: 0.7 }}>↳</span>
-                        <span>{sub.label}</span>
-                      </Link>
-                    ))}
-                  </div>
-                )}
-              </div>
-            );
-          })}
-        </nav>
-
-        {/* Language Switcher in Sidebar */}
-        <div className="mx-2 mt-auto mb-2 p-2 rounded-2xl bg-white border border-gray-200/80 flex items-center justify-between text-xs shadow-2xs">
-          <span className="text-[11px] font-bold text-gray-500">Language</span>
-          <LanguageSwitcher variant="pill" />
-        </div>
-
         <div className={styles.user}>
-          <b>{user.name[0]?.toUpperCase()}</b>
+          <b aria-hidden>{initials(user.name)}</b>
           <span>
             <strong>{user.name}</strong>
-            <small>
-              {navRole === "admin"
-                ? t("role.owner", "Store Owner")
-                : navRole === "accountant"
-                ? t("role.accountant", "Accountant")
-                : t("role.staff", "Staff Member")}
-            </small>
+            <small>{roleLabel}</small>
           </span>
           <button
+            type="button"
             aria-label={t("shell.sign_out", "Sign out")}
             title={t("shell.sign_out", "Sign out")}
-            onClick={async () => {
-              await logout();
-              showToast("You have been signed out.", "success");
-              router.push("/login");
-            }}
+            onClick={handleSignOut}
           >
-            ⏻
+            <Icon name="logout" size={16} />
           </button>
         </div>
       </aside>
 
-      {/* Mobile Top Header */}
-      <header className={styles.mobile}>
-        <Link className={styles.brand} href="/dashboard">
-          <span><ShoppingBagIcon /></span>
-          <strong>{activeBusiness?.name || "Almadel"}</strong>
-        </Link>
-        <div className="flex items-center gap-2">
+      {/* ================= Main sheet ================= */}
+      <div className={styles.main}>
+        {/* Desktop header */}
+        <header className={styles.topbar}>
+          <div className={styles.crumbs}>
+            <span className={styles.crumbWs}>{workspaceLabel}</span>
+            {currentTitle && (
+              <>
+                <Icon name="right" size={12} />
+                <strong>{currentTitle}</strong>
+              </>
+            )}
+          </div>
+          <span className={styles.spacer} />
+          <button type="button" className={styles.searchBtn} onClick={() => setPaletteOpen(true)}>
+            <Icon name="search" size={15} />
+            <span>{t("shell.jump_to", "Jump to a page…")}</span>
+            <kbd>⌘K</kbd>
+          </button>
+          <span
+            className={`${styles.live} ${liveConnected ? styles.liveOn : ""}`}
+            title={liveConnected ? "Realtime updates connected" : "Realtime updates offline"}
+          >
+            <span className={styles.liveDot} />
+            {liveConnected ? t("shell.live", "Live") : t("shell.offline", "Offline")}
+          </span>
           <LanguageSwitcher variant="compact" />
           <button
-            onClick={async () => {
-              await logout();
-              showToast("You have been signed out.", "success");
-              router.push("/login");
-            }}
+            type="button"
+            className={styles.iconBtn}
+            onClick={toggleTheme}
+            aria-label={resolvedTheme === "dark" ? "Switch to light theme" : "Switch to dark theme"}
+            title={resolvedTheme === "dark" ? "Light theme" : "Dark theme"}
           >
-            {t("shell.sign_out", "Sign out")}
+            <Icon name={resolvedTheme === "dark" ? "sun" : "moon"} size={16} />
           </button>
-        </div>
-      </header>
-
-      {/* Main Page Content */}
-      <section className={styles.content}>
-        <div className={styles.contentInner}>
-          {activeBusiness && (activeBusiness.isTrialExpired || activeBusiness.subscriptionStatus === "expired") && (
-            <TrialExpiredModal business={activeBusiness} />
+          {canSell && pathname !== "/sales" && (
+            <Link href="/sales" className={styles.primaryAction}>
+              <Icon name="plus" size={15} strokeWidth={2} />
+              {t("action.new_sale", "New Sale")}
+            </Link>
           )}
-          {children}
-        </div>
-      </section>
+        </header>
 
-      {/* Modern Responsive Mobile Bottom Bar */}
+        {/* Mobile header */}
+        <header className={styles.mobile}>
+          <Link className={styles.mobileBrand} href="/dashboard">
+            {activeBusiness ? businessAvatar("sm") : <BrandMark size={30} />}
+            <span>
+              <strong>{activeBusiness?.name || "Almadel"}</strong>
+              <small>
+                {workspaceLabel}
+                {currentTitle ? ` · ${currentTitle}` : ""}
+              </small>
+            </span>
+          </Link>
+          <span className={`${styles.liveDot} ${liveConnected ? styles.liveDotOn : ""}`} aria-hidden />
+          <button
+            type="button"
+            className={styles.iconBtn}
+            onClick={toggleTheme}
+            aria-label={resolvedTheme === "dark" ? "Switch to light theme" : "Switch to dark theme"}
+          >
+            <Icon name={resolvedTheme === "dark" ? "sun" : "moon"} size={17} />
+          </button>
+          <LanguageSwitcher variant="compact" />
+        </header>
+
+        {/* Page content */}
+        <section className={styles.content}>
+          <div className={`${styles.contentInner} al-page-enter`} key={pathname}>
+            {activeBusiness && (activeBusiness.isTrialExpired || activeBusiness.subscriptionStatus === "expired") && (
+              <TrialExpiredModal business={activeBusiness} />
+            )}
+            {children}
+          </div>
+        </section>
+      </div>
+
+      {/* ================= Mobile bottom bar ================= */}
       <nav className={styles.bottom} aria-label="Mobile Navigation">
         {mobilePrimaryLinks.map((x) => {
-          const isSectionActive =
-            pathname === x.href ||
-            (x.subItems && x.subItems.some((sub) => pathname === sub.href));
+          const active = isActive(x);
           return (
-            <Link
-              key={x.href}
-              href={x.href}
-              className={isSectionActive ? styles.active : ""}
-            >
-              <i>{x.icon}</i>
+            <Link key={x.href} href={x.href} className={active ? styles.active : ""} aria-current={active ? "page" : undefined}>
+              <Icon name={routeIcon(x.href)} size={21} strokeWidth={active ? 1.9 : 1.6} />
               <span>{x.label.split(" ")[0]}</span>
             </Link>
           );
         })}
 
-        {/* Mobile "More" Drawer Button (Admin Only) */}
         {navRole === "admin" && mobileDrawerLinks.length > 0 && (
           <button
             type="button"
             onClick={() => setMobileDrawerOpen(true)}
             className={`${styles.bottomMoreBtn} ${isDrawerRouteActive ? styles.active : ""}`}
             aria-label="Open full workspace navigation menu"
+            aria-expanded={mobileDrawerOpen}
           >
-            <i>☰</i>
+            <Icon name="grid" size={21} />
             <span>{t("shell.more", "More")}</span>
           </button>
         )}
       </nav>
 
-      {/* Mobile "More" Full Drawer / Bottom Sheet */}
+      {/* ================= Mobile "More" sheet ================= */}
       {mobileDrawerOpen && (
         <div
           className={styles.drawerBackdrop}
           onClick={() => setMobileDrawerOpen(false)}
           role="dialog"
           aria-modal="true"
+          aria-label="More navigation"
         >
-          <div
-            className={styles.drawerSheet}
-            onClick={(e) => e.stopPropagation()}
-          >
+          <div className={styles.drawerSheet} onClick={(e) => e.stopPropagation()}>
             <div className={styles.drawerHandle} />
             <div className={styles.drawerHead}>
-              <div>
-                <strong className="block text-base font-extrabold text-gray-900">
-                  {activeBusiness?.name || "Workspace Tools"}
-                </strong>
-                <span className="text-xs text-gray-500 font-semibold">
-                  Financial Management & Settings
+              <div className={styles.drawerTitle}>
+                {businessAvatar("sm")}
+                <span>
+                  <strong>{activeBusiness?.name || "Workspace Tools"}</strong>
+                  <small>
+                    {workspaceLabel} · {roleLabel}
+                  </small>
                 </span>
               </div>
               <button
                 type="button"
-                className="size-8 rounded-full bg-gray-100 text-gray-600 font-bold grid place-items-center"
+                className={styles.iconBtn}
                 onClick={() => setMobileDrawerOpen(false)}
+                aria-label="Close menu"
               >
-                ✕
+                <Icon name="x" size={17} />
               </button>
             </div>
 
             <div className={styles.drawerGrid}>
               {mobileDrawerLinks.map((x) => {
-                const isActive = pathname === x.href;
+                const active = isActive(x);
                 return (
                   <Link
                     key={x.href}
                     href={x.href}
                     onClick={() => setMobileDrawerOpen(false)}
-                    className={`${styles.drawerCard} ${isActive ? styles.drawerCardActive : ""}`}
+                    className={`${styles.drawerCard} ${active ? styles.drawerCardActive : ""}`}
                   >
-                    <span className={styles.drawerCardIcon}>{x.icon}</span>
+                    <span className={styles.drawerCardIcon}>
+                      <Icon name={routeIcon(x.href)} size={20} />
+                    </span>
                     <span className={styles.drawerCardLabel}>{x.label}</span>
                   </Link>
                 );
               })}
             </div>
 
-            <div className="mt-5 pt-4 border-t border-gray-100 flex items-center justify-between text-xs text-gray-500">
-              <span>Signed in as <strong className="text-gray-900">{user.name}</strong></span>
-              <button
-                onClick={async () => {
-                  setMobileDrawerOpen(false);
-                  await logout();
-                  showToast("You have been signed out.", "success");
-                  router.push("/login");
-                }}
-                className="font-bold text-red-600 hover:underline"
-              >
+            {businesses.length > 1 && (
+              <div className={styles.drawerSection}>
+                <div className={styles.menuLabel}>{t("shell.businesses", "Businesses")}</div>
+                {businesses.map((b) => {
+                  const current = b.id === activeBusiness?.id;
+                  return (
+                    <button
+                      key={b.id}
+                      type="button"
+                      className={`${styles.menuItem} ${current ? styles.menuItemOn : ""}`}
+                      onClick={() => {
+                        if (!current) switchBusiness(b.id);
+                        setMobileDrawerOpen(false);
+                      }}
+                    >
+                      <span className={`${styles.bizAvatar} ${styles.bizAvatarSm}`}>{initials(b.name)}</span>
+                      <span className={styles.menuItemText}>
+                        <strong>{b.name}</strong>
+                        <small>{b.businessType}</small>
+                      </span>
+                      {current && <Icon name="check" size={15} strokeWidth={2} className={styles.menuCheck} />}
+                    </button>
+                  );
+                })}
+              </div>
+            )}
+
+            {(isPro || isTrialActive) && (
+              <Link href="/payments" className={styles.drawerPlan} onClick={() => setMobileDrawerOpen(false)}>
+                <Icon name={isPro ? "shield" : "sparkle"} size={16} />
+                <span>
+                  {isPro
+                    ? `Almadel Pro · ${t("shell.active_plan", "Active Plan")}`
+                    : `${t("shell.free_trial", "30-Day Free Trial")}${
+                        trialDays !== undefined ? ` · ${trialDays} ${t("shell.days_remaining", "days remaining")}` : ""
+                      }`}
+                </span>
+                <Icon name="right" size={15} />
+              </Link>
+            )}
+
+            <div className={styles.drawerFoot}>
+              <span className={styles.drawerUser}>
+                <b aria-hidden>{initials(user.name)}</b>
+                <span>
+                  <strong>{user.name}</strong>
+                  <small>{roleLabel}</small>
+                </span>
+              </span>
+              <LanguageSwitcher variant="pill" />
+              <button type="button" onClick={handleSignOut} className={styles.signOut}>
+                <Icon name="logout" size={15} />
                 {t("shell.sign_out", "Sign out")}
               </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ================= Quick navigation palette ================= */}
+      {paletteOpen && (
+        <div className={styles.paletteBackdrop} onClick={() => setPaletteOpen(false)} role="presentation">
+          <div
+            className={styles.palette}
+            role="dialog"
+            aria-modal="true"
+            aria-label="Jump to a page"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className={styles.paletteInput}>
+              <Icon name="search" size={18} />
+              <input
+                ref={paletteInputRef}
+                value={paletteQuery}
+                onChange={(e) => {
+                  setPaletteQuery(e.target.value);
+                  setPaletteIndex(0);
+                }}
+                onKeyDown={(e) => {
+                  if (e.key === "ArrowDown") {
+                    e.preventDefault();
+                    setPaletteIndex((i) => Math.min(i + 1, Math.max(paletteResults.length - 1, 0)));
+                  } else if (e.key === "ArrowUp") {
+                    e.preventDefault();
+                    setPaletteIndex((i) => Math.max(i - 1, 0));
+                  } else if (e.key === "Enter") {
+                    const target = paletteResults[paletteIndex];
+                    if (target) goToPaletteResult(target.href);
+                  } else if (e.key === "Escape") {
+                    setPaletteOpen(false);
+                  }
+                }}
+                placeholder={t("shell.jump_placeholder", "Search pages — Khata, Stock, Daily Closing…")}
+                aria-label="Search pages"
+              />
+              <kbd>esc</kbd>
+            </div>
+            <div className={styles.paletteList} role="listbox">
+              {paletteResults.length === 0 && <div className={styles.paletteEmpty}>No matching pages</div>}
+              {paletteResults.map((d, i) => (
+                <button
+                  key={d.href + d.label}
+                  type="button"
+                  role="option"
+                  aria-selected={i === paletteIndex}
+                  className={`${styles.paletteItem} ${i === paletteIndex ? styles.paletteItemOn : ""}`}
+                  onMouseEnter={() => setPaletteIndex(i)}
+                  onClick={() => goToPaletteResult(d.href)}
+                >
+                  <Icon name={routeIcon(d.href)} size={16} />
+                  <span className={styles.paletteLabel}>
+                    {d.parent ? <span className={styles.paletteParent}>{d.parent} / </span> : null}
+                    {d.label}
+                  </span>
+                  {pathname === d.href && <span className={styles.paletteHere}>Current</span>}
+                </button>
+              ))}
+            </div>
+            <div className={styles.paletteFoot}>
+              <span>↑↓ navigate</span>
+              <span>↵ open</span>
+              <span className={styles.spacer} />
+              <span>{workspaceLabel} workspace</span>
             </div>
           </div>
         </div>

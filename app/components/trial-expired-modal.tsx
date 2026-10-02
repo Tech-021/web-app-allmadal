@@ -6,6 +6,8 @@ import { useBusiness, Business } from "@/app/components/business-context";
 import { useToast } from "@/app/components/toast-context";
 import { api } from "@/app/lib/api";
 import { logActivity } from "@/app/lib/logger";
+import { Icon } from "@/app/components/icons";
+import ui from "@/app/components/workspace-ui.module.css";
 
 interface TrialExpiredModalProps {
   business: Business;
@@ -61,139 +63,98 @@ export function TrialExpiredModal({ business }: TrialExpiredModalProps) {
 
   return (
     <div
-      className="fixed inset-0 z-[99999] flex items-center justify-center p-4 bg-gray-950/80 backdrop-blur-md animate-fadeIn"
+      className="al-overlay fixed inset-0 z-[99999] flex items-end justify-center bg-[var(--scrim)] p-0 backdrop-blur-[4px] sm:items-center sm:p-4"
       role="alertdialog"
       aria-modal="true"
       aria-labelledby="trial-expired-title"
       aria-describedby="trial-expired-desc"
     >
-      <div className="relative w-full max-w-lg bg-white rounded-3xl shadow-2xl border border-gray-100 overflow-hidden text-center p-6 sm:p-8">
-        {/* Decorative Top Accent */}
-        <div className="absolute top-0 left-0 right-0 h-2 bg-gradient-to-r from-amber-500 via-[#00875a] to-emerald-600" />
+      <div className="relative w-full max-w-[480px] overflow-hidden rounded-t-[20px] border border-[var(--border-strong)] bg-[var(--surface)] shadow-[var(--shadow-lg)] sm:rounded-[18px]">
+        <div className="pointer-events-none absolute inset-x-0 top-0 h-px bg-[linear-gradient(90deg,transparent,var(--warn)_50%,transparent)] opacity-70" />
 
-        {/* Lock Icon */}
-        <div className="mx-auto size-16 sm:size-20 rounded-2xl bg-amber-50 border border-amber-200/80 text-amber-600 flex items-center justify-center text-3xl sm:text-4xl shadow-inner mb-5">
-          🔒
+        <div className="px-6 pb-5 pt-7 text-center sm:px-8">
+          <span className="mx-auto mb-4 grid size-12 place-items-center rounded-[14px] border border-[color-mix(in_oklab,var(--warn)_25%,transparent)] bg-[var(--warn-soft)] text-[var(--warn)]">
+            <Icon name="lock" size={20} />
+          </span>
+          <span className={`${ui.chip} ${ui.chipWarn}`}>
+            <Icon name="clock" size={11} />
+            30-day free trial ended
+          </span>
+          <h2 id="trial-expired-title" className="mb-1.5 mt-3.5 text-[22px] font-semibold tracking-[-0.03em] text-[var(--text)]">
+            Your free trial has ended
+          </h2>
+          <p id="trial-expired-desc" className="mx-auto m-0 max-w-[42ch] text-[13.5px] leading-relaxed text-[var(--muted)]">
+            The trial for <strong className="font-medium text-[var(--text)]">{business.name}</strong> has expired. Subscribe to keep managing your
+            inventory, sales and accounts — your data is safe and waiting.
+          </p>
         </div>
 
-        <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-[11px] font-extrabold uppercase tracking-wider bg-amber-100 text-amber-800 mb-3">
-          30-Day Free Trial Ended
-        </span>
+        <ul className="m-0 grid list-none grid-cols-1 gap-x-6 gap-y-2.5 border-y border-[var(--border)] bg-[var(--surface-2)] px-6 py-4 sm:grid-cols-2 sm:px-8">
+          {INCLUDED.map((f) => (
+            <li key={f} className="flex items-center gap-2.5 text-[12.5px] text-[var(--text-2)]">
+              <span className="grid size-[18px] shrink-0 place-items-center rounded-[5px] bg-[var(--brand-soft)] text-[var(--brand)]">
+                <Icon name="check" size={11} strokeWidth={2.2} />
+              </span>
+              {f}
+            </li>
+          ))}
+        </ul>
 
-        <h2
-          id="trial-expired-title"
-          className="text-2xl sm:text-3xl font-black text-gray-900 tracking-tight"
-        >
-          Your Free Trial Has Ended
-        </h2>
-
-        <p
-          id="trial-expired-desc"
-          className="mt-2 text-sm sm:text-base text-gray-600 font-medium max-w-md mx-auto leading-relaxed"
-        >
-          Your 30-day free trial for <strong className="text-gray-900">{business.name}</strong> has expired. Kindly make payment to continue managing your inventory, sales, and accounts.
-        </p>
-
-        {/* Feature List */}
-        <div className="my-6 text-left bg-gray-50/80 rounded-2xl p-4 border border-gray-100 space-y-2.5">
-          <div className="text-xs font-bold uppercase tracking-wider text-gray-400 px-1">
-            Subscription Includes:
-          </div>
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-xs font-semibold text-gray-700">
-            <div className="flex items-center gap-2">
-              <span className="text-[#00875a]">✓</span> POS & Thermal Receipts
-            </div>
-            <div className="flex items-center gap-2">
-              <span className="text-[#00875a]">✓</span> Inventory & IMEI Khata
-            </div>
-            <div className="flex items-center gap-2">
-              <span className="text-[#00875a]">✓</span> Customers & Udhaar Ledger
-            </div>
-            <div className="flex items-center gap-2">
-              <span className="text-[#00875a]">✓</span> Profit & Loss Balance Sheets
-            </div>
-            <div className="flex items-center gap-2">
-              <span className="text-[#00875a]">✓</span> Accountant & Staff Roles
-            </div>
-            <div className="flex items-center gap-2">
-              <span className="text-[#00875a]">✓</span> Real-Time Cloud Sync
-            </div>
-          </div>
-        </div>
-
-        {/* Primary Action Button */}
-        <button
-          type="button"
-          onClick={handlePayNow}
-          disabled={loading}
-          className="w-full py-4 px-6 rounded-2xl bg-gradient-to-r from-[#00875a] to-[#006644] hover:from-[#00744e] hover:to-[#005236] text-white font-extrabold text-base sm:text-lg shadow-lg shadow-[#00875a]/25 hover:shadow-xl hover:shadow-[#00875a]/30 transition transform active:scale-[0.99] cursor-pointer flex items-center justify-center gap-2 disabled:opacity-60 disabled:cursor-not-allowed"
-        >
-          {loading ? (
-            <>
-              <svg
-                className="animate-spin size-5 text-white"
-                xmlns="http://www.w3.org/2000/svg"
-                fill="none"
-                viewBox="0 0 24 24"
-              >
-                <circle
-                  className="opacity-25"
-                  cx="12"
-                  cy="12"
-                  r="10"
-                  stroke="currentColor"
-                  strokeWidth="4"
-                ></circle>
-                <path
-                  className="opacity-75"
-                  fill="currentColor"
-                  d="M4 12a8 8 0 018-8v8H4z"
-                ></path>
-              </svg>
-              <span>Connecting to Stripe...</span>
-            </>
-          ) : (
-            <>
-              <span>Proceed to Stripe Checkout</span>
-              <span className="text-xl">💳 →</span>
-            </>
-          )}
-        </button>
-
-        <p className="text-[11px] text-gray-400 font-semibold mt-2.5">
-          🔒 Secure 256-bit encrypted checkout powered by Stripe
-        </p>
-
-        {/* Alternative Actions */}
-        <div className="mt-5 pt-4 border-t border-gray-100 flex flex-wrap items-center justify-center gap-4 text-xs font-bold text-gray-500">
-          {otherBusinesses.length > 0 && (
-            <div className="flex items-center gap-1.5">
-              <span>Switch store:</span>
-              {otherBusinesses.map((ob) => (
-                <button
-                  key={ob.id}
-                  onClick={() => switchBusiness(ob.id)}
-                  className="px-2 py-1 bg-gray-100 hover:bg-gray-200 text-gray-800 rounded-lg transition"
-                >
-                  {ob.name}
-                </button>
-              ))}
-            </div>
-          )}
-
-          <button
-            type="button"
-            onClick={async () => {
-              await logout();
-              showToast("You have been signed out.", "success");
-              window.location.href = "/login";
-            }}
-            className="text-red-600 hover:text-red-700 hover:underline"
-          >
-            Sign out of account
+        <div className="px-6 pb-[calc(20px+env(safe-area-inset-bottom))] pt-5 sm:px-8 sm:pb-6">
+          <button type="button" onClick={handlePayNow} disabled={loading} className={`${ui.primary} ${ui.btnLg} w-full`}>
+            {loading ? (
+              <>
+                <span className="size-4 rounded-full border-2 border-current border-t-transparent [animation:almadelSpin_700ms_linear_infinite]" />
+                Connecting to Stripe…
+              </>
+            ) : (
+              <>
+                <Icon name="card" size={16} />
+                Subscribe with Stripe · $29 / month
+              </>
+            )}
           </button>
+          <p className="mb-0 mt-2.5 flex items-center justify-center gap-1.5 text-[12px] text-[var(--faint)]">
+            <Icon name="lock" size={12} />
+            Secure 256-bit encrypted checkout
+          </p>
+
+          <div className="mt-5 flex flex-wrap items-center justify-center gap-x-4 gap-y-2 border-t border-[var(--border)] pt-4 text-[12.5px] text-[var(--muted)]">
+            {otherBusinesses.length > 0 && (
+              <div className="flex flex-wrap items-center gap-1.5">
+                <span>Switch store:</span>
+                {otherBusinesses.map((ob) => (
+                  <button key={ob.id} onClick={() => switchBusiness(ob.id)} className={`${ui.secondary} ${ui.btnSm}`}>
+                    <Icon name="store" size={12} />
+                    {ob.name}
+                  </button>
+                ))}
+              </div>
+            )}
+            <button
+              type="button"
+              onClick={async () => {
+                await logout();
+                showToast("You have been signed out.", "success");
+                window.location.href = "/login";
+              }}
+              className="inline-flex items-center gap-1.5 rounded-[7px] px-2 py-1 font-medium text-[var(--neg)] transition-colors hover:bg-[var(--neg-soft)]"
+            >
+              <Icon name="logout" size={13} />
+              Sign out
+            </button>
+          </div>
         </div>
       </div>
     </div>
   );
 }
+
+const INCLUDED = [
+  "POS & thermal receipts",
+  "Inventory & IMEI khata",
+  "Customers & udhaar ledger",
+  "Profit & loss, balance sheets",
+  "Accountant & staff roles",
+  "Real-time cloud sync",
+];

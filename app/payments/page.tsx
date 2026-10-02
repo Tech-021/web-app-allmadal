@@ -7,6 +7,11 @@ import { useBusiness } from "@/app/components/business-context";
 import { useToast } from "@/app/components/toast-context";
 import { logActivity } from "@/app/lib/logger";
 import { api } from "@/app/lib/api";
+import { Icon, type IconName } from "@/app/components/icons";
+import { Skeleton } from "@/app/components/motion";
+import { PageHeader } from "@/app/components/page-layout";
+import ui from "@/app/components/workspace-ui.module.css";
+import billing from "./payments.module.css";
 
 type BillingStatus = {
   success: boolean;
@@ -143,205 +148,230 @@ function PaymentContent() {
   const daysLeft = billingData?.daysLeft ?? 30;
   const isTrial = !isSubscribed && (billingData?.isTrialActive ?? true);
 
+  const statusTone = isSubscribed ? "pos" : isTrial ? "info" : "neg";
+  const statusLabel = isSubscribed ? "Active" : isTrial ? "Free trial" : "Trial expired";
+  const trialUsedPct = Math.min(100, Math.max(0, ((30 - daysLeft) / 30) * 100));
+  const fmtDate = (iso?: string) =>
+    iso ? new Date(iso).toLocaleDateString(undefined, { day: "numeric", month: "short", year: "numeric" }) : "—";
+
   return (
-    <div className="max-w-5xl mx-auto space-y-6 pb-12">
-      {/* Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 border-b border-slate-200/80 pb-6">
-        <div>
-          <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full text-xs font-semibold bg-emerald-50 text-emerald-700 border border-emerald-200/60 mb-2">
-            <span>🛡️</span> Verified Stripe Checkout
-          </div>
-          <h1 className="text-2xl sm:text-3xl font-black text-slate-900 tracking-tight">
-            Payments & Subscription
-          </h1>
-          <p className="text-sm text-slate-600 mt-1">
-            Manage your store plan, 30-day trial status, and secure Stripe billing.
-          </p>
-        </div>
-
-        <div className="flex items-center gap-2">
-          <button
-            type="button"
-            onClick={() => fetchStatus(true)}
-            disabled={syncing || loading}
-            className="inline-flex items-center gap-2 px-3.5 py-2.5 rounded-xl text-xs font-bold text-slate-700 bg-white border border-slate-200 hover:bg-slate-50 transition-colors shadow-xs cursor-pointer disabled:opacity-50"
-            title="Check and refresh live subscription status from Stripe"
-          >
-            <span>{syncing ? "🔄" : "⚡"}</span>
-            <span>{syncing ? "Syncing..." : "Sync Stripe Status"}</span>
-          </button>
-
-          {isSubscribed && (
+    <>
+      <PageHeader
+        eyebrow="Billing"
+        title="Plan & billing"
+        description="Your Almadel plan, trial status and secure Stripe billing."
+        actions={
+          <>
             <button
               type="button"
-              onClick={handleOpenPortal}
-              disabled={portalLoading}
-              className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs sm:text-sm font-bold text-slate-700 bg-white border border-slate-300 hover:bg-slate-50 transition-colors shadow-xs cursor-pointer"
+              onClick={() => fetchStatus(true)}
+              disabled={syncing || loading}
+              className={ui.secondary}
+              title="Check and refresh live subscription status from Stripe"
             >
-              <span>📄</span> {portalLoading ? "Opening Portal..." : "Manage Invoices & Cards"}
+              <Icon name="refresh" size={14} className={syncing ? "[animation:almadelSpin_800ms_linear_infinite]" : ""} />
+              {syncing ? "Syncing…" : "Sync status"}
             </button>
-          )}
-        </div>
-      </div>
-
-
-      {/* Trial / Subscription Status Card */}
-      <div className="p-6 rounded-2xl bg-gradient-to-r from-emerald-900 to-teal-900 text-white shadow-md relative overflow-hidden">
-        <div className="relative z-10 flex flex-col md:flex-row md:items-center md:justify-between gap-6">
-          <div className="space-y-2">
-            <div className="flex items-center gap-2">
-              <span className="text-xs uppercase tracking-wider font-bold px-2.5 py-0.5 rounded-full bg-emerald-500/20 text-emerald-300 border border-emerald-400/30">
-                {isSubscribed ? "Active Pro Subscriber" : isTrial ? "Free Trial Period" : "Trial Expired"}
-              </span>
-              <span className="text-xs text-emerald-200/80">• {activeBusiness?.name || "My Business"}</span>
-            </div>
-            <h2 className="text-2xl font-bold">
-              {isSubscribed
-                ? "Your Almadel Pro Plan is Active"
-                : isTrial
-                ? `You have ${daysLeft} days remaining in your Free Trial`
-                : "Your 30-Day Free Trial Has Expired"}
-            </h2>
-            <p className="text-sm text-emerald-100/80 max-w-xl">
-              {isSubscribed
-                ? "All features including POS, Financial Accounts, Khata, Inventory, and multi-staff management are fully unlocked."
-                : "Enjoy full unrestricted access during your 30-day trial. Upgrade at any time with single flat pricing to keep your business running smoothly."}
-            </p>
-          </div>
-
-          {!isSubscribed && (
-            <div className="shrink-0">
-              <button
-                onClick={handleProceedToCheckout}
-                disabled={checkoutLoading}
-                className="w-full sm:w-auto px-6 py-3.5 rounded-xl font-bold text-sm text-emerald-950 bg-emerald-400 hover:bg-emerald-300 transition-all shadow-lg hover:shadow-emerald-500/20 hover:-translate-y-0.5 flex items-center justify-center gap-2"
-              >
-                <span>💳</span>
-                {checkoutLoading ? "Redirecting to Stripe..." : "Upgrade with Stripe"}
+            {isSubscribed && (
+              <button type="button" onClick={handleOpenPortal} disabled={portalLoading} className={ui.secondary}>
+                <Icon name="invoice" size={14} />
+                {portalLoading ? "Opening portal…" : "Invoices & cards"}
               </button>
-            </div>
-          )}
-        </div>
-      </div>
+            )}
+          </>
+        }
+      />
 
-      {/* Pricing & Plan Section */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-6 items-start">
-        {/* Main Plan Card */}
-        <div className="md:col-span-2 rounded-2xl border-2 border-emerald-600 bg-white p-6 sm:p-8 shadow-sm space-y-6 relative">
-          <div className="absolute -top-3 right-6 px-3 py-1 rounded-full bg-emerald-600 text-white text-xs font-black uppercase tracking-wider">
-            All-In-One Pro Plan
+      {/* Status */}
+      <section className={`${ui.panel} ${ui.panelFlush}`} aria-busy={loading}>
+        <div className={billing.status}>
+          <div className={billing.statusMain}>
+            {loading ? (
+              <>
+                <Skeleton className="h-5 w-24" />
+                <Skeleton className="mt-4 h-7 w-3/4" />
+                <Skeleton className="mt-3 h-4 w-2/3" />
+              </>
+            ) : (
+              <>
+                <div className="flex flex-wrap items-center gap-2">
+                  <span className={`${ui.chip} ${statusTone === "pos" ? ui.chipPos : statusTone === "info" ? ui.chipInfo : ui.chipNeg}`}>
+                    <span className="size-1.5 rounded-full bg-current" />
+                    {statusLabel}
+                  </span>
+                  <span className="text-[12.5px] text-[var(--muted)]">{activeBusiness?.name || "My Business"}</span>
+                </div>
+                <h2 className={billing.statusTitle}>
+                  {isSubscribed ? (
+                    "Almadel Pro is active"
+                  ) : isTrial ? (
+                    <>
+                      <span className="font-mono">{daysLeft}</span> {daysLeft === 1 ? "day" : "days"} left in your free trial
+                    </>
+                  ) : (
+                    "Your 30-day free trial has ended"
+                  )}
+                </h2>
+                <p className={billing.statusText}>
+                  {isSubscribed
+                    ? "POS, financial accounts, khata, inventory and multi-staff management are fully unlocked."
+                    : "Full, unrestricted access during your trial. Upgrade anytime with one flat price to keep your business running."}
+                </p>
+                {!isSubscribed && (
+                  <div className={billing.meter} aria-label={`Trial ${Math.round(trialUsedPct)}% used`}>
+                    <div className={billing.meterTrack}>
+                      <span style={{ width: `${trialUsedPct}%` }} className={isTrial ? "" : billing.meterEnded} />
+                    </div>
+                    <div className={billing.meterLegend}>
+                      <span>Day {Math.min(30, 30 - daysLeft)} of 30</span>
+                      <span>{isTrial ? `Ends ${fmtDate(billingData?.trialEndsAt)}` : "Ended"}</span>
+                    </div>
+                  </div>
+                )}
+                {!isSubscribed && (
+                  <div className="mt-5">
+                    <button onClick={handleProceedToCheckout} disabled={checkoutLoading} className={`${ui.primary} ${ui.btnLg}`}>
+                      <Icon name="card" size={15} />
+                      {checkoutLoading ? "Redirecting to Stripe…" : "Upgrade with Stripe"}
+                    </button>
+                  </div>
+                )}
+              </>
+            )}
           </div>
 
-          <div className="flex flex-col sm:flex-row sm:items-baseline justify-between gap-4 border-b border-slate-100 pb-6">
+          <dl className={`${ui.kv} ${billing.statusAside}`}>
             <div>
-              <h3 className="text-xl font-black text-slate-900">Almadel Pro Subscription</h3>
-              <p className="text-sm text-slate-500 mt-0.5">Single flat price with everything included.</p>
+              <dt>Plan</dt>
+              <dd>Almadel Pro</dd>
             </div>
-            <div className="text-left sm:text-right">
-              <span className="text-3xl sm:text-4xl font-black text-slate-900">$29</span>
-              <span className="text-sm font-semibold text-slate-500"> / month</span>
-              <p className="text-xs text-emerald-700 font-semibold mt-0.5">30-Day Free Trial Included</p>
+            <div>
+              <dt>Status</dt>
+              <dd>{loading ? "…" : statusLabel}</dd>
+            </div>
+            <div>
+              <dt>{isSubscribed ? "Renews on" : "Trial ends"}</dt>
+              <dd className="font-mono">
+                {loading ? "…" : isSubscribed ? fmtDate(billingData?.business?.currentPeriodEnd) : fmtDate(billingData?.trialEndsAt)}
+              </dd>
+            </div>
+            <div>
+              <dt>Price</dt>
+              <dd className="font-mono">$29 / month</dd>
+            </div>
+          </dl>
+        </div>
+      </section>
+
+      {/* Plan + assurance */}
+      <div className={billing.grid}>
+        <section className={`${ui.panel} ${ui.panelFlush}`}>
+          <div className={billing.planHead}>
+            <div>
+              <span className={`${ui.chip} ${ui.chipPos}`}>All-in-one plan</span>
+              <h2>Almadel Pro</h2>
+              <p>One flat price with everything included.</p>
+            </div>
+            <div className={billing.price}>
+              <strong>$29</strong>
+              <span>/ month</span>
+              <small>30-day free trial included</small>
             </div>
           </div>
 
-          {/* Features List */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5 text-sm text-slate-700">
-            <div className="flex items-center gap-2.5">
-              <span className="text-emerald-600 font-bold">✓</span> Fast Point of Sale (POS)
-            </div>
-            <div className="flex items-center gap-2.5">
-              <span className="text-emerald-600 font-bold">✓</span> Full Financial Cash & Bank Accounts
-            </div>
-            <div className="flex items-center gap-2.5">
-              <span className="text-emerald-600 font-bold">✓</span> Customer Udhaar / Khata System
-            </div>
-            <div className="flex items-center gap-2.5">
-              <span className="text-emerald-600 font-bold">✓</span> Supplier Khata & Payables
-            </div>
-            <div className="flex items-center gap-2.5">
-              <span className="text-emerald-600 font-bold">✓</span> Inventory & Stock Alerts
-            </div>
-            <div className="flex items-center gap-2.5">
-              <span className="text-emerald-600 font-bold">✓</span> IMEI / Serial Number Tracking
-            </div>
-            <div className="flex items-center gap-2.5">
-              <span className="text-emerald-600 font-bold">✓</span> Thermal & PDF Invoices
-            </div>
-            <div className="flex items-center gap-2.5">
-              <span className="text-emerald-600 font-bold">✓</span> Multi-Staff Roles & Permissions
-            </div>
-            <div className="flex items-center gap-2.5">
-              <span className="text-emerald-600 font-bold">✓</span> Daily Closing & Shift Reports
-            </div>
-            <div className="flex items-center gap-2.5">
-              <span className="text-emerald-600 font-bold">✓</span> Cloud Backup & Auto Sync
-            </div>
-          </div>
+          <ul className={billing.features}>
+            {PLAN_FEATURES.map((f) => (
+              <li key={f}>
+                <span>
+                  <Icon name="check" size={12} strokeWidth={2.2} />
+                </span>
+                {f}
+              </li>
+            ))}
+          </ul>
 
-          <div className="pt-4 border-t border-slate-100 flex flex-col sm:flex-row items-center justify-between gap-4">
-            <div className="flex items-center gap-3 text-xs text-slate-500">
-              <span>💳 Visa</span>
-              <span>💳 Mastercard</span>
-              <span>💳 Amex</span>
-              <span>🔒 256-Bit SSL</span>
-            </div>
-
-            <button
-              onClick={handleProceedToCheckout}
-              disabled={checkoutLoading || isSubscribed}
-              className={`w-full sm:w-auto px-8 py-3 rounded-xl font-bold text-sm transition-all shadow-md ${
-                isSubscribed
-                  ? "bg-slate-100 text-slate-400 cursor-default"
-                  : "bg-emerald-600 hover:bg-emerald-700 text-white hover:shadow-emerald-600/20 hover:-translate-y-0.5"
-              }`}
-            >
-              {checkoutLoading
-                ? "Connecting to Stripe..."
-                : isSubscribed
-                ? "✓ Plan Active"
-                : "Proceed to Stripe Checkout →"}
+          <div className={ui.sectionFooter}>
+            <p className="flex flex-wrap items-center gap-x-3 gap-y-1">
+              <span className="inline-flex items-center gap-1.5">
+                <Icon name="card" size={13} />
+                Visa · Mastercard · Amex
+              </span>
+              <span className="inline-flex items-center gap-1.5">
+                <Icon name="lock" size={13} />
+                256-bit SSL
+              </span>
+            </p>
+            <button onClick={handleProceedToCheckout} disabled={checkoutLoading || isSubscribed} className={isSubscribed ? ui.secondary : ui.primary}>
+              {checkoutLoading ? (
+                "Connecting to Stripe…"
+              ) : isSubscribed ? (
+                <>
+                  <Icon name="check" size={14} />
+                  Plan active
+                </>
+              ) : (
+                <>
+                  Proceed to Stripe checkout
+                  <Icon name="arrowRight" size={14} />
+                </>
+              )}
             </button>
           </div>
-        </div>
+        </section>
 
-        {/* Security & FAQ Sidebar Card */}
-        <div className="space-y-4">
-          <div className="p-5 rounded-2xl bg-white border border-slate-200/80 shadow-xs space-y-3">
-            <h4 className="text-sm font-bold text-slate-900 flex items-center gap-2">
-              <span>🔒</span> Bank-Grade Security
-            </h4>
-            <p className="text-xs text-slate-600 leading-relaxed">
-              All payment transactions are encrypted and processed directly on Stripe’s PCI Service Provider Level 1 certified infrastructure. Your card credentials never touch our servers.
-            </p>
-          </div>
-
-          <div className="p-5 rounded-2xl bg-white border border-slate-200/80 shadow-xs space-y-3">
-            <h4 className="text-sm font-bold text-slate-900 flex items-center gap-2">
-              <span>🔄</span> Cancel Anytime
-            </h4>
-            <p className="text-xs text-slate-600 leading-relaxed">
-              No long-term commitments or surprise fees. You can pause or cancel your subscription whenever you want directly via the customer portal.
-            </p>
-          </div>
-
-          <div className="p-5 rounded-2xl bg-emerald-50 border border-emerald-200/60 shadow-xs space-y-2">
-            <h4 className="text-xs font-bold text-emerald-900 uppercase tracking-wide">
-              Need Help with Billing?
-            </h4>
-            <p className="text-xs text-emerald-800">
-              Contact our 24/7 support team for billing inquiries or custom enterprise plans.
-            </p>
-          </div>
-        </div>
+        <aside className={`${ui.panel} ${ui.panelFlush}`}>
+          {ASSURANCES.map((a) => (
+            <div key={a.title} className={billing.assure}>
+              <span className={ui.metricIcon}>
+                <Icon name={a.icon} size={14} />
+              </span>
+              <div>
+                <h3>{a.title}</h3>
+                <p>{a.body}</p>
+              </div>
+            </div>
+          ))}
+        </aside>
       </div>
-    </div>
+    </>
   );
 }
+
+const PLAN_FEATURES = [
+  "Fast point of sale (POS)",
+  "Cash & bank accounts",
+  "Customer udhaar / khata",
+  "Supplier khata & payables",
+  "Inventory & stock alerts",
+  "IMEI / serial tracking",
+  "Thermal & PDF invoices",
+  "Staff roles & permissions",
+  "Daily closing & shift reports",
+  "Cloud backup & auto sync",
+];
+
+const ASSURANCES: Array<{ icon: IconName; title: string; body: string }> = [
+  {
+    icon: "shield",
+    title: "Bank-grade security",
+    body: "Payments are processed on Stripe's PCI Level 1 certified infrastructure. Card details never touch our servers.",
+  },
+  {
+    icon: "refresh",
+    title: "Cancel anytime",
+    body: "No long-term commitments or surprise fees. Pause or cancel from the customer portal.",
+  },
+  {
+    icon: "info",
+    title: "Need help with billing?",
+    body: "Contact our 24/7 support team for billing questions or custom enterprise plans.",
+  },
+];
 
 export default function PaymentsPage() {
   return (
     <WorkspaceShell>
-      <Suspense fallback={<div className="p-8 text-center text-slate-500 font-medium">Loading payment information...</div>}>
+      <Suspense fallback={<Skeleton className="h-64 w-full rounded-xl" />}>
         <PaymentContent />
       </Suspense>
     </WorkspaceShell>

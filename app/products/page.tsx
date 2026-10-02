@@ -2,7 +2,9 @@
 
 import { FormEvent, useCallback, useEffect, useMemo, useState } from "react";
 import { WorkspaceShell } from "@/app/components/workspace-shell";
-import { PageHeader, PageSection, PageStack, PageToolbar } from "@/app/components/page-layout";
+import { PageHeader, TableEmptyRow, TableSkeletonRows } from "@/app/components/page-layout";
+import { Icon } from "@/app/components/icons";
+import pr from "./products.module.css";
 import { api, fetchProductCatalog, Product, resolveImageUrl, uploadProductImage } from "@/app/lib/api";
 import { useToast } from "@/app/components/toast-context";
 import { useBusiness } from "@/app/components/business-context";
@@ -466,307 +468,284 @@ export default function ProductsPage() {
     }
   };
 
+  const netPrice = (p: { discountType?: string | null; discountValue?: number | string | null; sellingPrice?: number | string | null; price?: number | string | null }) =>
+    Math.max(
+      0,
+      p.discountType === "percentage"
+        ? Math.round(Number(p.sellingPrice || p.price) * (1 - Number(p.discountValue) / 100))
+        : Number(p.sellingPrice || p.price) - Number(p.discountValue),
+    );
+
+  const fieldInput = (key: keyof Draft, label: string, opts: { type?: string; mono?: boolean; placeholder?: string } = {}) => (
+    <div className={ui.field} key={key}>
+      <label htmlFor={`pf-${key}`}>{label}</label>
+      <input
+        id={`pf-${key}`}
+        className={`${ui.input} ${opts.mono ? ui.inputMono : ""} ${fieldErrors[key] ? pr.invalid : ""}`}
+        type={opts.type || "text"}
+        min="0"
+        placeholder={opts.placeholder}
+        list={key === "category" ? "categories-options" : undefined}
+        required={["name", "sellingPrice"].includes(key)}
+        value={draft[key]}
+        onChange={(e) => {
+          setDraft({ ...draft, [key]: e.target.value });
+          if (fieldErrors[key]) setFieldErrors((prev) => ({ ...prev, [key]: "" }));
+        }}
+      />
+      {fieldErrors[key] && (
+        <span className={pr.fieldError}>
+          <Icon name="alert" size={12} />
+          {fieldErrors[key]}
+        </span>
+      )}
+    </div>
+  );
+
   return (
     <WorkspaceShell>
-      <PageStack>
       <PageHeader
         eyebrow={t("nav.stock", "Inventory")}
         title={t("nav.products", "Products")}
-        description="Manage product details, pricing, barcodes, and stock status."
+        description="Manage product details, pricing, barcodes and stock status."
         actions={
           <>
-          {selectedIds.length > 0 && (
-            <button
-              className={ui.danger}
-              disabled={bulkDeleting}
-              onClick={() => void handleBulkDelete()}
-            >
-              {bulkDeleting ? "Deleting..." : `Delete selected (${selectedIds.length})`}
+            <button className={ui.secondary} onClick={handleExportCsv} title="Export products to CSV spreadsheet">
+              <Icon name="download" size={14} />
+              {t("action.export_csv", "Export CSV")}
             </button>
-          )}
-          <button className={ui.secondary} onClick={handleExportCsv} title="Export products to CSV spreadsheet">
-            {t("action.export_csv", "Export CSV")}
-          </button>
-          <button className={ui.secondary} onClick={() => setShowImportModal(true)} title="Bulk import products from CSV">
-            {t("action.import_csv", "Import CSV")}
-          </button>
-          <button
-            className={ui.secondary}
-            onClick={() => {
-              setStickerInitialIds(selectedIds.length > 0 ? selectedIds : []);
-              setShowStickerModal(true);
-            }}
-            title="Print barcode labels"
-          >
-            {t("stickers.print_btn", "Print labels")}
-          </button>
-          <button className={ui.primary} onClick={() => open()}>
-            {t("action.add_product", "+ Add product")}
-          </button>
+            <button className={ui.secondary} onClick={() => setShowImportModal(true)} title="Bulk import products from CSV">
+              <Icon name="upload" size={14} />
+              {t("action.import_csv", "Import CSV")}
+            </button>
+            <button
+              className={ui.secondary}
+              onClick={() => {
+                setStickerInitialIds(selectedIds.length > 0 ? selectedIds : []);
+                setShowStickerModal(true);
+              }}
+              title="Print barcode labels"
+            >
+              <Icon name="printer" size={14} />
+              {t("stickers.print_btn", "Print labels")}
+            </button>
+            <button className={ui.primary} onClick={() => open()}>
+              <Icon name="plus" size={15} />
+              {t("action.add_product", "+ Add product").replace(/^\+\s*/, "")}
+            </button>
           </>
         }
       />
 
-      {error && <div className={ui.error}>{error}</div>}
-      {notice && <div className={ui.notice}>{notice}</div>}
+      {error && (
+        <div className={ui.error} role="alert">
+          <Icon name="alert" size={15} className="mt-px shrink-0" />
+          {error}
+        </div>
+      )}
+      {notice && (
+        <div className={ui.notice} role="status">
+          <Icon name="check" size={15} className="mt-px shrink-0" />
+          {notice}
+        </div>
+      )}
 
-      <PageToolbar>
-        <input
-          className={`${ui.input} ${ui.search}`}
-          placeholder={t("action.search", "Search name, barcode, SKU, or category...")}
-          value={query}
-          onChange={(e) => setQuery(e.target.value)}
-        />
-        <button
-          className={ui.secondary}
-          onClick={() => {
-            setScannerTarget("search");
-            setScannerOpen(true);
-          }}
-          title={t("pos.scan_camera_tip", "Scan barcode with camera")}
-          style={{ fontWeight: 800, display: "flex", alignItems: "center", gap: 6 }}
-        >
-          <span>📷</span>
-          <span>{t("scanner.open", "Scan Barcode")}</span>
-        </button>
-        <button className={ui.secondary} onClick={() => void load()}>
-          {t("action.refresh", "Refresh")}
-        </button>
-      </PageToolbar>
-
-      <div className={ui.pillRow} role="tablist" aria-label="Stock filter">
-        {(["All", "Healthy", "Low Stock", "Out of Stock"] as const).map((tab) => (
-          <button
-            key={tab}
-            type="button"
-            role="tab"
-            aria-selected={statusFilter === tab}
-            className={`${ui.pill} ${statusFilter === tab ? ui.pillActive : ""}`}
-            onClick={() => setStatusFilter(tab)}
-          >
-            {tab}
-          </button>
-        ))}
-      </div>
-
-      {/* Floating Bulk Action Banner when items are selected */}
       {selectedIds.length > 0 && (
-        <div className={ui.bulkBanner}>
-          <span style={{ fontSize: 13, fontWeight: 700 }}>
-            <strong>{selectedIds.length}</strong> product{selectedIds.length > 1 ? "s" : ""} selected
+        <div className={ui.bulkBanner} role="region" aria-label="Bulk actions">
+          <span className="text-[13px] font-medium">
+            <span className="font-mono">{selectedIds.length}</span> product{selectedIds.length > 1 ? "s" : ""} selected
           </span>
           <div className={ui.bulkBannerActions}>
-            <button type="button" className={ui.secondary} onClick={() => setSelectedIds([])}>
+            <button type="button" className={`${ui.secondary} ${ui.btnSm}`} onClick={() => setSelectedIds([])}>
               Deselect all
             </button>
             <button
               type="button"
-              className={ui.secondary}
+              className={`${ui.secondary} ${ui.btnSm}`}
               onClick={() => {
                 setStickerInitialIds(selectedIds);
                 setShowStickerModal(true);
               }}
             >
+              <Icon name="printer" size={13} />
               Print labels
             </button>
-            <button type="button" className={ui.danger} disabled={bulkDeleting} onClick={() => void handleBulkDelete()}>
-              {bulkDeleting ? "Deleting…" : "Delete selected"}
+            <button type="button" className={`${ui.danger} ${ui.btnSm}`} disabled={bulkDeleting} onClick={() => void handleBulkDelete()}>
+              <Icon name="trash" size={13} />
+              {bulkDeleting ? "Deleting…" : `Delete ${selectedIds.length}`}
             </button>
           </div>
         </div>
       )}
 
-      <PageSection>
-        <div className={ui.tableWrap}>
+      <section className={`${ui.panel} ${ui.panelFlush}`}>
+        <div className={`${ui.panelHead} ${pr.tools}`}>
+          <div className={ui.segmented} role="tablist" aria-label="Stock filter">
+            {(["All", "Healthy", "Low Stock", "Out of Stock"] as const).map((tab) => (
+              <button key={tab} type="button" role="tab" aria-selected={statusFilter === tab} className={statusFilter === tab ? ui.segmentedOn : ""} onClick={() => setStatusFilter(tab)}>
+                {tab !== "All" && (
+                  <span className={`size-1.5 rounded-full ${tab === "Healthy" ? "bg-[var(--pos)]" : tab === "Low Stock" ? "bg-[var(--warn)]" : "bg-[var(--neg)]"}`} />
+                )}
+                {tab}
+              </button>
+            ))}
+          </div>
+          <div className={pr.search}>
+            <input
+              className={`${ui.input} ${ui.search}`}
+              placeholder={t("action.search", "Search name, barcode, SKU, or category...")}
+              value={query}
+              onChange={(e) => setQuery(e.target.value)}
+              aria-label="Search products"
+            />
+            <button
+              className={ui.secondary}
+              onClick={() => {
+                setScannerTarget("search");
+                setScannerOpen(true);
+              }}
+              title={t("pos.scan_camera_tip", "Scan barcode with camera")}
+            >
+              <Icon name="scan" size={15} />
+              <span className="max-sm:hidden">{t("scanner.open", "Scan Barcode")}</span>
+            </button>
+            <button className={ui.iconButton} onClick={() => void load()} aria-label={t("action.refresh", "Refresh")} title={t("action.refresh", "Refresh")}>
+              <Icon name="refresh" size={15} />
+            </button>
+          </div>
+        </div>
+
+        <div className={`${ui.tableWrap} ${ui.tableBare}`}>
           <table className={ui.table}>
             <thead>
               <tr>
-                <th style={{ width: 42, paddingRight: 0, textAlign: "center" }}>
+                <th className={pr.checkCol}>
                   <input
                     type="checkbox"
+                    className={pr.check}
                     checked={allShownSelected}
                     ref={(el) => {
                       if (el) el.indeterminate = !allShownSelected && someShownSelected;
                     }}
                     onChange={toggleSelectAll}
-                    style={{
-                      width: 17,
-                      height: 17,
-                      accentColor: "#00875a",
-                      cursor: "pointer",
-                      borderRadius: 4,
-                      verticalAlign: "middle",
-                    }}
-                    title={allShownSelected ? "Deselect all shown" : "Select all shown"}
+                    aria-label={allShownSelected ? "Deselect all shown" : "Select all shown"}
                   />
                 </th>
                 <th>Product</th>
                 <th>Barcode / SKU</th>
                 <th>Category</th>
-                <th>Cost</th>
-                <th>Sell price</th>
-                <th>Stock Status</th>
-                <th>Actions</th>
+                <th className="text-right">Cost</th>
+                <th className="text-right">Sell price</th>
+                <th>Stock</th>
+                <th className="text-right">Actions</th>
               </tr>
             </thead>
             <tbody>
-              {paginatedShown.map((p) => {
-                const isSelected = selectedIds.includes(p.id);
-                return (
-                  <tr
-                    key={p.id}
-                    style={{
-                      background: isSelected ? "#f0fdf4" : undefined,
-                      transition: "background 0.15s ease",
-                    }}
-                  >
-                    <td style={{ width: 42, paddingRight: 0, textAlign: "center" }}>
-                      <input
-                        type="checkbox"
-                        checked={isSelected}
-                        onChange={() => toggleSelect(p.id)}
-                        style={{
-                          width: 17,
-                          height: 17,
-                          accentColor: "#00875a",
-                          cursor: "pointer",
-                          borderRadius: 4,
-                          verticalAlign: "middle",
-                        }}
-                      />
-                    </td>
-                    <td>
-                      <div className={ui.productCell}>
-                        {resolveImageUrl(p.imageUrl) ? (
-                          <img
-                            className={ui.productThumb}
-                            src={resolveImageUrl(p.imageUrl)!}
-                            alt=""
-                          />
-                        ) : (
-                          <span className={ui.productThumbPlaceholder} aria-hidden>
-                            📦
-                          </span>
-                        )}
-                        <strong>{p.name}</strong>
-                      </div>
-                    </td>
-                    <td>
-                      {p.barcode}
-                      <br />
-                      <span className={ui.muted}>{p.sku || "No SKU"}</span>
-                    </td>
-                    <td>
-                      {p.category ? (
-                        <span className={ui.badge}>{p.category}</span>
-                      ) : (
-                        "—"
-                      )}
-                    </td>
-                    <td>{money(p.costPrice)}</td>
-                    <td>
-                      {p.discountType && p.discountType !== "none" && Number(p.discountValue || 0) > 0 ? (
-                        <div>
-                          <div style={{ textDecoration: "line-through", color: "#94a3b8", fontSize: 11 }}>
-                            {money(p.sellingPrice || p.price)}
-                          </div>
-                          <strong style={{ color: "#00875a", fontSize: 13 }}>
-                            {money(
-                              Math.max(
-                                0,
-                                p.discountType === "percentage"
-                                  ? Math.round(Number(p.sellingPrice || p.price) * (1 - Number(p.discountValue) / 100))
-                                  : Number(p.sellingPrice || p.price) - Number(p.discountValue)
-                              )
-                            )}
-                          </strong>
-                          <span
-                            style={{
-                              marginLeft: 6,
-                              fontSize: 10,
-                              background: "#dcfce7",
-                              color: "#15803d",
-                              padding: "2px 6px",
-                              borderRadius: 4,
-                              fontWeight: 800,
-                            }}
-                          >
-                            {p.discountType === "percentage" ? `-${p.discountValue}%` : `-Rs ${p.discountValue}`}
-                          </span>
+              {loading && !shown.length ? (
+                <TableSkeletonRows cols={8} rows={6} />
+              ) : !shown.length ? (
+                <TableEmptyRow
+                  colSpan={8}
+                  icon={query ? "search" : "box"}
+                  title={query ? `No products match “${query}”` : "No products yet"}
+                  body={query ? "Check the spelling, or add it as a new product." : "Add your first product, or import your catalogue from a CSV file."}
+                  action={
+                    query ? (
+                      <button type="button" className={ui.primary} onClick={() => open(undefined, query.trim())}>
+                        <Icon name="plus" size={15} />
+                        Add “{query.trim()}” as new product
+                      </button>
+                    ) : (
+                      <>
+                        <button type="button" className={ui.secondary} onClick={() => setShowImportModal(true)}>
+                          <Icon name="upload" size={14} />
+                          Import CSV
+                        </button>
+                        <button type="button" className={ui.primary} onClick={() => open()}>
+                          <Icon name="plus" size={15} />
+                          Add product
+                        </button>
+                      </>
+                    )
+                  }
+                />
+              ) : (
+                paginatedShown.map((p) => {
+                  const isSelected = selectedIds.includes(p.id);
+                  const hasDiscount = p.discountType && p.discountType !== "none" && Number(p.discountValue || 0) > 0;
+                  const stockNum = Number(p.stock);
+                  const isOut = stockNum === 0;
+                  const isLow = !isOut && stockNum <= Number(p.lowStockThreshold ?? 5);
+                  const img = resolveImageUrl(p.imageUrl);
+                  return (
+                    <tr key={p.id} className={isSelected ? pr.rowSelected : ""}>
+                      <td className={pr.checkCol}>
+                        <input type="checkbox" className={pr.check} checked={isSelected} onChange={() => toggleSelect(p.id)} aria-label={`Select ${p.name}`} />
+                      </td>
+                      <td>
+                        <div className={ui.productCell}>
+                          {img ? (
+                            <img className={ui.productThumb} src={img} alt="" />
+                          ) : (
+                            <span className={ui.productThumbPlaceholder} aria-hidden>
+                              <Icon name="box" size={15} />
+                            </span>
+                          )}
+                          <span className="truncate font-medium">{p.name}</span>
                         </div>
-                      ) : (
-                        <strong style={{ color: "#00875a" }}>
-                          {money(p.sellingPrice || p.price)}
-                        </strong>
-                      )}
-                    </td>
-                    <td>
-                      {Number(p.stock) === 0 ? (
-                        <span className={ui.outOfStock}>● Out of Stock ({p.stock})</span>
-                      ) : Number(p.stock) <= Number(p.lowStockThreshold ?? 5) ? (
-                        <span className={ui.lowStock}>● Low Stock ({p.stock})</span>
-                      ) : (
-                        <span className={ui.healthy}>● Healthy ({p.stock})</span>
-                      )}
-                    </td>
-                    <td>
-                      <div className={ui.actions}>
-                        <button
-                          className={ui.secondary}
-                          onClick={() => {
-                            setStickerInitialIds([p.id]);
-                            setShowStickerModal(true);
-                          }}
-                          title="Print barcode stickers for this product"
-                          style={{ padding: "6px 10px" }}
-                        >
-                          🏷️
-                        </button>
-                        <button className={ui.secondary} onClick={() => open(p)}>
-                          Edit
-                        </button>
-                        <button className={ui.danger} onClick={() => void remove(p)}>
-                          Delete
-                        </button>
-                      </div>
-                    </td>
-                  </tr>
-                );
-              })}
-              {!loading && !shown.length && (
-                <tr>
-                  <td colSpan={8} className={ui.empty}>
-                    <div style={{ padding: "32px 16px", display: "flex", flexDirection: "column", alignItems: "center", gap: 12 }}>
-                      <p style={{ margin: 0, fontSize: 14, color: "#6b7280" }}>
-                        {query
-                          ? `No products found matching "${query}".`
-                          : "No products found."}
-                      </p>
-                      {query && (
-                        <button
-                          type="button"
-                          className={ui.primary}
-                          onClick={() => {
-                            const candidate = query.trim();
-                            open(undefined, candidate);
-                          }}
-                          style={{
-                            padding: "8px 20px",
-                            fontSize: 13,
-                            display: "inline-flex",
-                            alignItems: "center",
-                            gap: 6,
-                            borderRadius: 9999,
-                            cursor: "pointer",
-                          }}
-                        >
-                          <span>+</span>
-                          <span>Add "{query.trim()}" as New Product</span>
-                        </button>
-                      )}
-                    </div>
-                  </td>
-                </tr>
+                      </td>
+                      <td>
+                        <span className="block font-mono text-[12.5px]">{p.barcode || "—"}</span>
+                        <span className="text-[12px] text-[var(--faint)]">{p.sku || "No SKU"}</span>
+                      </td>
+                      <td>{p.category ? <span className={ui.chip}>{p.category}</span> : <span className="text-[var(--faint)]">—</span>}</td>
+                      <td className="text-right font-mono text-[var(--muted)]">{money(p.costPrice)}</td>
+                      <td className="text-right">
+                        {hasDiscount ? (
+                          <div className="flex flex-col items-end gap-0.5">
+                            <span className="font-mono font-medium">{money(netPrice(p))}</span>
+                            <span className="flex items-center gap-1.5">
+                              <span className="font-mono text-[11.5px] text-[var(--faint)] line-through">{money(p.sellingPrice || p.price)}</span>
+                              <span className={`${ui.chip} ${ui.chipXs} ${ui.chipPos}`}>
+                                {p.discountType === "percentage" ? `−${p.discountValue}%` : `−Rs ${p.discountValue}`}
+                              </span>
+                            </span>
+                          </div>
+                        ) : (
+                          <span className="font-mono font-medium">{money(p.sellingPrice || p.price)}</span>
+                        )}
+                      </td>
+                      <td>
+                        <span className={isOut ? ui.outOfStock : isLow ? ui.lowStock : ui.healthy}>
+                          {isOut ? "Out" : isLow ? "Low" : "Healthy"}
+                          <span className="font-mono">{p.stock}</span>
+                        </span>
+                      </td>
+                      <td>
+                        <div className="flex justify-end gap-1.5">
+                          <button
+                            className={ui.iconButton}
+                            onClick={() => {
+                              setStickerInitialIds([p.id]);
+                              setShowStickerModal(true);
+                            }}
+                            title="Print barcode stickers"
+                            aria-label={`Print barcode stickers for ${p.name}`}
+                          >
+                            <Icon name="printer" size={14} />
+                          </button>
+                          <button className={`${ui.secondary} ${ui.btnSm}`} onClick={() => open(p)}>
+                            <Icon name="edit" size={13} />
+                            Edit
+                          </button>
+                          <button className={`${ui.iconButton} hover:!text-[var(--neg)]`} onClick={() => void remove(p)} title="Delete" aria-label={`Delete ${p.name}`}>
+                            <Icon name="trash" size={14} />
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                  );
+                })
               )}
             </tbody>
           </table>
@@ -786,9 +765,7 @@ export default function ProductsPage() {
             itemLabel={t("term.products", "products")}
           />
         )}
-      </PageSection>
-
-      </PageStack>
+      </section>
 
       {editing !== undefined && (
         <div
@@ -797,184 +774,157 @@ export default function ProductsPage() {
             if (e.target === e.currentTarget) setEditing(undefined);
           }}
         >
-          <form className={ui.sheet} onSubmit={submit}>
+          <form className={ui.sheet} style={{ width: "min(720px, 100%)" }} onSubmit={submit} role="dialog" aria-modal="true" aria-label={editing ? "Edit product" : "Add product"}>
             <div className={ui.sheetHead}>
-              <h2>{editing ? "Edit product" : "Add product"}</h2>
-              <button type="button" className={ui.secondary} onClick={() => setEditing(undefined)}>
-                Close
+              <div className="flex items-center gap-2.5">
+                <span className={ui.iconTile}>
+                  <Icon name={editing ? "edit" : "box"} size={15} />
+                </span>
+                <div>
+                  <h2>{editing ? "Edit product" : "Add product"}</h2>
+                  {editing && <p className="m-0 mt-0.5 text-[12.5px] text-[var(--muted)]">{draft.name}</p>}
+                </div>
+              </div>
+              <button type="button" className={ui.iconButton} onClick={() => setEditing(undefined)} aria-label="Close">
+                <Icon name="x" size={15} />
               </button>
             </div>
-            <div className={ui.formGrid}>
-              {(
-                [
-                  ["name", "Product name *"],
-                  ["barcode", "Barcode"],
-                  ["sku", "SKU"],
-                  ["category", "Category"],
-                  ["costPrice", "Cost price (Rs.)"],
-                  ["sellingPrice", "Sale price (Rs.) *"],
-                  ["stock", editing ? "Current stock" : "Opening stock"],
-                  ["lowStockThreshold", "Low stock alert threshold"],
-                  ["imageUrl", "Product image"],
-                ] as [keyof Draft, string][]
-              ).map(([key, label]) => (
-                <div className={`${ui.field} ${key === "imageUrl" ? ui.span2 : ""}`} key={key}>
-                  <label>{label}</label>
-                  {key === "imageUrl" ? (
-                    <div className={ui.imageField}>
-                      <div
-                        className={ui.imagePreview}
-                        aria-label={productImagePreview ? "Product image preview" : "No product image"}
-                      >
-                        {productImagePreview ? (
-                          <img src={productImagePreview} alt="" />
-                        ) : (
-                          <span className={ui.muted}>No image</span>
-                        )}
-                      </div>
-                      <div className={ui.imageFieldControls}>
-                        <input
-                          className={ui.input}
-                          type="file"
-                          accept="image/png,image/jpeg,image/webp,image/gif"
-                          onChange={(e) => setMediaFile(e.target.files?.[0] || null)}
-                        />
-                        {(mediaFile?.name || draft.imageUrl) && (
-                          <span className={ui.muted}>
-                            {mediaFile?.name || "Using saved product image"}
-                          </span>
-                        )}
-                      </div>
-                    </div>
-                  ) : key === "barcode" ? (
-                    <div style={{ display: "flex", gap: 6 }}>
-                      <input
-                        className={`${ui.input} ${fieldErrors[key] ? "border-red-500 bg-red-50/40" : ""}`}
-                        style={{ flex: 1 }}
-                        type="text"
-                        placeholder="e.g. 896400012345"
-                        value={draft.barcode}
-                        onChange={(e) => {
-                          setDraft({ ...draft, barcode: e.target.value });
-                          if (fieldErrors.barcode) setFieldErrors((prev) => ({ ...prev, barcode: "" }));
-                        }}
-                      />
-                      <button
-                        type="button"
-                        className={ui.secondary}
-                        onClick={() => {
-                          setScannerTarget("form");
-                          setScannerOpen(true);
-                        }}
-                        title="Scan barcode with camera"
-                        style={{ padding: "0 12px", whiteSpace: "nowrap", display: "flex", alignItems: "center", gap: 4 }}
-                      >
-                        <span>📷</span>
-                        <span>Scan</span>
-                      </button>
-                    </div>
-                  ) : (
-                    <input
-                      className={`${ui.input} ${fieldErrors[key] ? "border-red-500 bg-red-50/40" : ""}`}
-                      type={["costPrice", "sellingPrice", "stock", "lowStockThreshold"].includes(key) ? "number" : "text"}
-                      min="0"
-                      list={key === "category" ? "categories-options" : undefined}
-                      required={["name", "sellingPrice"].includes(key)}
-                      value={draft[key]}
-                      onChange={(e) => {
-                        setDraft({ ...draft, [key]: e.target.value });
-                        if (fieldErrors[key]) setFieldErrors((prev) => ({ ...prev, [key]: "" }));
-                      }}
-                    />
-                  )}
-                  {fieldErrors[key] && (
-                    <span className="text-[11px] font-bold text-red-600 mt-1 block">
-                      {fieldErrors[key]}
-                    </span>
-                  )}
-                  {key === "category" && (
-                    <datalist id="categories-options">
-                      {Array.from(
-                        new Set(
-                          products
-                            .map((p) => p.category?.trim())
-                            .filter((c): c is string => Boolean(c))
-                        )
-                      ).map((cat) => (
-                        <option key={cat} value={cat} />
-                      ))}
-                    </datalist>
-                  )}
-                </div>
-              ))}
 
-              {/* Product Discount Section */}
-              <div className={ui.span2} style={{ background: "#f8fafc", padding: "14px 16px", borderRadius: 12, border: "1px solid #e2e8f0", marginTop: 4 }}>
-                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 8, flexWrap: "wrap", gap: 6 }}>
-                  <label style={{ fontSize: 13, fontWeight: 700, color: "#1e293b", margin: 0 }}>
-                    🏷️ Product Discount (Optional)
-                  </label>
-                  {draft.discountType !== "none" && Number(draft.discountValue) > 0 && Number(draft.sellingPrice) > 0 && (
-                    <span style={{ fontSize: 12, fontWeight: 800, color: "#00875a" }}>
-                      Net Price: Rs{" "}
-                      {Math.max(
-                        0,
-                        draft.discountType === "percentage"
-                          ? Math.round(Number(draft.sellingPrice) * (1 - Number(draft.discountValue) / 100))
-                          : Number(draft.sellingPrice) - Number(draft.discountValue)
-                      ).toLocaleString()}{" "}
-                      <span style={{ color: "#64748b", fontWeight: 500, fontSize: 11 }}>
-                        ({draft.discountType === "percentage" ? `${draft.discountValue}% Off` : `Rs ${draft.discountValue} Off`})
-                      </span>
+            <div className={pr.formSection}>
+              <h3>Basics</h3>
+              <div className={ui.formGrid}>
+                <div className={ui.span2}>{fieldInput("name", "Product name *", { placeholder: "e.g. Redmi Note 13 (8/256)" })}</div>
+                <div className={ui.field}>
+                  <label htmlFor="pf-barcode">Barcode</label>
+                  <div className="flex gap-2">
+                    <input
+                      id="pf-barcode"
+                      className={`${ui.input} ${ui.inputMono} ${fieldErrors.barcode ? pr.invalid : ""}`}
+                      type="text"
+                      placeholder="896400012345"
+                      value={draft.barcode}
+                      onChange={(e) => {
+                        setDraft({ ...draft, barcode: e.target.value });
+                        if (fieldErrors.barcode) setFieldErrors((prev) => ({ ...prev, barcode: "" }));
+                      }}
+                    />
+                    <button
+                      type="button"
+                      className={ui.secondary}
+                      onClick={() => {
+                        setScannerTarget("form");
+                        setScannerOpen(true);
+                      }}
+                      title="Scan barcode with camera"
+                    >
+                      <Icon name="camera" size={15} />
+                      Scan
+                    </button>
+                  </div>
+                  {fieldErrors.barcode && (
+                    <span className={pr.fieldError}>
+                      <Icon name="alert" size={12} />
+                      {fieldErrors.barcode}
                     </span>
                   )}
                 </div>
-                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
-                  <div>
-                    <label style={{ fontSize: 11, fontWeight: 600, color: "#64748b", display: "block", marginBottom: 4 }}>Discount Type</label>
-                    <select
-                      className={ui.input}
-                      value={draft.discountType}
-                      onChange={(e) => setDraft({ ...draft, discountType: e.target.value as any })}
-                      style={{ height: 38 }}
-                    >
-                      <option value="none">No Discount</option>
-                      <option value="fixed">Fixed (Rs. Off)</option>
-                      <option value="percentage">Percentage (% Off)</option>
-                    </select>
-                  </div>
-                  <div>
-                    <label style={{ fontSize: 11, fontWeight: 600, color: "#64748b", display: "block", marginBottom: 4 }}>
-                      {draft.discountType === "percentage" ? "Percentage (%)" : "Amount (Rs.)"}
-                    </label>
-                    <input
-                      className={`${ui.input} ${fieldErrors.discountValue ? "border-red-500 bg-red-50/40" : ""}`}
-                      type="number"
-                      min="0"
-                      disabled={draft.discountType === "none"}
-                      placeholder={draft.discountType === "percentage" ? "e.g. 10" : "e.g. 50"}
-                      value={draft.discountValue}
-                      onChange={(e) => {
-                        setDraft({ ...draft, discountValue: e.target.value });
-                        if (fieldErrors.discountValue) setFieldErrors((prev) => ({ ...prev, discountValue: "" }));
-                      }}
-                      style={{ height: 38 }}
-                    />
-                    {fieldErrors.discountValue && (
-                      <span className="text-[11px] font-bold text-red-600 mt-1 block">
-                        {fieldErrors.discountValue}
-                      </span>
-                    )}
-                  </div>
+                {fieldInput("sku", "SKU", { mono: true, placeholder: "Optional" })}
+                <div className={ui.span2}>
+                  {fieldInput("category", "Category", { placeholder: "Pick or type a category" })}
+                  <datalist id="categories-options">
+                    {Array.from(new Set(products.map((p) => p.category?.trim()).filter((c): c is string => Boolean(c)))).map((cat) => (
+                      <option key={cat} value={cat} />
+                    ))}
+                  </datalist>
                 </div>
               </div>
             </div>
+
+            <div className={pr.formSection}>
+              <h3>Pricing & stock</h3>
+              <div className={ui.formGrid}>
+                {fieldInput("costPrice", "Cost price (Rs)", { type: "number", mono: true })}
+                {fieldInput("sellingPrice", "Sale price (Rs) *", { type: "number", mono: true })}
+                {fieldInput("stock", editing ? "Current stock" : "Opening stock", { type: "number", mono: true })}
+                {fieldInput("lowStockThreshold", "Low-stock alert at", { type: "number", mono: true })}
+              </div>
+            </div>
+
+            <div className={pr.formSection}>
+              <div className="flex flex-wrap items-baseline justify-between gap-2">
+                <h3>Discount</h3>
+                {draft.discountType !== "none" && Number(draft.discountValue) > 0 && Number(draft.sellingPrice) > 0 && (
+                  <span className="text-[12.5px] text-[var(--muted)]">
+                    Net price{" "}
+                    <span className="font-mono font-medium text-[var(--pos)]">
+                      Rs {netPrice({ discountType: draft.discountType, discountValue: draft.discountValue, sellingPrice: draft.sellingPrice }).toLocaleString()}
+                    </span>
+                  </span>
+                )}
+              </div>
+              <div className={ui.formGrid}>
+                <div className={ui.field}>
+                  <label htmlFor="pf-dtype">Discount type</label>
+                  <select id="pf-dtype" className={ui.select} value={draft.discountType} onChange={(e) => setDraft({ ...draft, discountType: e.target.value as any })}>
+                    <option value="none">No discount</option>
+                    <option value="fixed">Fixed (Rs off)</option>
+                    <option value="percentage">Percentage (% off)</option>
+                  </select>
+                </div>
+                <div className={ui.field}>
+                  <label htmlFor="pf-dval">{draft.discountType === "percentage" ? "Percentage (%)" : "Amount (Rs)"}</label>
+                  <input
+                    id="pf-dval"
+                    className={`${ui.input} ${ui.inputMono} ${fieldErrors.discountValue ? pr.invalid : ""}`}
+                    type="number"
+                    min="0"
+                    disabled={draft.discountType === "none"}
+                    placeholder={draft.discountType === "percentage" ? "10" : "50"}
+                    value={draft.discountValue}
+                    onChange={(e) => {
+                      setDraft({ ...draft, discountValue: e.target.value });
+                      if (fieldErrors.discountValue) setFieldErrors((prev) => ({ ...prev, discountValue: "" }));
+                    }}
+                  />
+                  {fieldErrors.discountValue && (
+                    <span className={pr.fieldError}>
+                      <Icon name="alert" size={12} />
+                      {fieldErrors.discountValue}
+                    </span>
+                  )}
+                </div>
+              </div>
+            </div>
+
+            <div className={pr.formSection}>
+              <h3>Image</h3>
+              <div className={ui.imageField}>
+                <div className={ui.imagePreview} aria-label={productImagePreview ? "Product image preview" : "No product image"}>
+                  {productImagePreview ? <img src={productImagePreview} alt="" /> : <Icon name="image" size={20} className="text-[var(--faint)]" />}
+                </div>
+                <div className={ui.imageFieldControls}>
+                  <label className={`${ui.secondary} self-start`}>
+                    <Icon name="upload" size={14} />
+                    {productImagePreview ? "Replace image" : "Upload image"}
+                    <input className="hidden" type="file" accept="image/png,image/jpeg,image/webp,image/gif" onChange={(e) => setMediaFile(e.target.files?.[0] || null)} />
+                  </label>
+                  <span className={ui.muted}>{mediaFile?.name || (draft.imageUrl ? "Using saved product image" : "PNG, JPG, WEBP or GIF")}</span>
+                  {fieldErrors.imageUrl && (
+                    <span className={pr.fieldError}>
+                      <Icon name="alert" size={12} />
+                      {fieldErrors.imageUrl}
+                    </span>
+                  )}
+                </div>
+              </div>
+            </div>
+
             <div className={ui.formActions}>
               <button type="button" className={ui.secondary} onClick={() => setEditing(undefined)}>
                 Cancel
               </button>
               <button className={ui.primary} disabled={saving}>
-                {saving ? "Saving..." : editing ? "Save changes" : "Save Product"}
+                {saving ? "Saving…" : editing ? "Save changes" : "Save product"}
               </button>
             </div>
           </form>

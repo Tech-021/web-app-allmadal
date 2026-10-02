@@ -9,29 +9,15 @@ import { logActivity } from "@/app/lib/logger";
 import { CameraBarcodeScannerModal } from "@/app/components/camera-barcode-scanner-modal";
 import { PaginationControls } from "@/app/components/pagination-controls";
 import ui from "@/app/components/workspace-ui.module.css";
+import { Icon } from "@/app/components/icons";
+import { Metric, MetricStrip, PageHeader, TableEmptyRow } from "@/app/components/page-layout";
+import st from "./stock.module.css";
 
 const money = (n: number) => `Rs ${Number(n).toLocaleString()}`;
 
 function ProductAvatar({ name }: { name: string }) {
   const initial = name[0]?.toUpperCase() || "P";
-  return (
-    <div
-      style={{
-        width: 36,
-        height: 36,
-        borderRadius: 10,
-        background: "#e6f4ed",
-        color: "#00875a",
-        fontWeight: 800,
-        fontSize: 14,
-        display: "grid",
-        placeItems: "center",
-        flexShrink: 0,
-      }}
-    >
-      {initial}
-    </div>
-  );
+  return <span className={ui.productThumbPlaceholder}>{initial}</span>;
 }
 
 export default function StockPage() {
@@ -184,279 +170,239 @@ export default function StockPage() {
     }
   };
 
+  const productPicker = (compact: boolean) =>
+    autocompleteMatches.length > 0 && (
+      <div className={`${st.matches} ${compact ? st.matchesCompact : ""}`} role="listbox" aria-label="Matching products">
+        {autocompleteMatches.map((p) => {
+          const selected = p.barcode === barcode;
+          return (
+            <button
+              type="button"
+              key={p.id}
+              role="option"
+              aria-selected={selected}
+              onClick={() => {
+                setBarcode(p.barcode);
+                setSearch(p.name);
+              }}
+              className={`${st.match} ${selected ? st.matchOn : ""}`}
+            >
+              <span className="min-w-0">
+                <span className="block truncate font-medium">{p.name}</span>
+                <span className="block truncate font-mono text-[11.5px] text-[var(--faint)]">
+                  {p.barcode}
+                  {p.sku ? ` · ${p.sku}` : ""}
+                </span>
+              </span>
+              <span className={`shrink-0 font-mono text-[12px] ${p.stock <= p.lowStockThreshold ? "text-[var(--warn)]" : "text-[var(--muted)]"}`}>
+                {p.stock} in stock
+              </span>
+              {selected && <Icon name="check" size={14} className="shrink-0 text-[var(--brand)]" />}
+            </button>
+          );
+        })}
+      </div>
+    );
+
+  const selectedCard = selectedProduct && (
+    <div className={st.selected}>
+      <ProductAvatar name={selectedProduct.name} />
+      <div className="min-w-0 flex-1">
+        <span className="block truncate font-medium">{selectedProduct.name}</span>
+        <span className="text-[12px] text-[var(--muted)]">
+          Current stock <span className="font-mono text-[var(--text)]">{selectedProduct.stock}</span> units
+        </span>
+      </div>
+      {Number(quantity) > 0 && (
+        <span className="shrink-0 text-right font-mono text-[12px] text-[var(--muted)]">
+          → <span className="text-[var(--pos)]">{Number(selectedProduct.stock) + Number(quantity)}</span>
+        </span>
+      )}
+    </div>
+  );
+
   return (
     <WorkspaceShell>
-      {/* Header */}
-      <div className={ui.head}>
-        <div>
-          <label>Inventory</label>
-          <h1>Stock Management</h1>
-          <p>Monitor stock counts, track low inventory alerts, and update store stock.</p>
-        </div>
-        <button
-          className={ui.primary}
-          onClick={() => {
-            setModalOpen(true);
-            setError("");
-          }}
-        >
-          ＋ Stock Update Karein
-        </button>
-      </div>
+      <PageHeader
+        eyebrow="Inventory"
+        title="Stock management"
+        description="Monitor stock counts, catch low-inventory alerts early and record new stock intake."
+        actions={
+          <button
+            className={ui.primary}
+            onClick={() => {
+              setModalOpen(true);
+              setError("");
+            }}
+          >
+            <Icon name="plus" size={15} />
+            Stock Update Karein
+          </button>
+        }
+      />
 
-      {/* 4 Stat Summary Grid - Responsive 2-col on mobile, 4-col on desktop */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 mb-6">
-        <div className="bg-white border border-gray-200 rounded-2xl p-4 shadow-xs">
-          <span className="text-xs text-gray-500 font-bold block">Total Products</span>
-          <strong className="text-xl sm:text-2xl font-extrabold text-[#00875a] mt-1 block">
-            {stats.totalProducts}
-          </strong>
-        </div>
+      <MetricStrip>
+        <Metric label="Products" icon="box" value={stats.totalProducts.toLocaleString()} hint="Tracked in catalogue" />
+        <Metric label="Units in stock" icon="layers" value={stats.totalItems.toLocaleString()} hint="Across all products" />
+        <Metric label="Low stock" icon="alert" tone={stats.lowStock > 0 ? "warn" : undefined} value={stats.lowStock.toLocaleString()} hint="Needs reorder" />
+        <Metric label="Out of stock" icon="x" tone={stats.outOfStock > 0 ? "neg" : undefined} value={stats.outOfStock.toLocaleString()} hint="Zero units left" />
+      </MetricStrip>
 
-        <div className="bg-white border border-gray-200 rounded-2xl p-4 shadow-xs">
-          <span className="text-xs text-gray-500 font-bold block">Total Stock Items</span>
-          <strong className="text-xl sm:text-2xl font-extrabold text-gray-900 mt-1 block">
-            {stats.totalItems.toLocaleString()}
-          </strong>
-        </div>
-
-        <div className="bg-[#fff3eb] border border-[#ffedd5] rounded-2xl p-4 shadow-xs">
-          <span className="text-xs text-[#c2410c] font-bold block">Low Stock</span>
-          <strong className="text-xl sm:text-2xl font-extrabold text-[#d97706] mt-1 block">
-            {stats.lowStock}
-          </strong>
-          <small className="text-[10px] text-[#ea580c] font-semibold block mt-0.5">Needs reorder</small>
-        </div>
-
-        <div className="bg-[#fef2f2] border border-[#fecaca] rounded-2xl p-4 shadow-xs">
-          <span className="text-xs text-[#991b1b] font-bold block">Out of Stock</span>
-          <strong className="text-xl sm:text-2xl font-extrabold text-[#dc2626] mt-1 block">
-            {stats.outOfStock}
-          </strong>
-          <small className="text-[10px] text-[#b91c1c] font-semibold block mt-0.5">Zero stock</small>
-        </div>
-      </div>
-
-      {/* Responsive Inline Split View (Product Selection + Quick Add Form) */}
-      <div className={`${ui.grid} mb-6`}>
-        <section className={ui.panel}>
-          <h2 className="text-base font-extrabold text-gray-900 mb-3">Choose Product</h2>
-          <div className={ui.field}>
-            <label className="text-xs font-bold text-gray-700">Search Product Name or Barcode</label>
-            <input
-              className={ui.input}
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-              placeholder="Type product name or barcode…"
-            />
+      {/* Quick intake */}
+      <section className={`${ui.panel} ${ui.panelFlush}`}>
+        <div className={ui.panelHead}>
+          <div>
+            <h2>Quick stock intake</h2>
+            <p>Find a product, then record how many units arrived.</p>
           </div>
-
-          {autocompleteMatches.length > 0 && (
-            <div className="mt-3 border border-gray-200 rounded-2xl overflow-hidden bg-white">
-              {autocompleteMatches.map((p) => (
-                <button
-                  type="button"
-                  key={p.id}
-                  onClick={() => {
-                    setBarcode(p.barcode);
-                    setSearch(p.name);
-                  }}
-                  className={`flex w-full items-center justify-between p-3 text-left border-b border-gray-100 transition ${
-                    p.barcode === barcode ? "bg-[#e6f4ed]" : "bg-white hover:bg-gray-50"
-                  }`}
-                >
-                  <div className="min-w-0 pr-2">
-                    <strong className={`text-xs block truncate ${p.barcode === barcode ? "text-[#006b3f]" : "text-gray-900"}`}>
-                      {p.name}
-                    </strong>
-                    <small className="text-[10px] text-gray-500 block mt-0.5">
-                      {p.barcode} {p.sku ? `· ${p.sku}` : ""}
-                    </small>
-                  </div>
-                  <span className={`text-xs font-bold shrink-0 ${p.stock <= p.lowStockThreshold ? "text-[#d97706]" : "text-[#059669]"}`}>
-                    {p.stock} in stock
-                  </span>
-                </button>
-              ))}
-            </div>
-          )}
-
-          <div className={`${ui.field} mt-4`}>
-            <label className="text-xs font-bold text-gray-700">Or enter barcode directly</label>
-            <div className="flex gap-2">
+        </div>
+        <div className={st.intake}>
+          <div className={st.intakeFind}>
+            <div className={ui.field}>
+              <label htmlFor="stk-search">Product name or barcode</label>
               <input
-                className={ui.input}
-                value={barcode}
-                onChange={(e) => setBarcode(e.target.value)}
-                placeholder="Product barcode"
+                id="stk-search"
+                className={`${ui.input} ${ui.search}`}
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+                placeholder="Type to search…"
               />
-              <button
-                className={ui.secondary}
-                type="button"
-                onClick={() =>
-                  setSearch(products.find((p) => p.barcode === barcode)?.name ?? barcode)
-                }
-              >
-                Find
+            </div>
+            {productPicker(false)}
+            <div className={`${ui.field} mt-4`}>
+              <label htmlFor="stk-barcode">Or enter a barcode</label>
+              <div className="flex gap-2">
+                <input id="stk-barcode" className={`${ui.input} font-mono`} value={barcode} onChange={(e) => setBarcode(e.target.value)} placeholder="Barcode" />
+                <button className={ui.secondary} type="button" onClick={() => setSearch(products.find((p) => p.barcode === barcode)?.name ?? barcode)}>
+                  Find
+                </button>
+              </div>
+            </div>
+          </div>
+
+          <form className={st.intakeForm} onSubmit={handleAddStock}>
+            {selectedCard || (
+              <div className={st.placeholder}>
+                <Icon name="box" size={16} />
+                Select a product to continue
+              </div>
+            )}
+            <div className={ui.formGrid}>
+              <div className={ui.field}>
+                <label htmlFor="stk-qty">Quantity to add</label>
+                <input id="stk-qty" className={`${ui.input} font-mono`} type="number" min="1" step="1" value={quantity} onChange={(e) => setQuantity(e.target.value)} required />
+              </div>
+              <div className={ui.field}>
+                <label htmlFor="stk-note">Note / reason</label>
+                <input id="stk-note" className={ui.input} value={note} onChange={(e) => setNote(e.target.value)} placeholder="Supplier invoice, restock…" />
+              </div>
+            </div>
+            <button className={`${ui.primary} mt-4 w-full`} disabled={saving || !selectedProduct}>
+              <Icon name="plus" size={15} />
+              {saving ? "Saving…" : "Stock Update Karein"}
+            </button>
+          </form>
+        </div>
+      </section>
+
+      {/* Stock list */}
+      <section className={`${ui.panel} ${ui.panelFlush}`}>
+        <div className={`${ui.panelHead} flex-wrap`}>
+          <div className={ui.segmented} role="tablist" aria-label="Stock filter">
+            {(
+              [
+                ["all", "All stock", null],
+                ["low", "Low stock", stats.lowStock],
+                ["out", "Out of stock", stats.outOfStock],
+              ] as const
+            ).map(([tabKey, tabLabel, count]) => (
+              <button key={tabKey} role="tab" aria-selected={activeTab === tabKey} onClick={() => setActiveTab(tabKey)} className={activeTab === tabKey ? ui.segmentedOn : ""}>
+                {tabKey !== "all" && <span className={`size-1.5 rounded-full ${tabKey === "low" ? "bg-[var(--warn)]" : "bg-[var(--neg)]"}`} />}
+                {tabLabel}
+                {count != null && <span className="font-mono text-[var(--faint)]">{count}</span>}
               </button>
-            </div>
+            ))}
           </div>
-        </section>
-
-        <form className={ui.panel} onSubmit={handleAddStock}>
-          <h2 className="text-base font-extrabold text-gray-900 mb-3">Stock Intake Details</h2>
-
-          {selectedProduct ? (
-            <div className="p-3.5 rounded-2xl bg-[#e6f4ed] border border-[#c3e9d7] text-xs font-medium text-[#006b3f] mb-4">
-              <strong className="text-sm font-extrabold block text-gray-900">{selectedProduct.name}</strong>
-              Current stock: <strong className="text-[#00875a]">{selectedProduct.stock} units</strong>
-            </div>
-          ) : (
-            <p className="text-xs text-gray-400 font-medium mb-4">Select a product from left to continue.</p>
-          )}
-
-          <div className={ui.field}>
-            <label className="text-xs font-bold text-gray-700">Quantity to add</label>
+          <div className="flex min-w-0 flex-1 justify-end gap-2 max-sm:w-full">
             <input
-              className={ui.input}
-              type="number"
-              min="1"
-              step="1"
-              value={quantity}
-              onChange={(e) => setQuantity(e.target.value)}
-              required
+              className={`${ui.input} ${ui.search} max-w-[360px]`}
+              placeholder="Filter by name, barcode or SKU…"
+              value={query}
+              onChange={(e) => setQuery(e.target.value)}
+              aria-label="Filter stock list"
             />
+            <button className={ui.iconButton} onClick={() => void load()} aria-label="Refresh" title="Refresh">
+              <Icon name="refresh" size={15} />
+            </button>
           </div>
+        </div>
 
-          <div className={`${ui.field} mt-3`}>
-            <label className="text-xs font-bold text-gray-700">Note / Reason (optional)</label>
-            <input
-              className={ui.input}
-              value={note}
-              onChange={(e) => setNote(e.target.value)}
-              placeholder="Supplier invoice, restock, etc."
-            />
-          </div>
-
-          <button
-            className={`${ui.primary} w-full mt-5 h-12 text-xs font-extrabold`}
-            disabled={saving || !selectedProduct}
-          >
-            {saving ? "Saving…" : "Stock Update Karein"}
-          </button>
-        </form>
-      </div>
-
-      {/* Tabs Filter Bar matching Screen 6 */}
-      <div className="flex gap-2 overflow-x-auto no-scrollbar mb-4 pb-1">
-        {(
-          [
-            ["all", "Stock List"],
-            ["low", `Low Stock (${stats.lowStock})`],
-            ["out", `Out of Stock (${stats.outOfStock})`],
-          ] as const
-        ).map(([tabKey, tabLabel]) => (
-          <button
-            key={tabKey}
-            onClick={() => setActiveTab(tabKey)}
-            className={`px-4 py-2 rounded-full text-xs font-extrabold transition whitespace-nowrap ${
-              activeTab === tabKey
-                ? "bg-[#e6f4ed] text-[#006b3f] border border-[#00875a]"
-                : "bg-white text-gray-600 border border-gray-200 hover:bg-gray-50"
-            }`}
-          >
-            {tabLabel}
-          </button>
-        ))}
-      </div>
-
-      {/* Search Bar */}
-      <div className={ui.toolbar}>
-        <input
-          className={`${ui.input} ${ui.search}`}
-          placeholder="Filter inventory list by name, barcode, or SKU…"
-          value={query}
-          onChange={(e) => setQuery(e.target.value)}
-        />
-        <button className={ui.secondary} onClick={() => void load()}>
-          Refresh
-        </button>
-      </div>
-
-      {/* Product Stock Table */}
-      <section className={ui.panel}>
-        <div className={ui.tableWrap}>
+        <div className={`${ui.tableWrap} ${ui.tableBare}`}>
           <table className={ui.table}>
             <thead>
               <tr>
                 <th>Item</th>
                 <th>Barcode / SKU</th>
                 <th>Category</th>
-                <th>Price</th>
-                <th>Stock Quantity</th>
+                <th className="text-right">Price</th>
+                <th className="text-right">Stock</th>
                 <th>Status</th>
-                <th>Action</th>
+                <th className="text-right">Action</th>
               </tr>
             </thead>
             <tbody>
-              {paginatedStockProducts.map((p) => (
-                <tr key={p.id}>
-                  <td>
-                    <div className="flex items-center gap-3">
-                      <ProductAvatar name={p.name} />
-                      <div>
-                        <strong className="text-xs font-extrabold text-gray-900 block">{p.name}</strong>
-                        <span className="text-[11px] text-gray-500 font-medium block">
-                          Stock: {p.stock}
-                        </span>
-                      </div>
-                    </div>
-                  </td>
-                  <td>
-                    <span className="text-xs font-semibold">{p.barcode}</span>
-                    <br />
-                    <span className={ui.muted}>{p.sku || "No SKU"}</span>
-                  </td>
-                  <td>
-                    {p.category ? <span className={ui.badge}>{p.category}</span> : "—"}
-                  </td>
-                  <td>
-                    <strong className="text-xs font-extrabold text-[#00875a]">
-                      {money(p.sellingPrice || p.price)}
-                    </strong>
-                  </td>
-                  <td>
-                    <strong className="text-xs font-extrabold">{p.stock} units</strong>
-                  </td>
-                  <td>
-                    {Number(p.stock) === 0 ? (
-                      <span className={ui.outOfStock}>● Out of Stock</span>
-                    ) : Number(p.stock) <= Number(p.lowStockThreshold ?? 5) ? (
-                      <span className={ui.lowStock}>● Low Stock</span>
-                    ) : (
-                      <span className={ui.healthy}>● Healthy</span>
-                    )}
-                  </td>
-                  <td>
-                    <button
-                      className={ui.secondary}
-                      onClick={() => {
-                        setBarcode(p.barcode);
-                        setSearch(p.name);
-                        setModalOpen(true);
-                      }}
-                    >
-                      + Add Stock
-                    </button>
-                  </td>
-                </tr>
-              ))}
-              {!displayedProducts.length && (
-                <tr>
-                  <td colSpan={7} className={ui.empty}>
-                    No items match the selected filter.
-                  </td>
-                </tr>
+              {!displayedProducts.length ? (
+                <TableEmptyRow
+                  colSpan={7}
+                  icon={activeTab === "all" ? "box" : "check"}
+                  title={query.trim() ? "No items match your filter" : activeTab === "all" ? "No products yet" : activeTab === "low" ? "Nothing running low" : "Nothing out of stock"}
+                  body={
+                    query.trim()
+                      ? "Try a different name, barcode or SKU."
+                      : activeTab === "all"
+                      ? "Add products to your catalogue to track stock here."
+                      : "All tracked products have healthy stock levels."
+                  }
+                />
+              ) : (
+                paginatedStockProducts.map((p) => {
+                  const stockNum = Number(p.stock);
+                  const isOut = stockNum === 0;
+                  const isLow = !isOut && stockNum <= Number(p.lowStockThreshold ?? 5);
+                  return (
+                    <tr key={p.id}>
+                      <td>
+                        <div className={ui.productCell}>
+                          <ProductAvatar name={p.name} />
+                          <span className="truncate font-medium">{p.name}</span>
+                        </div>
+                      </td>
+                      <td>
+                        <span className="block font-mono text-[12.5px]">{p.barcode}</span>
+                        <span className="text-[12px] text-[var(--faint)]">{p.sku || "No SKU"}</span>
+                      </td>
+                      <td>{p.category ? <span className={ui.chip}>{p.category}</span> : <span className="text-[var(--faint)]">—</span>}</td>
+                      <td className="text-right font-mono">{money(p.sellingPrice || p.price)}</td>
+                      <td className={`text-right font-mono font-medium ${isOut ? "text-[var(--neg)]" : isLow ? "text-[var(--warn)]" : ""}`}>{p.stock}</td>
+                      <td>
+                        {isOut ? <span className={ui.outOfStock}>Out of stock</span> : isLow ? <span className={ui.lowStock}>Low stock</span> : <span className={ui.healthy}>Healthy</span>}
+                      </td>
+                      <td className="text-right">
+                        <button
+                          className={`${ui.secondary} ${ui.btnSm}`}
+                          onClick={() => {
+                            setBarcode(p.barcode);
+                            setSearch(p.name);
+                            setModalOpen(true);
+                          }}
+                        >
+                          <Icon name="plus" size={13} />
+                          Add stock
+                        </button>
+                      </td>
+                    </tr>
+                  );
+                })
               )}
             </tbody>
           </table>
@@ -478,7 +424,7 @@ export default function StockPage() {
         )}
       </section>
 
-      {/* Stock Update Modal Sheet */}
+      {/* Stock Update Sheet */}
       {modalOpen && (
         <div
           className={ui.modal}
@@ -486,95 +432,58 @@ export default function StockPage() {
             if (e.target === e.currentTarget) setModalOpen(false);
           }}
         >
-          <form className={ui.sheet} onSubmit={handleAddStock}>
+          <form className={ui.sheet} onSubmit={handleAddStock} role="dialog" aria-modal="true" aria-label="Stock update">
             <div className={ui.sheetHead}>
-              <h2>Stock Update Karein</h2>
-              <button type="button" className={ui.secondary} onClick={() => setModalOpen(false)}>
-                Close
+              <div className="flex items-center gap-2.5">
+                <span className={ui.iconTile}>
+                  <Icon name="layers" size={15} />
+                </span>
+                <h2>Stock Update Karein</h2>
+              </div>
+              <button type="button" className={ui.iconButton} onClick={() => setModalOpen(false)} aria-label="Close">
+                <Icon name="x" size={15} />
               </button>
             </div>
 
-            {error && <div className={ui.error}>{error}</div>}
+            {error && (
+              <div className="mb-4">
+                <div className={ui.error} role="alert">
+                  <Icon name="alert" size={15} className="mt-px shrink-0" />
+                  {error}
+                </div>
+              </div>
+            )}
 
             <div className={ui.formGrid}>
               <div className={`${ui.field} ${ui.span2}`}>
-                <label>Search Product Name or Barcode</label>
-                <div style={{ display: "flex", gap: 6 }}>
+                <label htmlFor="stk-m-search">Product name or barcode</label>
+                <div className="flex gap-2">
                   <input
-                    className={ui.input}
-                    style={{ flex: 1 }}
+                    id="stk-m-search"
+                    className={`${ui.input} ${ui.search} flex-1`}
                     value={search}
                     onChange={(e) => setSearch(e.target.value)}
-                    placeholder="Type product name or scan barcode…"
+                    placeholder="Type a name or scan a barcode…"
                     autoFocus
                   />
-                  <button
-                    type="button"
-                    className={ui.secondary}
-                    onClick={() => setScannerOpen(true)}
-                    title="Scan barcode with camera"
-                    style={{ padding: "0 14px", whiteSpace: "nowrap", display: "flex", alignItems: "center", gap: 6, fontWeight: 800 }}
-                  >
-                    <span>📷</span>
-                    <span>Scan</span>
+                  <button type="button" className={ui.secondary} onClick={() => setScannerOpen(true)} title="Scan barcode with camera">
+                    <Icon name="camera" size={15} />
+                    Scan
                   </button>
                 </div>
-                {autocompleteMatches.length > 0 && (
-                  <div className="border border-gray-200 rounded-2xl mt-1.5 max-h-44 overflow-y-auto bg-white shadow-lg">
-                    {autocompleteMatches.map((m) => (
-                      <button
-                        key={m.id}
-                        type="button"
-                        onClick={() => {
-                          setBarcode(m.barcode);
-                          setSearch(m.name);
-                        }}
-                        className={`flex w-full items-center justify-between p-3 text-left border-b border-gray-100 text-xs ${
-                          m.barcode === barcode ? "bg-[#e6f4ed]" : "bg-white hover:bg-gray-50"
-                        }`}
-                      >
-                        <div>
-                          <strong className="block text-gray-900 font-bold">{m.name}</strong>
-                          <span className="text-[11px] text-gray-500 font-medium">{m.barcode}</span>
-                        </div>
-                        <span className="font-extrabold text-[#00875a]">{m.stock} in stock</span>
-                      </button>
-                    ))}
-                  </div>
-                )}
+                {productPicker(true)}
               </div>
 
-              {selectedProduct && (
-                <div className={`${ui.field} ${ui.span2} bg-[#e6f4ed] p-3.5 rounded-2xl border border-[#c3e9d7]`}>
-                  <span className="text-xs text-[#006b3f] font-bold block">Selected Product:</span>
-                  <strong className="text-base text-gray-900 font-extrabold block">{selectedProduct.name}</strong>
-                  <span className="text-xs text-gray-600 font-medium block mt-0.5">
-                    Current Inventory: <strong className="text-gray-900">{selectedProduct.stock} units</strong>
-                  </span>
-                </div>
-              )}
+              {selectedProduct && <div className={ui.span2}>{selectedCard}</div>}
 
               <div className={ui.field}>
-                <label>Quantity to Add</label>
-                <input
-                  className={ui.input}
-                  type="number"
-                  min="1"
-                  step="1"
-                  value={quantity}
-                  onChange={(e) => setQuantity(e.target.value)}
-                  required
-                />
+                <label htmlFor="stk-m-qty">Quantity to add</label>
+                <input id="stk-m-qty" className={`${ui.input} font-mono`} type="number" min="1" step="1" value={quantity} onChange={(e) => setQuantity(e.target.value)} required />
               </div>
 
               <div className={ui.field}>
-                <label>Note / Reason (Optional)</label>
-                <input
-                  className={ui.input}
-                  value={note}
-                  onChange={(e) => setNote(e.target.value)}
-                  placeholder="Supplier intake, restock, etc."
-                />
+                <label htmlFor="stk-m-note">Note / reason (optional)</label>
+                <input id="stk-m-note" className={ui.input} value={note} onChange={(e) => setNote(e.target.value)} placeholder="Supplier intake, restock…" />
               </div>
             </div>
 

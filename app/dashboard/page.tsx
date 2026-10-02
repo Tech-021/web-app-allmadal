@@ -12,6 +12,8 @@ import { useToast } from "@/app/components/toast-context";
 import { useLanguage } from "@/app/components/language-context";
 import { PaginationControls } from "@/app/components/pagination-controls";
 import styles from "./dashboard.module.css";
+import { Icon, type IconName } from "@/app/components/icons";
+import { AnimatedNumber, Skeleton } from "@/app/components/motion";
 import { useNavRole } from "@/hooks/useNavRole";
 
 type Sale = { id: number | string; total_amount?: number; total_items?: number; created_at?: string };
@@ -62,59 +64,52 @@ type AdminPayload = {
   lowStockProducts?: LowStockProduct[];
 };
 
-function Icon({ name }: { name: "chart" | "cash" | "cube" | "logout" | "people" | "receipt" | "refresh" | "trend" | "warning" | "fire" | "check" }) {
-  const paths = {
-    cash: <><rect x="3" y="6" width="18" height="12" rx="2" /><path d="M7 10h.01M17 14h.01" /><circle cx="12" cy="12" r="2" /></>,
-    people: <><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2" /><circle cx="9" cy="7" r="4" /><path d="M22 21v-2a4 4 0 0 1-8 0" /><path d="M16 3.13a4 4 0 0 1 0 7.75" /></>,
-    cube: <><path d="m21 8-9-5-9 5 9 5 9-5Z" /><path d="m3 8 9 5v9M21 8l-9 5M21 8v8l-9 6" /></>,
-    warning: <><path d="m21.7 18-8-14a2 2 0 0 0-3.4 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.7-3Z" /><path d="M12 9v4M12 17h.01" /></>,
-    receipt: <><path d="M6 2v20l3-2 3 2 3-2 3 2V2l-3 2-3-2-3 2-3-2Z" /><path d="M9 9h6M9 13h6" /></>,
-    trend: <><path d="m3 17 6-6 4 4 8-8" /><path d="M14 7h7v7" /></>,
-    refresh: <><path d="M20 11a8 8 0 1 0-2.34 5.66" /><path d="M20 4v7h-7" /></>,
-    logout: <><path d="M10 17l5-5-5-5M15 12H3" /><path d="M15 3h4a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2h-4" /></>,
-    chart: <><path d="M3 3v18h18" /><path d="m7 16 4-5 4 3 5-7" /></>,
-    fire: <path d="M8.5 14.5A2.5 2.5 0 0 0 11 12c0-1.38-.5-2-1-3-1.072-2.143-.224-4.054 2-6 .5 2.5 2 4.9 4 6.5 2 1.6 3 3.5 3 5.5a7 7 0 1 1-14 0c0-1.153.433-2.294 1-3a2.5 2.5 0 0 0 2.5 2.5z" />,
-    check: <path d="M20 6 9 17l-5-5" />,
-  };
-  return <svg viewBox="0 0 24 24" aria-hidden="true"><g fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">{paths[name]}</g></svg>;
-}
 
 function money(value: number) { return `Rs ${Math.round(value).toLocaleString()}`; }
 
-function MetricCard({
+function KpiCell({
   icon,
   label,
-  tone,
   value,
-  sublabel,
+  format,
+  tone = "neutral",
   badge,
+  sublabel,
+  loading,
 }: {
-  icon: Parameters<typeof Icon>[0]["name"];
+  icon: IconName;
   label: string;
-  tone: string;
-  value: string;
-  sublabel?: string;
+  value: number;
+  format: (n: number, final: boolean) => string;
+  tone?: "neutral" | "pos" | "warn" | "neg" | "info";
   badge?: string;
+  sublabel?: string;
+  loading?: boolean;
 }) {
   return (
-    <article className={`${styles.metric} ${styles[tone]}`}>
-      <div className="flex items-center justify-between mb-2">
-        <span className={styles.metricIcon}>
-          <Icon name={icon} />
+    <article className={styles.kpi}>
+      <div className={styles.kpiHead}>
+        <span className={styles.kpiIcon}>
+          <Icon name={icon} size={15} />
         </span>
-        {badge && <span className={styles.metricBadge}>{badge}</span>}
-      </div>
-      <div>
         <p>{label}</p>
-        <strong>{value}</strong>
-        {sublabel && <small className={styles.metricSub}>{sublabel}</small>}
+        {badge && <span className={`${styles.tag} ${styles[`tag_${tone}`]}`}>{badge}</span>}
       </div>
+      {loading ? (
+        <Skeleton className={styles.kpiSkeleton} />
+      ) : (
+        <strong className={tone === "warn" || tone === "neg" ? styles[`ink_${tone}`] : undefined}>
+          <AnimatedNumber value={value} format={format} />
+        </strong>
+      )}
+      {sublabel && <small>{sublabel}</small>}
     </article>
   );
 }
 
 function SalesChart({ sales }: { sales: Sale[] }) {
   const { t } = useLanguage();
+  const [hover, setHover] = useState<number | null>(null);
   const series = useMemo(() => Array.from({ length: 7 }, (_, index) => {
     const date = new Date(); date.setHours(0, 0, 0, 0); date.setDate(date.getDate() - (6 - index));
     const total = sales.reduce((sum, sale) => {
@@ -122,29 +117,100 @@ function SalesChart({ sales }: { sales: Sale[] }) {
       const sold = new Date(sale.created_at); sold.setHours(0, 0, 0, 0);
       return sold.toDateString() === date.toDateString() ? sum + Number(sale.total_amount || 0) : sum;
     }, 0);
-    return { label: date.toLocaleDateString(undefined, { weekday: "short" }), total };
+    return {
+      label: date.toLocaleDateString(undefined, { weekday: "short" }),
+      full: date.toLocaleDateString(undefined, { weekday: "long", day: "numeric", month: "short" }),
+      total,
+    };
   }), [sales]);
-  const max = Math.max(...series.map(day => day.total), 1);
-  const points = series.map((day, i) => `${8 + i * 15.33},${82 - (day.total / max) * 62}`).join(" ");
-  const area = `8,82 ${points} 100,82`;
-  return <section className={styles.panel}>
-    <div className={styles.panelHeading}>
-      <div>
-        <h2>{t("dashboard.sales_overview", "Sales overview")}</h2>
-        <p>{t("dashboard.last_7_days", "Last 7 days")}</p>
+
+  const W = 700;
+  const H = 200;
+  const PAD_X = 12;
+  const rawMax = Math.max(...series.map(day => day.total), 1);
+  const step = Math.pow(10, Math.floor(Math.log10(rawMax)));
+  const max = Math.ceil(rawMax / step) * step || 1;
+  const x = (i: number) => PAD_X + i * ((W - PAD_X * 2) / 6);
+  const y = (v: number) => H - (v / max) * (H - 12);
+  const pts = series.map((d, i) => [x(i), y(d.total)] as const);
+  let line = `M${pts[0][0]},${pts[0][1]}`;
+  for (let i = 0; i < pts.length - 1; i++) {
+    const [x0, y0] = pts[i];
+    const [x1, y1] = pts[i + 1];
+    const cx = (x1 - x0) / 2;
+    line += ` C${x0 + cx},${y0} ${x1 - cx},${y1} ${x1},${y1}`;
+  }
+  const area = `${line} L${pts[6][0]},${H} L${pts[0][0]},${H} Z`;
+  const weekTotal = series.reduce((s, d) => s + d.total, 0);
+  const active = hover ?? 6;
+  const [ax, ay] = pts[active];
+  const ticks = [max, max / 2, 0];
+
+  return (
+    <section className={styles.panel}>
+      <div className={styles.panelHeading}>
+        <div>
+          <h2>{t("dashboard.sales_overview", "Sales overview")}</h2>
+          <p>
+            {t("dashboard.last_7_days", "Last 7 days")} · <span className={styles.figure}>{money(weekTotal)}</span>
+          </p>
+        </div>
+        <span className={styles.chip}>{t("dashboard.weekly", "Weekly")}</span>
       </div>
-      <span>{t("dashboard.weekly", "Weekly")}</span>
-    </div>
-    <div className={styles.chartWrap}>
-      <svg className={styles.chart} viewBox="0 0 108 90" preserveAspectRatio="none" role="img" aria-label="Sales over the last seven days">
-        <defs><linearGradient id="salesFill" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stopColor="#0f766e" stopOpacity=".22" /><stop offset="1" stopColor="#0f766e" stopOpacity="0" /></linearGradient></defs>
-        {[20, 40, 60, 82].map(y => <line key={y} x1="8" y1={y} x2="100" y2={y} className={styles.gridLine} />)}
-        <polygon points={area} fill="url(#salesFill)" /><polyline points={points} className={styles.salesLine} />
-        {series.map((day, i) => <circle key={day.label} cx={8 + i * 15.33} cy={82 - (day.total / max) * 62} r="1.4" className={styles.dot} />)}
-      </svg>
-      <div className={styles.chartLabels}>{series.map(day => <span key={day.label}>{day.label}</span>)}</div>
-    </div>
-  </section>;
+      <div className={styles.chartWrap}>
+        <div className={styles.chartAxis} aria-hidden>
+          {ticks.map((v) => (
+            <span key={v}>{v >= 1000 ? `${Math.round(v / 1000).toLocaleString()}k` : Math.round(v)}</span>
+          ))}
+        </div>
+        <div className={styles.chartArea} onMouseLeave={() => setHover(null)}>
+          <svg className={styles.chart} viewBox={`0 -2 ${W} ${H + 4}`} preserveAspectRatio="none" role="img" aria-label="Sales over the last seven days">
+            <defs>
+              <linearGradient id="salesFill" x1="0" y1="0" x2="0" y2="1">
+                <stop offset="0" stopColor="var(--c1)" stopOpacity=".18" />
+                <stop offset="1" stopColor="var(--c1)" stopOpacity="0" />
+              </linearGradient>
+            </defs>
+            {[0, 0.5, 1].map((f) => (
+              <line key={f} x1="0" x2={W} y1={y(max * f)} y2={y(max * f)} className={styles.gridLine} vectorEffect="non-scaling-stroke" />
+            ))}
+            <path d={area} fill="url(#salesFill)" className={styles.areaFill} />
+            <path d={line} className={styles.salesLine} vectorEffect="non-scaling-stroke" />
+            <line x1={ax} x2={ax} y1={0} y2={H} className={styles.crosshair} vectorEffect="non-scaling-stroke" />
+          </svg>
+          <span className={styles.marker} style={{ left: `${(ax / W) * 100}%`, top: `${((ay + 2) / (H + 4)) * 100}%` }} />
+          <div
+            className={styles.tooltip}
+            style={{
+              left: `${(ax / W) * 100}%`,
+              transform: `translateX(${active >= 5 ? "-100%" : active <= 1 ? "0" : "-50%"})`,
+            }}
+          >
+            <small>{series[active].full}</small>
+            <strong>{money(series[active].total)}</strong>
+          </div>
+          <div className={styles.hitRow}>
+            {series.map((d, i) => (
+              <button
+                key={d.full}
+                type="button"
+                className={styles.hit}
+                onMouseEnter={() => setHover(i)}
+                onFocus={() => setHover(i)}
+                onBlur={() => setHover(null)}
+                aria-label={`${d.full}: ${money(d.total)}`}
+              />
+            ))}
+          </div>
+        </div>
+      </div>
+      <div className={styles.chartLabels}>
+        {series.map((day, i) => (
+          <span key={day.full} className={i === active ? styles.chartLabelOn : undefined}>{day.label}</span>
+        ))}
+      </div>
+    </section>
+  );
 }
 
 function DashboardContent() {
@@ -336,23 +402,26 @@ function DashboardContent() {
     );
   }
 
+
+  const roleLabel =
+    navRole === "admin" ? t("role.owner", "Store Owner") : navRole === "accountant" ? t("role.accountant", "Accountant") : t("role.staff", "Staff Member");
+  const todayLabel = new Date().toLocaleDateString(undefined, { weekday: "long", day: "numeric", month: "long" });
+  const pkr = (n: number, final?: boolean) => `₨ ${(final ? n : Math.round(n)).toLocaleString()}`;
+  const maxQty = Math.max(...topSellingList.map((i) => i.quantitySold), 1);
+  const isFreshSale = (iso?: string) => (iso ? Date.now() - new Date(iso).getTime() < 3 * 60 * 1000 : false);
+
   return (
     <WorkspaceShell>
       {paymentSuccess && (
-        <div className="mb-6 p-4 rounded-2xl bg-emerald-500/10 border border-emerald-500/30 text-emerald-900 flex items-center justify-between">
-          <div className="flex items-center gap-3">
-            <span className="text-2xl">🎉</span>
-            <div>
-              <p className="font-bold text-sm">Payment Successful! Subscription Activated</p>
-              <p className="text-xs text-emerald-800">
-                Thank you for subscribing to Almadel Pro. All POS and Financial features are fully active.
-              </p>
-            </div>
+        <div className={styles.successBanner} role="status">
+          <span className={styles.successIcon}>
+            <Icon name="check" size={16} strokeWidth={2.2} />
+          </span>
+          <div>
+            <p>Payment Successful! Subscription Activated</p>
+            <small>Thank you for subscribing to Almadel Pro. All POS and Financial features are fully active.</small>
           </div>
-          <button
-            onClick={() => router.replace("/dashboard")}
-            className="text-xs font-semibold px-3 py-1.5 rounded-lg bg-emerald-600 text-white hover:bg-emerald-700 transition-colors"
-          >
+          <button onClick={() => router.replace("/dashboard")} className={styles.ghostBtn}>
             Dismiss
           </button>
         </div>
@@ -360,12 +429,13 @@ function DashboardContent() {
 
       <div className={styles.topbar}>
         <div>
-          <div className="flex items-center gap-2 mb-1">
-            <span className={styles.eyebrow}>
-              {navRole === "admin" ? t("role.owner", "Store Owner") : navRole === "accountant" ? t("role.accountant", "Accountant") : t("role.staff", "Staff Member")}
-            </span>
-            <span className="px-2 py-0.5 rounded-md text-[10px] font-extrabold uppercase tracking-wide bg-slate-100 text-slate-700">
-              {workspaceMode === "financial" ? `📊 ${t("nav.dashboard", "Financial Workspace")}` : `🛒 ${t("nav.sales", "POS Workspace")}`}
+          <div className={styles.eyebrowRow}>
+            <span className={styles.eyebrow}>{todayLabel}</span>
+            <span className={styles.dotSep} aria-hidden />
+            <span className={styles.eyebrow}>{roleLabel}</span>
+            <span className={styles.wsPill}>
+              <Icon name={workspaceMode === "financial" ? "wallet" : "cart"} size={12} />
+              {workspaceMode === "financial" ? t("shell.workspace_financial", "Financial") : t("shell.workspace_pos", "POS")}
             </span>
           </div>
           <h1>{t("auth.welcome_back", "Hello")}, {user.name}</h1>
@@ -378,258 +448,232 @@ function DashboardContent() {
           </p>
         </div>
         <button className={styles.refresh} disabled={loading} onClick={() => void fetchDashboard()}>
-          <Icon name="refresh" />{loading ? t("action.refresh", "Refreshing…") : t("action.refresh", "Refresh")}
+          <Icon name="refresh" size={15} className={loading ? styles.spinning : undefined} />
+          {loading ? t("action.refresh", "Refreshing…") : t("action.refresh", "Refresh")}
         </button>
       </div>
 
-      {error && <div className={styles.error} role="alert"><span>{error}</span><button onClick={() => void fetchDashboard()}>Try again</button></div>}
+      {error && (
+        <div className={styles.error} role="alert">
+          <Icon name="alert" size={16} />
+          <span>{error}</span>
+          <button onClick={() => void fetchDashboard()}>Try again</button>
+        </div>
+      )}
 
-      {/* METRIC GRID: Section 16 Core Requirements */}
+      {/* KPI STRIP */}
       {navRole === "admin" && workspaceMode === "financial" ? (
-        <section className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3 mb-6">
-          <article className="p-4 rounded-2xl bg-white border border-slate-200/80 shadow-xs space-y-1">
-            <span className="text-[11px] font-bold text-slate-500 uppercase tracking-wide">{t("dashboard.cash_in_hand", "Cash in Hand")}</span>
-            <p className="text-base font-black text-emerald-800">₨ {cashInHand.toLocaleString()}</p>
-          </article>
-          <article className="p-4 rounded-2xl bg-white border border-slate-200/80 shadow-xs space-y-1">
-            <span className="text-[11px] font-bold text-slate-500 uppercase tracking-wide">{t("nav.accounts", "Bank Accounts")}</span>
-            <p className="text-base font-black text-blue-700">₨ {bankBalance.toLocaleString()}</p>
-          </article>
-          <article className="p-4 rounded-2xl bg-white border border-slate-200/80 shadow-xs space-y-1">
-            <span className="text-[11px] font-bold text-slate-500 uppercase tracking-wide">{t("dashboard.customer_receivable", "Customer Khata")}</span>
-            <p className="text-base font-black text-teal-700">₨ {customerReceivable.toLocaleString()}</p>
-          </article>
-          <article className="p-4 rounded-2xl bg-white border border-slate-200/80 shadow-xs space-y-1">
-            <span className="text-[11px] font-bold text-slate-500 uppercase tracking-wide">{t("dashboard.supplier_payable", "Supplier Payables")}</span>
-            <p className="text-base font-black text-amber-700">₨ {supplierPayable.toLocaleString()}</p>
-          </article>
-          <article className="p-4 rounded-2xl bg-white border border-slate-200/80 shadow-xs space-y-1">
-            <span className="text-[11px] font-bold text-slate-500 uppercase tracking-wide">{t("nav.stock", "Stock Value")}</span>
-            <p className="text-base font-black text-slate-900">{money(stockValue)}</p>
-          </article>
-          <article className="p-4 rounded-2xl bg-white border border-slate-200/80 shadow-xs space-y-1">
-            <span className="text-[11px] font-bold text-slate-500 uppercase tracking-wide">{t("dashboard.total_sales", "Recorded Sales")}</span>
-            <p className="text-base font-black text-[#00875a]">{money(totalSales)}</p>
-          </article>
+        <section className={`${styles.kpiStrip} ${styles.kpiStrip6}`} aria-label="Financial metrics">
+          <KpiCell icon="pkr" label={t("dashboard.cash_in_hand", "Cash in Hand")} value={cashInHand} format={pkr} loading={loading && !data.sales} />
+          <KpiCell icon="wallet" label={t("nav.accounts", "Bank Accounts")} value={bankBalance} format={pkr} loading={loading && !data.sales} />
+          <KpiCell icon="users" label={t("dashboard.customer_receivable", "Customer Khata")} value={customerReceivable} format={pkr} tone="info" loading={loading && !data.sales} />
+          <KpiCell icon="truck" label={t("dashboard.supplier_payable", "Supplier Payables")} value={supplierPayable} format={pkr} tone="warn" loading={loading && !data.sales} />
+          <KpiCell icon="box" label={t("nav.stock", "Stock Value")} value={stockValue} format={money} loading={loading && !data.sales} />
+          <KpiCell icon="chart" label={t("dashboard.total_sales", "Recorded Sales")} value={totalSales} format={money} tone="pos" loading={loading && !data.sales} />
         </section>
       ) : (
-        <section className={styles.metricGrid} aria-label="Dashboard metrics">
-          {/* Card 1: Today's Sales */}
-          <MetricCard
-            icon="cash"
+        <section className={styles.kpiStrip} aria-label="Dashboard metrics">
+          <KpiCell
+            icon="pkr"
             label={t("dashboard.today_sales", "Today's Sales")}
-            tone="green"
-            value={money(todaySalesAmount)}
-            badge="TODAY"
+            value={todaySalesAmount}
+            format={money}
+            tone="pos"
+            badge="Today"
             sublabel={`${t("dashboard.total_sales", "All-time")}: ${money(totalSales)}`}
+            loading={loading && !data.sales}
           />
-          {/* Card 2: Number of Orders */}
-          <MetricCard
-            icon="receipt"
+          <KpiCell
+            icon="invoice"
             label={t("dashboard.today_orders", "Orders Today")}
-            tone="blue"
-            value={`${todayOrdersCount} Orders`}
-            badge="LIVE"
+            value={todayOrdersCount}
+            format={(n) => `${Math.round(n)} Orders`}
+            tone="info"
+            badge="Live"
             sublabel={`${sales.length} ${t("dashboard.total_orders", "total orders")}`}
+            loading={loading && !data.sales}
           />
-          {/* Card 3: Low Stock Products */}
-          <MetricCard
-            icon="warning"
+          <KpiCell
+            icon="alert"
             label={t("dashboard.low_stock", "Low Stock Products")}
-            tone={lowStockProductsList.length > 0 ? "red" : "green"}
-            value={`${lowStockProductsList.length} Items`}
-            badge={lowStockProductsList.length > 0 ? "ATTENTION" : "HEALTHY"}
+            value={lowStockProductsList.length}
+            format={(n) => `${Math.round(n)} Items`}
+            tone={lowStockProductsList.length > 0 ? "warn" : "pos"}
+            badge={lowStockProductsList.length > 0 ? "Attention" : "Healthy"}
             sublabel={lowStockProductsList.length > 0 ? `${lowStockProductsList.length} below threshold` : "All inventory stocked"}
+            loading={loading && !data.sales}
           />
-          {/* Card 4: Top Inventory Valuation */}
-          <MetricCard
-            icon="cube"
+          <KpiCell
+            icon="box"
             label={t("nav.stock", "Inventory Valuation")}
-            tone="teal"
-            value={money(stockValue)}
-            badge="CATALOG"
+            value={stockValue}
+            format={money}
+            badge="Catalog"
             sublabel={`${products.length} products listed`}
+            loading={loading && !data.sales}
           />
         </section>
       )}
 
-      {/* DASHBOARD CONTENT GRID: Visual, Simple, and Actionable */}
       <div className={styles.dashboardGrid}>
-        {/* Left Column: Trend Chart & Top Selling Products */}
         <div className={styles.mainColumn}>
           <SalesChart sales={sales} />
 
-          {/* 4. Top Selling Products Widget */}
+          {/* Top selling products */}
           <section className={styles.panel}>
             <div className={styles.panelHeading}>
               <div>
-                <h2>🔥 {t("dashboard.top_selling_products", "Top Selling Products")}</h2>
+                <h2>{t("dashboard.top_selling_products", "Top Selling Products")}</h2>
                 <p>Best performing inventory ranked by units sold and generated revenue</p>
               </div>
-              <span>Top Sellers</span>
+              <span className={styles.chip}>Top Sellers</span>
             </div>
 
             {topSellingList.length === 0 ? (
               <div className={styles.empty}>
-                <Icon name="cube" />
+                <span className={styles.emptyIcon}><Icon name="box" size={20} /></span>
                 <p>No product sales recorded yet. Completed orders will rank items here automatically.</p>
               </div>
             ) : (
-              <div className={styles.topSellerList}>
+              <div className={`${styles.topSellerList} al-stagger`}>
                 {paginatedTopSellers.map((item, index) => {
                   const globalRank = (topSellerPage - 1) * topSellerPageSize + index + 1;
-                  const maxQty = Math.max(...topSellingList.map((i) => i.quantitySold), 1);
                   const pct = Math.min(100, Math.round((item.quantitySold / maxQty) * 100));
-                  const rankClass =
-                    globalRank === 1
-                      ? styles.rank1
-                      : globalRank === 2
-                      ? styles.rank2
-                      : globalRank === 3
-                      ? styles.rank3
-                      : styles.rankOther;
-
                   return (
                     <article key={item.productId || index} className={styles.topSellerItem}>
-                      <div className={styles.topSellerLeft}>
-                        <span className={`${styles.rankBadge} ${rankClass}`}>#{globalRank}</span>
-                        <div className={styles.sellerDetails}>
+                      <span className={`${styles.rankBadge} ${globalRank <= 3 ? styles.rankTop : ""}`}>{globalRank}</span>
+                      <div className={styles.sellerDetails}>
+                        <div className={styles.sellerLine}>
                           <strong>{item.name}</strong>
-                          <div className={styles.sellerMeta}>
-                            <small>{item.category || "General"}</small>
-                            <span>•</span>
-                            <div className={styles.volumeBarWrap} title={`${pct}% relative volume`}>
-                              <div className={styles.volumeBar} style={{ width: `${pct}%` }} />
-                            </div>
-                            <small className="font-bold text-slate-800">{item.quantitySold} sold</small>
-                          </div>
+                          <span className={styles.figure}>{money(item.totalRevenue)}</span>
                         </div>
-                      </div>
-                      <div className={styles.sellerRevenue}>
-                        <strong>{money(item.totalRevenue)}</strong>
-                        <small>{item.currentStock > 0 ? `${item.currentStock} in stock` : "Out of stock"}</small>
+                        <div className={styles.sellerMeta}>
+                          <small className={styles.sellerCat}>{item.category || "General"}</small>
+                          <div className={styles.volumeBarWrap} title={`${pct}% relative volume`}>
+                            <div className={styles.volumeBar} style={{ width: `${pct}%` }} />
+                          </div>
+                          <small className={styles.sold}>{item.quantitySold} sold</small>
+                          <small className={item.currentStock > 0 ? undefined : styles.ink_neg}>
+                            {item.currentStock > 0 ? `${item.currentStock} in stock` : "Out of stock"}
+                          </small>
+                        </div>
                       </div>
                     </article>
                   );
                 })}
-
-                {topSellingList.length > 0 && (
-                  <PaginationControls
-                    currentPage={topSellerPage}
-                    totalItems={topSellingList.length}
-                    pageSize={topSellerPageSize}
-                    onPageChange={setTopSellerPage}
-                    onPageSizeChange={(newSize) => {
-                      setTopSellerPageSize(newSize);
-                      setTopSellerPage(1);
-                    }}
-                    pageSizeOptions={[2, 5, 10, 20]}
-                    itemLabel="items"
-                    compact
-                    className="border-t border-slate-100 pt-2"
-                  />
-                )}
               </div>
+            )}
+            {topSellingList.length > 0 && (
+              <PaginationControls
+                currentPage={topSellerPage}
+                totalItems={topSellingList.length}
+                pageSize={topSellerPageSize}
+                onPageChange={setTopSellerPage}
+                onPageSizeChange={(newSize) => {
+                  setTopSellerPageSize(newSize);
+                  setTopSellerPage(1);
+                }}
+                pageSizeOptions={[2, 5, 10, 20]}
+                itemLabel="items"
+                compact
+                className={styles.pager}
+              />
             )}
           </section>
         </div>
 
-        {/* Right Column: Low Stock Alerts & Recent Invoices */}
-        <div className="flex flex-col gap-5">
-          {/* 3. Low Stock Products Widget */}
+        <div className={styles.sideColumn}>
+          {/* Low stock */}
           <section className={styles.panel}>
             <div className={styles.panelHeading}>
               <div>
-                <h2>⚠️ {t("dashboard.low_stock_products", "Low Stock Products")}</h2>
+                <h2>{t("dashboard.low_stock_products", "Low Stock Products")}</h2>
                 <p>Items at or below reorder threshold</p>
               </div>
-              <span
-                style={{
-                  background: lowStockProductsList.length > 0 ? "#fee2e2" : "#e6f4ed",
-                  color: lowStockProductsList.length > 0 ? "#b91c1c" : "#006b3f",
-                }}
-              >
+              <span className={`${styles.tag} ${lowStockProductsList.length > 0 ? styles.tag_warn : styles.tag_pos}`}>
                 {lowStockProductsList.length} {lowStockProductsList.length === 1 ? "Alert" : "Alerts"}
               </span>
             </div>
 
             {lowStockProductsList.length === 0 ? (
               <div className={styles.healthyBox}>
-                <span>✨</span>
+                <span className={styles.emptyIcon}><Icon name="check" size={18} strokeWidth={2} /></span>
                 <p>{t("dashboard.all_healthy_stock", "All stock levels healthy!")}</p>
                 <small>No inventory is currently below the minimum reorder threshold.</small>
               </div>
             ) : (
-              <div className={styles.lowStockList}>
+              <div className={`${styles.lowStockList} al-stagger`}>
                 {paginatedLowStock.map((prod) => {
                   const isOut = prod.stock <= 0;
                   const isCritical = prod.stock > 0 && prod.stock <= 2;
+                  const threshold = Math.max(prod.lowStockThreshold, 1);
+                  const fill = Math.max(0, Math.min(100, (prod.stock / threshold) * 100));
                   return (
                     <article key={prod.id} className={styles.lowStockItem}>
                       <div className={styles.lowStockLeft}>
                         <strong>{prod.name}</strong>
                         <div className={styles.lowStockMeta}>
-                          <small>{prod.barcode ? `Barcode: ${prod.barcode}` : (prod.category || "General")}</small>
-                          <span>•</span>
-                          <small>Min: ≤{prod.lowStockThreshold}</small>
+                          <small className={prod.barcode ? styles.mono : undefined}>{prod.barcode ? prod.barcode : (prod.category || "General")}</small>
+                          <span aria-hidden>·</span>
+                          <small>Min ≤{prod.lowStockThreshold}</small>
                         </div>
                       </div>
-                      <div className="flex items-center gap-2">
-                        <span
-                          className={`${styles.stockBadge} ${
-                            isOut ? styles.stockBadgeOut : isCritical ? styles.stockBadgeCritical : styles.stockBadgeLow
-                          }`}
-                        >
+                      <div className={styles.lowStockRight}>
+                        <span className={`${styles.stockCount} ${isOut || isCritical ? styles.ink_neg : styles.ink_warn}`}>
                           {isOut ? "Out of Stock" : `${prod.stock} Left`}
                         </span>
-                        <Link href={`/products?search=${encodeURIComponent(prod.name)}`} className={styles.restockBtn}>
-                          + Restock
-                        </Link>
+                        <span className={styles.stockMeter} aria-hidden>
+                          <span style={{ width: `${fill}%` }} className={isOut || isCritical ? styles.meterNeg : styles.meterWarn} />
+                        </span>
                       </div>
+                      <Link href={`/products?search=${encodeURIComponent(prod.name)}`} className={styles.restockBtn}>
+                        <Icon name="plus" size={13} strokeWidth={2} />
+                        Restock
+                      </Link>
                     </article>
                   );
                 })}
-
-                {lowStockProductsList.length > 0 && (
-                  <PaginationControls
-                    currentPage={lowStockPage}
-                    totalItems={lowStockProductsList.length}
-                    pageSize={lowStockPageSize}
-                    onPageChange={setLowStockPage}
-                    onPageSizeChange={(newSize) => {
-                      setLowStockPageSize(newSize);
-                      setLowStockPage(1);
-                    }}
-                    pageSizeOptions={[2, 5, 10, 20]}
-                    itemLabel="alerts"
-                    compact
-                    className="border-t border-slate-100 pt-2"
-                  />
-                )}
               </div>
+            )}
+            {lowStockProductsList.length > 0 && (
+              <PaginationControls
+                currentPage={lowStockPage}
+                totalItems={lowStockProductsList.length}
+                pageSize={lowStockPageSize}
+                onPageChange={setLowStockPage}
+                onPageSizeChange={(newSize) => {
+                  setLowStockPageSize(newSize);
+                  setLowStockPage(1);
+                }}
+                pageSizeOptions={[2, 5, 10, 20]}
+                itemLabel="alerts"
+                compact
+                className={styles.pager}
+              />
             )}
           </section>
 
-          {/* Recent Invoices Widget */}
+          {/* Recent sales */}
           <section className={`${styles.panel} ${styles.recent}`}>
             <div className={styles.panelHeading}>
               <div>
                 <h2>{t("dashboard.recent_sales", navRole === "admin" ? "Recent sales" : "My recent sales")}</h2>
                 <p>{t("dashboard.last_7_days", "Latest activity")}</p>
               </div>
-              <span className="text-[11px] font-bold text-slate-500">Invoices</span>
+              <span className={styles.chip}>Invoices</span>
             </div>
             <div className={styles.saleList}>
               {sales.length === 0 ? (
                 <div className={styles.empty}>
-                  <Icon name="receipt" />
+                  <span className={styles.emptyIcon}><Icon name="invoice" size={20} /></span>
                   <p>{t("dashboard.no_sales", "No sales recorded yet.")}</p>
                 </div>
               ) : (
-                <>
+                <div className="al-stagger">
                   {paginatedRecentSales.map((sale) => (
-                    <article
-                      className={styles.saleRow}
+                    <button
+                      type="button"
+                      className={`${styles.saleRow} ${isFreshSale(sale.created_at) ? "al-arrive" : ""}`}
                       key={sale.id}
                       onClick={() =>
                         setActiveReceipt({
@@ -640,36 +684,40 @@ function DashboardContent() {
                           createdAt: sale.created_at || new Date().toISOString(),
                         })
                       }
-                      style={{ cursor: "pointer" }}
                       title="Click to view printable invoice receipt"
                     >
-                      <span>
+                      <span className={styles.saleIcon}><Icon name="invoice" size={15} /></span>
+                      <span className={styles.saleText}>
                         <strong>Sale #{sale.id}</strong>
-                        <small>{sale.total_items ?? 1} items</small>
+                        <small>
+                          {sale.total_items ?? 1} items
+                          {sale.created_at
+                            ? ` · ${new Date(sale.created_at).toLocaleString(undefined, { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" })}`
+                            : ""}
+                        </small>
                       </span>
-                      <strong>{money(Number(sale.total_amount || 0))}</strong>
-                    </article>
+                      <strong className={styles.figure}>{money(Number(sale.total_amount || 0))}</strong>
+                    </button>
                   ))}
-
-                  {sales.length > 0 && (
-                    <PaginationControls
-                      currentPage={recentSalesPage}
-                      totalItems={sales.length}
-                      pageSize={recentSalesPageSize}
-                      onPageChange={setRecentSalesPage}
-                      onPageSizeChange={(newSize) => {
-                        setRecentSalesPageSize(newSize);
-                        setRecentSalesPage(1);
-                      }}
-                      pageSizeOptions={[2, 5, 10, 20]}
-                      itemLabel="invoices"
-                      compact
-                      className="border-t border-slate-100 pt-2"
-                    />
-                  )}
-                </>
+                </div>
               )}
             </div>
+            {sales.length > 0 && (
+              <PaginationControls
+                currentPage={recentSalesPage}
+                totalItems={sales.length}
+                pageSize={recentSalesPageSize}
+                onPageChange={setRecentSalesPage}
+                onPageSizeChange={(newSize) => {
+                  setRecentSalesPageSize(newSize);
+                  setRecentSalesPage(1);
+                }}
+                pageSizeOptions={[2, 5, 10, 20]}
+                itemLabel="invoices"
+                compact
+                className={styles.pager}
+              />
+            )}
           </section>
         </div>
       </div>

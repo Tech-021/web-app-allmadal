@@ -9,6 +9,8 @@ import { DetailedSaleReceipt, PosReceiptModal } from "@/app/components/pos-recei
 import { useDebounce } from "@/hooks/useDebounce";
 import { useLanguage } from "@/app/components/language-context";
 import ui from "@/app/components/workspace-ui.module.css";
+import { Icon } from "@/app/components/icons";
+import { PageHeader, TableEmptyRow, TableSkeletonRows } from "@/app/components/page-layout";
 
 interface InvoiceRecord {
   id: number | string;
@@ -81,62 +83,57 @@ export default function InvoicesPage() {
 
   return (
     <WorkspaceShell>
-      <div className={ui.head}>
-        <div>
-          <label>{language === "ur" ? "Bikri o Raseedein" : "Sales & Receipts"}</label>
-          <h1>{t("invoices.title")}</h1>
-          <p>
-            {language === "ur"
-              ? "Tamam pichli bikri ki raseedein, print aur mukammal customer records."
-              : `Generated customer sales receipts and invoice records for ${activeBusiness?.name || "Active Store"}.`}
-          </p>
+      <PageHeader
+        eyebrow={language === "ur" ? "Bikri o Raseedein" : "Sales & receipts"}
+        title={t("invoices.title")}
+        description={
+          language === "ur"
+            ? "Tamam pichli bikri ki raseedein, print aur mukammal customer records."
+            : `Customer sales receipts and invoice records for ${activeBusiness?.name || "Active Store"}.`
+        }
+        actions={
+          <button className={ui.secondary} onClick={() => void loadInvoices()}>
+            <Icon name="refresh" size={14} className={loading ? "[animation:almadelSpin_800ms_linear_infinite]" : ""} />
+            {t("action.refresh")}
+          </button>
+        }
+      />
+
+      <section className={`${ui.panel} ${ui.panelFlush}`}>
+        <div className={ui.panelHead}>
+          <input
+            className={`${ui.input} ${ui.search} max-w-[440px]`}
+            placeholder={t("invoices.search_placeholder")}
+            value={query}
+            onChange={(e) => setQuery(e.target.value)}
+            aria-label="Search invoices"
+          />
+          <span className={`${ui.chip} hidden sm:inline-flex`}>
+            <span className="font-mono">{filteredRows.length}</span> invoices
+          </span>
         </div>
-
-        <button className={ui.secondary} onClick={() => void loadInvoices()}>
-          🔄 {t("action.refresh")}
-        </button>
-      </div>
-
-      <div className={ui.toolbar}>
-        <input
-          className={`${ui.input} ${ui.search}`}
-          placeholder={t("invoices.search_placeholder")}
-          value={query}
-          onChange={(e) => setQuery(e.target.value)}
-        />
-      </div>
-
-      <section className={ui.panel}>
-        <div className={ui.tableWrap}>
+        <div className={`${ui.tableWrap} ${ui.tableBare}`}>
           <table className={ui.table}>
             <thead>
               <tr>
                 <th>{t("table.invoice_number")}</th>
                 <th>{t("table.date")}</th>
                 <th>{t("table.customer")}</th>
-                <th>{t("table.total_amount")}</th>
+                <th className="text-right">{t("table.total_amount")}</th>
                 <th>{t("table.payment_mode")}</th>
-                <th>{t("table.actions")}</th>
+                <th className="text-right">{t("table.actions")}</th>
               </tr>
             </thead>
             <tbody>
               {loading ? (
-                Array.from({ length: 5 }).map((_, i) => (
-                  <tr key={`skel-${i}`} className="animate-pulse">
-                    <td><div className="h-4 bg-slate-200/80 rounded-md w-24 my-1.5" /></td>
-                    <td><div className="h-4 bg-slate-200/80 rounded-md w-32 my-1.5" /></td>
-                    <td><div className="h-4 bg-slate-200/80 rounded-md w-28 my-1.5" /></td>
-                    <td><div className="h-4 bg-slate-200/80 rounded-md w-20 my-1.5" /></td>
-                    <td><div className="h-4 bg-slate-200/80 rounded-md w-16 my-1.5" /></td>
-                    <td><div className="h-4 bg-slate-200/80 rounded-md w-14 my-1.5" /></td>
-                  </tr>
-                ))
+                <TableSkeletonRows cols={6} />
               ) : filteredRows.length === 0 ? (
-                <tr>
-                  <td colSpan={6} className={ui.empty}>
-                    {t("table.no_records")}
-                  </td>
-                </tr>
+                <TableEmptyRow
+                  colSpan={6}
+                  icon="invoice"
+                  title={query.trim() ? "No matching invoices" : t("table.no_records")}
+                  body={query.trim() ? "Try another invoice number or customer name." : "Receipts appear here as soon as a sale is completed at the counter."}
+                />
               ) : (
                 filteredRows.map((r) => {
                   const invoiceDisplay = r.invoiceNumber || `INV-${String(r.id).padStart(4, "0")}`;
@@ -148,37 +145,27 @@ export default function InvoicesPage() {
                     hour: "2-digit",
                     minute: "2-digit",
                   });
+                  const isCash = String(r.paymentMethod || "cash").toLowerCase() === "cash";
 
                   return (
-                    <tr
-                      key={r.id}
-                      className="cursor-pointer hover:bg-slate-50 transition"
-                      onClick={() => openReceipt(r)}
-                      title="Click to preview printable thermal invoice"
-                    >
+                    <tr key={r.id} className="cursor-pointer" onClick={() => openReceipt(r)} title="Preview printable invoice">
+                      <td className="font-mono text-[12.5px] text-[var(--brand-ink)]">{invoiceDisplay}</td>
+                      <td className="font-mono text-[12px] text-[var(--muted)]">{dateDisplay}</td>
+                      <td className="font-medium">{customerDisplay}</td>
+                      <td className="text-right font-mono font-medium">{money(r.totalAmount)}</td>
                       <td>
-                        <strong className="text-slate-900 font-extrabold">{invoiceDisplay}</strong>
+                        <span className={`${ui.chip} ${isCash ? ui.chipPos : ui.chipInfo} capitalize`}>{r.paymentMethod || "Cash"}</span>
                       </td>
-                      <td className="text-xs text-slate-500 font-medium">{dateDisplay}</td>
-                      <td className="font-semibold text-slate-800">{customerDisplay}</td>
-                      <td>
-                        <strong className="text-[#00875a] font-bold">{money(r.totalAmount)}</strong>
-                      </td>
-                      <td>
-                        <span className="inline-block px-2.5 py-0.5 rounded-full text-[11px] font-bold capitalize bg-slate-100 text-slate-700">
-                          {r.paymentMethod || "Cash"}
-                        </span>
-                      </td>
-                      <td>
+                      <td className="text-right">
                         <button
                           type="button"
-                          className={ui.secondary}
-                          style={{ padding: "4px 12px", fontSize: 11 }}
+                          className={`${ui.secondary} ${ui.btnSm}`}
                           onClick={(e) => {
                             e.stopPropagation();
                             openReceipt(r);
                           }}
                         >
+                          <Icon name="eye" size={13} />
                           {t("table.view")}
                         </button>
                       </td>

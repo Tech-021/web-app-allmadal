@@ -8,6 +8,10 @@ import { useToast } from "@/app/components/toast-context";
 import { api } from "@/app/lib/api";
 import { logActivity } from "@/app/lib/logger";
 import { validatePhone, validateEmail, validateText, sanitizePhoneInput } from "@/app/lib/validators";
+import { Icon, type IconName } from "@/app/components/icons";
+import { FieldError, OnboardingFrame, StepHead, UserChip } from "@/app/components/onboarding-frame";
+import ob from "@/app/components/onboarding.module.css";
+import ui from "@/app/components/workspace-ui.module.css";
 
 const BUSINESS_TYPES = [
   "Mobile Shop",
@@ -21,6 +25,42 @@ const BUSINESS_TYPES = [
   "Services",
   "Other",
 ] as const;
+
+const BUSINESS_TYPE_ICONS: Record<(typeof BUSINESS_TYPES)[number], IconName> = {
+  "Mobile Shop": "phone",
+  "Electronics Shop": "zap",
+  "General Store / Kiryana": "store",
+  Clothing: "tag",
+  Pharmacy: "shield",
+  "Restaurant / Food": "receipt",
+  Wholesale: "truck",
+  Retail: "cart",
+  Services: "settings",
+  Other: "dots",
+};
+
+const ONBOARDING_STEPS = [
+  { title: "Business details", hint: "Name, type and contact" },
+  { title: "Choose workspace", hint: "POS or Financial books" },
+  { title: "Activate free trial", hint: "30 days · secure Stripe checkout" },
+];
+
+const WORKSPACE_OPTIONS: Array<{ mode: "pos" | "financial"; icon: IconName; title: string; body: string; points: string[] }> = [
+  {
+    mode: "pos",
+    icon: "cart",
+    title: "POS workspace",
+    body: "Start selling right away from the counter.",
+    points: ["Products, sales & inventory", "Barcode scanning & receipts", "Staff counters"],
+  },
+  {
+    mode: "financial",
+    icon: "wallet",
+    title: "Financial Starting Point (FPS)",
+    body: "Bring your existing books in first.",
+    points: ["Opening cash & bank balances", "Customer & supplier udhaar", "Inventory value & taxes"],
+  },
+];
 
 const MOBILE_CATEGORIES = [
   "Mobile Retail",
@@ -319,73 +359,77 @@ export default function SetupBusinessPage() {
     }
   };
 
+  const stepIndex = showStripeModal ? 3 : showSuccessModal ? 2 : 1;
+  const activationName = pendingActivation?.name || businessName;
+
+  const chooseWorkspace = async (mode: "pos" | "financial") => {
+    applyWorkspaceMode(mode);
+    try {
+      await api("/business/onboarding/workspace-mode", {
+        method: "PATCH",
+        body: JSON.stringify({ workspaceMode: mode }),
+      });
+    } catch {
+      /* draft already saved */
+    }
+    setPendingActivation((p) => (p ? { ...p, workspaceMode: mode } : p));
+    setShowSuccessModal(false);
+    setShowStripeModal(true);
+  };
+
+  const invalid = (field: string, visible: boolean) => (visible && fieldErrors[field] ? ob.invalid : "");
+
   return (
-    <div className="min-h-screen bg-[#f8fafc] text-[#0f172a] flex flex-col justify-between p-4 sm:p-8">
-      {/* Header Bar */}
-      <header className="max-w-3xl mx-auto w-full flex items-center justify-between py-4">
-        <div className="flex items-center gap-2.5">
-          <div className="size-10 rounded-2xl bg-[#00875a] text-white font-extrabold grid place-items-center shadow-lg shadow-[#00875a]/20">
-            A
-          </div>
-          <div>
-            <h2 className="text-base font-extrabold tracking-tight text-gray-900 leading-none">Almadel</h2>
-            <p className="text-[11px] font-bold text-gray-400 mt-0.5">Store Management Platform</p>
-          </div>
-        </div>
-
-        {user && (
-          <div className="flex items-center gap-2 px-3 py-1.5 rounded-full bg-white border border-gray-200 shadow-sm text-xs font-bold text-gray-700">
-            <span className="size-2 rounded-full bg-green-500 animate-pulse" />
-            <span>{user.name}</span>
-          </div>
-        )}
-      </header>
-
-      {/* Main Onboarding Card */}
-      <main className="max-w-2xl mx-auto w-full my-6">
-        <div className="bg-white rounded-3xl p-6 sm:p-10 shadow-xl border border-gray-100">
-          <div className="border-b border-gray-100 pb-6 mb-8">
-            <span className="inline-block px-3 py-1 rounded-full bg-[#e6f4ed] text-[#006b3f] text-[11px] font-extrabold uppercase tracking-wider mb-2">
-              Fast 1-Minute Onboarding
-            </span>
-            <h1 className="text-2xl sm:text-3xl font-extrabold tracking-tight text-gray-900">
-              Set Up Your Business
-            </h1>
-            <p className="text-sm font-medium text-gray-500 mt-1">
-              Tell us a little about your business. You can change these details later anytime.
-            </p>
-          </div>
+    <OnboardingFrame
+      context={stepIndex > 1 ? activationName : "Business setup"}
+      railEyebrow="Fast onboarding · about a minute"
+      railTitle="Set up your business"
+      railText="Three short steps and your store is ready to sell."
+      steps={ONBOARDING_STEPS}
+      current={stepIndex}
+      topRight={user ? <UserChip name={user.name} /> : null}
+    >
+      {stepIndex === 1 && (
+        <form onSubmit={handleSubmit} noValidate>
+          <StepHead
+            step={1}
+            total={ONBOARDING_STEPS.length}
+            title="Tell us about your business"
+            description="Your business name and contact details appear on receipts and invoices. You can change them later anytime."
+          />
 
           {generalError && (
-            <div className="mb-6 p-4 rounded-2xl bg-red-50 border border-red-200 text-red-700 text-xs font-bold flex items-center gap-2">
-              <span className="text-base">⚠️</span>
-              <span>{generalError}</span>
+            <div className="mb-6">
+              <div className={ui.error} role="alert">
+                <Icon name="alert" size={15} className="mt-px shrink-0" />
+                <span>{generalError}</span>
+              </div>
             </div>
           )}
 
-          <form onSubmit={handleSubmit} noValidate className="space-y-8">
-            {/* Section 1: Business Information */}
-            <div>
-              <div className="flex items-center gap-2 mb-4">
-                <span className="size-6 rounded-full bg-gray-900 text-white text-xs font-extrabold grid place-items-center">
-                  1
-                </span>
-                <h2 className="text-sm font-extrabold uppercase tracking-wider text-gray-900">
-                  Business Information
-                </h2>
+          <div className={ob.stepBody}>
+            {/* Business information */}
+            <div className={ob.block}>
+              <div className={ob.blockHead}>
+                <div className={ob.blockTitle}>
+                  <span className={ob.num}>1</span>
+                  <div>
+                    <h2>Business information</h2>
+                    <p>What you sell decides the defaults we prepare for you.</p>
+                  </div>
+                </div>
               </div>
 
-              <div className="space-y-4">
-                <div>
-                  <div className="flex items-center justify-between mb-1.5">
-                    <label className="text-xs font-bold text-gray-700">
-                      Business Name <span className="text-red-500">*</span>
+              <div className="flex flex-col gap-5">
+                <div className={ob.field}>
+                  <div className={ob.labelRow}>
+                    <label className={ob.label} htmlFor="ob-name">
+                      Business name<em>*</em>
                     </label>
-                    <span className="text-[11px] text-gray-400">
-                      {businessName.length}/100
-                    </span>
+                    <span className={ob.counter}>{businessName.length}/100</span>
                   </div>
                   <input
+                    id="ob-name"
                     type="text"
                     required
                     maxLength={100}
@@ -399,78 +443,75 @@ export default function SetupBusinessPage() {
                       }
                     }}
                     placeholder="e.g. Al-Madina Mobile Center"
-                    className={`w-full px-4 py-3 rounded-2xl border text-sm font-semibold text-gray-900 placeholder:text-gray-400 outline-none transition ${
-                      touched.businessName && fieldErrors.businessName
-                        ? "border-red-400 bg-red-50/20 focus:border-red-500 focus:ring-4 focus:ring-red-500/10"
-                        : "border-gray-200 bg-gray-50/50 focus:bg-white focus:border-[#00875a] focus:ring-4 focus:ring-[#00875a]/10"
-                    }`}
+                    aria-invalid={Boolean(touched.businessName && fieldErrors.businessName)}
+                    className={`${ui.input} ${invalid("businessName", Boolean(touched.businessName))}`}
                   />
-                  {touched.businessName && fieldErrors.businessName && (
-                    <p className="mt-1.5 text-xs font-bold text-red-600 flex items-center gap-1.5 animate-in fade-in">
-                      <span>•</span>
-                      <span>{fieldErrors.businessName}</span>
-                    </p>
-                  )}
+                  <FieldError>{touched.businessName ? fieldErrors.businessName : ""}</FieldError>
                 </div>
 
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                  <div>
-                    <label className="block text-xs font-bold text-gray-700 mb-1.5">
-                      Business Type <span className="text-red-500">*</span>
+                <div className={ob.field}>
+                  <span className={ob.label} id="ob-type-label">
+                    Business type<em>*</em>
+                  </span>
+                  <div className={`${ob.choices} ${ob.choicesTypes}`} role="radiogroup" aria-labelledby="ob-type-label">
+                    {BUSINESS_TYPES.map((t) => (
+                      <button
+                        key={t}
+                        type="button"
+                        role="radio"
+                        aria-checked={businessType === t}
+                        onClick={() => setBusinessType(t)}
+                        className={`${ob.choice} ${ob.choiceCompact} ${businessType === t ? ob.choiceOn : ""}`}
+                      >
+                        <Icon name={BUSINESS_TYPE_ICONS[t]} size={17} />
+                        <strong>{t}</strong>
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                {businessType === "Mobile Shop" && (
+                  <div className={`${ob.field} al-pop`}>
+                    <label className={ob.label} htmlFor="ob-category">
+                      Business category
                     </label>
                     <select
-                      value={businessType}
-                      onChange={(e) => setBusinessType(e.target.value)}
-                      className="w-full px-4 py-3 rounded-2xl border border-gray-200 bg-gray-50/50 text-sm font-bold text-gray-900 focus:bg-white focus:border-[#00875a] focus:ring-4 focus:ring-[#00875a]/10 outline-none transition cursor-pointer"
+                      id="ob-category"
+                      value={businessCategory}
+                      onChange={(e) => setBusinessCategory(e.target.value)}
+                      className={`${ui.select} sm:max-w-[320px]`}
                     >
-                      {BUSINESS_TYPES.map((t) => (
-                        <option key={t} value={t}>
-                          {t}
+                      {MOBILE_CATEGORIES.map((c) => (
+                        <option key={c} value={c}>
+                          {c}
                         </option>
                       ))}
                     </select>
                   </div>
-
-                  {businessType === "Mobile Shop" && (
-                    <div>
-                      <label className="block text-xs font-bold text-gray-700 mb-1.5">
-                        Business Category
-                      </label>
-                      <select
-                        value={businessCategory}
-                        onChange={(e) => setBusinessCategory(e.target.value)}
-                        className="w-full px-4 py-3 rounded-2xl border border-gray-200 bg-gray-50/50 text-sm font-bold text-gray-900 focus:bg-white focus:border-[#00875a] focus:ring-4 focus:ring-[#00875a]/10 outline-none transition cursor-pointer"
-                      >
-                        {MOBILE_CATEGORIES.map((c) => (
-                          <option key={c} value={c}>
-                            {c}
-                          </option>
-                        ))}
-                      </select>
-                    </div>
-                  )}
-                </div>
+                )}
               </div>
             </div>
 
-            {/* Section 2: Contact Information */}
-            <div className="pt-6 border-t border-gray-100">
-              <div className="flex items-center gap-2 mb-4">
-                <span className="size-6 rounded-full bg-gray-900 text-white text-xs font-extrabold grid place-items-center">
-                  2
-                </span>
-                <h2 className="text-sm font-extrabold uppercase tracking-wider text-gray-900">
-                  Contact Information
-                </h2>
+            {/* Contact information */}
+            <div className={ob.block}>
+              <div className={ob.blockHead}>
+                <div className={ob.blockTitle}>
+                  <span className={ob.num}>2</span>
+                  <div>
+                    <h2>Contact information</h2>
+                    <p>Printed on receipts so customers can reach you.</p>
+                  </div>
+                </div>
               </div>
 
-              <div className="space-y-4">
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                  <div>
-                    <label className="block text-xs font-bold text-gray-700 mb-1.5">
-                      Mobile Number <span className="text-red-500">*</span>
+              <div className="flex flex-col gap-5">
+                <div className={ob.grid2}>
+                  <div className={ob.field}>
+                    <label className={ob.label} htmlFor="ob-mobile">
+                      Mobile number<em>*</em>
                     </label>
                     <input
+                      id="ob-mobile"
                       type="tel"
                       required
                       maxLength={15}
@@ -478,36 +519,29 @@ export default function SetupBusinessPage() {
                       onBlur={() => markTouched("mobileNumber")}
                       onChange={(e) => handleMobileChange(e.target.value)}
                       placeholder="0300-1234567"
-                      className={`w-full px-4 py-3 rounded-2xl border text-sm font-semibold text-gray-900 placeholder:text-gray-400 outline-none transition ${
-                        (touched.mobileNumber || (mobileNumber && fieldErrors.mobileNumber)) && fieldErrors.mobileNumber
-                          ? "border-red-400 bg-red-50/20 focus:border-red-500 focus:ring-4 focus:ring-red-500/10"
-                          : "border-gray-200 bg-gray-50/50 focus:bg-white focus:border-[#00875a] focus:ring-4 focus:ring-[#00875a]/10"
-                      }`}
+                      aria-invalid={Boolean((touched.mobileNumber || mobileNumber) && fieldErrors.mobileNumber)}
+                      className={`${ui.input} ${invalid("mobileNumber", Boolean(touched.mobileNumber || mobileNumber))}`}
                     />
-                    {(touched.mobileNumber || (mobileNumber && fieldErrors.mobileNumber)) && fieldErrors.mobileNumber && (
-                      <p className="mt-1.5 text-xs font-bold text-red-600 flex items-center gap-1.5 animate-in fade-in">
-                        <span>•</span>
-                        <span>{fieldErrors.mobileNumber}</span>
-                      </p>
-                    )}
+                    <FieldError>{touched.mobileNumber || mobileNumber ? fieldErrors.mobileNumber : ""}</FieldError>
                   </div>
 
-                  <div>
-                    <div className="flex items-center justify-between mb-1.5">
-                      <label className="text-xs font-bold text-gray-700">
-                        WhatsApp Number
+                  <div className={ob.field}>
+                    <div className={ob.labelRow}>
+                      <label className={ob.label} htmlFor="ob-whatsapp">
+                        WhatsApp number
                       </label>
-                      <label className="flex items-center gap-1.5 text-[11px] font-bold text-[#00875a] cursor-pointer select-none">
+                      <label className="flex cursor-pointer select-none items-center gap-1.5 text-[12px] text-[var(--muted)]">
                         <input
                           type="checkbox"
                           checked={sameAsMobile}
                           onChange={(e) => handleSameAsMobileToggle(e.target.checked)}
-                          className="rounded accent-[#00875a]"
+                          className="size-3.5 min-h-0 accent-[var(--brand)]"
                         />
-                        <span>Same as mobile</span>
+                        Same as mobile
                       </label>
                     </div>
                     <input
+                      id="ob-whatsapp"
                       type="tel"
                       disabled={sameAsMobile}
                       maxLength={15}
@@ -515,26 +549,22 @@ export default function SetupBusinessPage() {
                       onBlur={() => markTouched("whatsappNumber")}
                       onChange={(e) => handleWhatsappChange(e.target.value)}
                       placeholder="0300-1234567"
-                      className={`w-full px-4 py-3 rounded-2xl border text-sm font-semibold text-gray-900 placeholder:text-gray-400 outline-none transition disabled:opacity-60 disabled:cursor-not-allowed ${
-                        !sameAsMobile && (touched.whatsappNumber || (whatsappNumber && fieldErrors.whatsappNumber)) && fieldErrors.whatsappNumber
-                          ? "border-red-400 bg-red-50/20 focus:border-red-500 focus:ring-4 focus:ring-red-500/10"
-                          : "border-gray-200 bg-gray-50/50 focus:bg-white focus:border-[#00875a] focus:ring-4 focus:ring-[#00875a]/10"
+                      className={`${ui.input} disabled:bg-[var(--surface-2)] disabled:text-[var(--muted)] ${
+                        !sameAsMobile ? invalid("whatsappNumber", Boolean(touched.whatsappNumber || whatsappNumber)) : ""
                       }`}
                     />
-                    {!sameAsMobile && (touched.whatsappNumber || (whatsappNumber && fieldErrors.whatsappNumber)) && fieldErrors.whatsappNumber && (
-                      <p className="mt-1.5 text-xs font-bold text-red-600 flex items-center gap-1.5 animate-in fade-in">
-                        <span>•</span>
-                        <span>{fieldErrors.whatsappNumber}</span>
-                      </p>
-                    )}
+                    <FieldError>
+                      {!sameAsMobile && (touched.whatsappNumber || whatsappNumber) ? fieldErrors.whatsappNumber : ""}
+                    </FieldError>
                   </div>
                 </div>
 
-                <div>
-                  <label className="block text-xs font-bold text-gray-700 mb-1.5">
-                    Business Email <span className="text-gray-400 font-normal">(Optional)</span>
+                <div className={ob.field}>
+                  <label className={ob.label} htmlFor="ob-email">
+                    Business email<i>Optional</i>
                   </label>
                   <input
+                    id="ob-email"
                     type="email"
                     value={email}
                     onBlur={() => markTouched("email")}
@@ -546,82 +576,52 @@ export default function SetupBusinessPage() {
                       }
                     }}
                     placeholder="shop@almadina.com"
-                    className={`w-full px-4 py-3 rounded-2xl border text-sm font-semibold text-gray-900 placeholder:text-gray-400 outline-none transition ${
-                      touched.email && fieldErrors.email
-                        ? "border-red-400 bg-red-50/20 focus:border-red-500 focus:ring-4 focus:ring-red-500/10"
-                        : "border-gray-200 bg-gray-50/50 focus:bg-white focus:border-[#00875a] focus:ring-4 focus:ring-[#00875a]/10"
-                    }`}
+                    className={`${ui.input} ${invalid("email", Boolean(touched.email))}`}
                   />
-                  {touched.email && fieldErrors.email && (
-                    <p className="mt-1.5 text-xs font-bold text-red-600 flex items-center gap-1.5 animate-in fade-in">
-                      <span>•</span>
-                      <span>{fieldErrors.email}</span>
-                    </p>
-                  )}
+                  <FieldError>{touched.email ? fieldErrors.email : ""}</FieldError>
                 </div>
 
-                {/* Optional Address Toggle */}
                 <div>
-                  <button
-                    type="button"
-                    onClick={() => setShowAddress(!showAddress)}
-                    className="text-xs font-bold text-[#00875a] hover:underline flex items-center gap-1.5 cursor-pointer"
-                  >
-                    <span>{showAddress ? "▲ Hide Business Address" : "+ Add Business Address (Optional)"}</span>
+                  <button type="button" onClick={() => setShowAddress(!showAddress)} className={ob.linkAction} aria-expanded={showAddress}>
+                    <Icon name={showAddress ? "minus" : "plus"} size={14} />
+                    {showAddress ? "Remove business address" : "Add business address (optional)"}
                   </button>
 
                   {showAddress && (
-                    <div className="mt-3 p-4 rounded-2xl bg-gray-50/80 border border-gray-200 space-y-3">
-                      <div>
-                        <label className="block text-[11px] font-bold text-gray-600 mb-1">
-                          Street / Market Address
+                    <div className={ob.inset}>
+                      <div className={ob.field}>
+                        <label className={ob.label} htmlFor="ob-address">
+                          Street / market address
                         </label>
                         <input
+                          id="ob-address"
                           type="text"
                           maxLength={200}
                           value={address}
                           onChange={(e) => setAddress(e.target.value)}
                           placeholder="Shop #12, Hafeez Center, Main Boulevard"
-                          className="w-full px-3.5 py-2.5 rounded-xl border border-gray-200 bg-white text-xs font-semibold text-gray-900 outline-none focus:border-[#00875a]"
+                          className={ui.input}
                         />
+                        <FieldError>{touched.address ? fieldErrors.address : ""}</FieldError>
                       </div>
-
-                      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-                        <div>
-                          <label className="block text-[11px] font-bold text-gray-600 mb-1">
+                      <div className={ob.grid3}>
+                        <div className={ob.field}>
+                          <label className={ob.label} htmlFor="ob-city">
                             City
                           </label>
-                          <input
-                            type="text"
-                            maxLength={60}
-                            value={city}
-                            onChange={(e) => setCity(e.target.value)}
-                            placeholder="Lahore"
-                            className="w-full px-3.5 py-2.5 rounded-xl border border-gray-200 bg-white text-xs font-semibold text-gray-900 outline-none focus:border-[#00875a]"
-                          />
+                          <input id="ob-city" type="text" maxLength={60} value={city} onChange={(e) => setCity(e.target.value)} placeholder="Lahore" className={ui.input} />
                         </div>
-                        <div>
-                          <label className="block text-[11px] font-bold text-gray-600 mb-1">
-                            Area / Town
+                        <div className={ob.field}>
+                          <label className={ob.label} htmlFor="ob-area">
+                            Area / town
                           </label>
-                          <input
-                            type="text"
-                            maxLength={60}
-                            value={area}
-                            onChange={(e) => setArea(e.target.value)}
-                            placeholder="Gulberg III"
-                            className="w-full px-3.5 py-2.5 rounded-xl border border-gray-200 bg-white text-xs font-semibold text-gray-900 outline-none focus:border-[#00875a]"
-                          />
+                          <input id="ob-area" type="text" maxLength={60} value={area} onChange={(e) => setArea(e.target.value)} placeholder="Gulberg III" className={ui.input} />
                         </div>
-                        <div>
-                          <label className="block text-[11px] font-bold text-gray-600 mb-1">
-                            Province / Territory
+                        <div className={ob.field}>
+                          <label className={ob.label} htmlFor="ob-province">
+                            Province / territory
                           </label>
-                          <select
-                            value={province}
-                            onChange={(e) => setProvince(e.target.value)}
-                            className="w-full px-3.5 py-2.5 rounded-xl border border-gray-200 bg-white text-xs font-bold text-gray-900 outline-none focus:border-[#00875a]"
-                          >
+                          <select id="ob-province" value={province} onChange={(e) => setProvince(e.target.value)} className={ui.select}>
                             {PROVINCES.map((p) => (
                               <option key={p} value={p}>
                                 {p}
@@ -635,179 +635,146 @@ export default function SetupBusinessPage() {
                 </div>
               </div>
             </div>
-
-            {/* Submit Button */}
-            <div className="pt-6 border-t border-gray-100">
-              <button
-                type="submit"
-                disabled={saving}
-                className="w-full h-14 rounded-full bg-[#00875a] hover:bg-[#006b3f] active:scale-[0.99] text-white font-extrabold text-sm shadow-xl shadow-[#00875a]/25 transition flex items-center justify-center gap-2 disabled:opacity-60 cursor-pointer"
-              >
-                {saving ? (
-                  <span>Creating Your Business Workspace...</span>
-                ) : (
-                  <span>Complete Setup & Continue ➔</span>
-                )}
-              </button>
-            </div>
-          </form>
-        </div>
-      </main>
-
-      {/* Post-Setup Choice Modal (POS vs Financial Static) */}
-      {showSuccessModal && (
-        <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4">
-          <div className="bg-white rounded-3xl p-6 sm:p-8 max-w-md w-full shadow-2xl border border-gray-100 text-center animate-in fade-in zoom-in-95 duration-200">
-            {/* Celebration Icon */}
-            <div className="size-16 rounded-3xl bg-[#e6f4ed] text-[#00875a] mx-auto flex items-center justify-center text-3xl mb-4 shadow-md shadow-[#00875a]/10">
-              🎉
-            </div>
-
-            <span className="inline-block px-3 py-1 rounded-full bg-[#e6f4ed] text-[#006b3f] text-[11px] font-extrabold uppercase tracking-wider mb-2">
-              Setup Completed
-            </span>
-
-            <h2 className="text-xl sm:text-2xl font-extrabold tracking-tight text-gray-900">
-              {pendingActivation?.name || businessName}
-            </h2>
-            <p className="text-xs font-semibold text-gray-500 mt-1.5 mb-6">
-              Choose your workspace, then activate your store with Stripe (30-day free trial).
-            </p>
-
-            <div className="space-y-3">
-              {/* POS Navigation Button */}
-              <button
-                type="button"
-                onClick={async () => {
-                  applyWorkspaceMode("pos");
-                  try {
-                    await api("/business/onboarding/workspace-mode", {
-                      method: "PATCH",
-                      body: JSON.stringify({ workspaceMode: "pos" }),
-                    });
-                  } catch {
-                    /* draft already saved */
-                  }
-                  setPendingActivation((p) => (p ? { ...p, workspaceMode: "pos" } : p));
-                  setShowSuccessModal(false);
-                  setShowStripeModal(true);
-                }}
-                className="w-full py-4 px-6 rounded-2xl bg-[#00875a] hover:bg-[#006b3f] active:scale-[0.98] text-white font-extrabold text-sm shadow-lg shadow-[#00875a]/25 transition flex items-center justify-between cursor-pointer"
-              >
-                <div className="flex items-center gap-3">
-                  <span className="size-8 rounded-xl bg-white/20 grid place-items-center text-base">
-                    🛒
-                  </span>
-                  <div className="text-left">
-                    <p className="leading-tight font-extrabold text-sm">POS Workspace</p>
-                    <p className="text-[11px] font-medium text-white/80">Manage products, sales & inventory</p>
-                  </div>
-                </div>
-                <span className="text-base font-bold">➔</span>
-              </button>
-
-              {/* Financial Starting Point (FPS) Navigation Button */}
-              <button
-                type="button"
-                onClick={async () => {
-                  applyWorkspaceMode("financial");
-                  try {
-                    await api("/business/onboarding/workspace-mode", {
-                      method: "PATCH",
-                      body: JSON.stringify({ workspaceMode: "financial" }),
-                    });
-                  } catch {
-                    /* draft already saved */
-                  }
-                  setPendingActivation((p) => (p ? { ...p, workspaceMode: "financial" } : p));
-                  setShowSuccessModal(false);
-                  setShowStripeModal(true);
-                }}
-                className="w-full py-4 px-6 rounded-2xl bg-gradient-to-r from-emerald-600 to-teal-700 hover:from-emerald-700 hover:to-teal-800 active:scale-[0.98] text-white font-extrabold text-sm shadow-lg shadow-emerald-700/20 transition flex items-center justify-between cursor-pointer"
-              >
-                <div className="flex items-center gap-3">
-                  <span className="size-8 rounded-xl bg-white/20 grid place-items-center text-base">
-                    📊
-                  </span>
-                  <div className="text-left">
-                    <p className="leading-tight font-extrabold text-sm text-white">Financial Starting Point (FPS)</p>
-                    <p className="text-[11px] font-medium text-emerald-100">Setup cash, udhaar, inventory & taxes</p>
-                  </div>
-                </div>
-                <span className="text-base font-bold text-white">➔</span>
-              </button>
-            </div>
           </div>
+
+          <div className={ob.nav}>
+            <span className="hidden text-[12.5px] text-[var(--muted)] sm:block">
+              <span className="text-[var(--neg)]">*</span> Required
+            </span>
+            <button type="submit" disabled={saving} className={`${ui.primary} ${ob.navCta}`}>
+              {saving ? (
+                <>
+                  <span className="size-3.5 rounded-full border-2 border-current border-t-transparent [animation:almadelSpin_700ms_linear_infinite]" />
+                  Creating your workspace…
+                </>
+              ) : (
+                <>
+                  Continue
+                  <Icon name="arrowRight" size={15} />
+                </>
+              )}
+            </button>
+          </div>
+        </form>
+      )}
+
+      {stepIndex === 2 && (
+        <div>
+          <StepHead
+            step={2}
+            total={ONBOARDING_STEPS.length}
+            title="Choose your workspace"
+            description={
+              <>
+                <strong className="font-medium text-[var(--text)]">{activationName}</strong> is saved. Pick how you want to start — you can
+                switch workspaces later.
+              </>
+            }
+          />
+          <div className={`${ob.choices} ${ob.choices2}`}>
+            {WORKSPACE_OPTIONS.map((w) => (
+              <button
+                key={w.mode}
+                type="button"
+                onClick={() => void chooseWorkspace(w.mode)}
+                className={`${ob.choice} ${ob.workspaceChoice} ${pendingActivation?.workspaceMode === w.mode ? ob.choiceOn : ""}`}
+              >
+                <Icon name={w.icon} size={20} />
+                <strong>{w.title}</strong>
+                <span>{w.body}</span>
+                <ul>
+                  {w.points.map((pt) => (
+                    <li key={pt}>
+                      <Icon name="check" size={13} strokeWidth={2} />
+                      {pt}
+                    </li>
+                  ))}
+                </ul>
+              </button>
+            ))}
+          </div>
+          <p className="mt-5 flex items-center gap-2 text-[12.5px] text-[var(--muted)]">
+            <Icon name="info" size={14} />
+            Selecting a workspace takes you to trial activation.
+          </p>
         </div>
       )}
 
-      {/* Stripe trial activation (same step financial setup shows after FPS) */}
-      {showStripeModal && (
-        <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4">
-          <div className="bg-white rounded-3xl p-6 sm:p-8 max-w-md w-full shadow-2xl border border-gray-100 text-center space-y-4 animate-in fade-in zoom-in-95 duration-200">
-            <div className="size-16 rounded-3xl bg-[#e6f4ed] text-[#00875a] mx-auto flex items-center justify-center text-3xl shadow-md shadow-[#00875a]/10">
-              🎉
+      {stepIndex === 3 && (
+        <div className={ob.center}>
+          <span className={ob.seal}>
+            <Icon name="sparkle" size={24} />
+          </span>
+          <span className={ob.badge}>
+            <Icon name="clock" size={13} />
+            30-day free trial ready
+          </span>
+          <h1 className="mb-1.5 mt-4 text-[clamp(22px,2.6vw,28px)] font-semibold tracking-[-0.03em]">
+            {pendingActivation?.workspaceMode === "financial" ? "Financial workspace selected" : "POS workspace selected"}
+          </h1>
+          <p className="m-0 max-w-[52ch] text-[13.5px] leading-relaxed text-[var(--muted)]">
+            Activate <strong className="font-medium text-[var(--text)]">{activationName}</strong> with Stripe to start your 30-day free
+            trial.
+            {pendingActivation?.workspaceMode === "financial"
+              ? " You will continue to Financial Starting Point (FPS) right after checkout."
+              : " You will land in POS right after checkout."}
+          </p>
+
+          <dl className={ob.summary}>
+            <div>
+              <dt>Business</dt>
+              <dd>{activationName}</dd>
             </div>
-
-            <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-[11px] font-extrabold uppercase tracking-wider bg-emerald-100 text-emerald-800">
-              ✨ 30-Day Free Trial Ready
-            </span>
-
-            <h3 className="text-xl sm:text-2xl font-black text-gray-900 tracking-tight">
-              {pendingActivation?.workspaceMode === "financial" ? "Financial workspace selected" : "POS workspace selected"}
-            </h3>
-
-            <p className="text-xs sm:text-sm font-medium text-gray-600 leading-relaxed">
-              Activate <strong className="text-gray-900">{pendingActivation?.name || businessName}</strong> with Stripe
-              to create your owner account and start your{" "}
-              <strong className="text-gray-900">30-day free trial</strong>.
-              {pendingActivation?.workspaceMode === "financial"
-                ? " You will continue to Financial Starting Point (FPS) right after checkout."
-                : " You will land in POS right after checkout."}
-            </p>
-
-            <div className="pt-2 space-y-3">
-              <button
-                type="button"
-                onClick={() => void handleActivateStripeTrial()}
-                disabled={activatingStripe}
-                className="w-full py-4 px-6 rounded-2xl bg-gradient-to-r from-[#00875a] to-[#006644] hover:from-[#00744e] hover:to-[#005236] text-white text-sm font-extrabold shadow-lg shadow-[#00875a]/25 transition flex items-center justify-center gap-2 cursor-pointer disabled:opacity-60"
-              >
-                {activatingStripe ? (
-                  <span>Opening Stripe Gateway...</span>
-                ) : (
-                  <>
-                    <span>Activate via Stripe (30-Day Trial)</span>
-                    <span>💳 ➔</span>
-                  </>
-                )}
-              </button>
-
-              <button
-                type="button"
-                disabled={activatingStripe}
-                onClick={() => {
-                  setShowStripeModal(false);
-                  holdForModeChoiceRef.current = false;
-                  setShowSuccessModal(true);
-                }}
-                className="w-full py-3 px-6 rounded-2xl border border-gray-200 bg-white hover:bg-gray-50 text-gray-700 text-sm font-bold transition cursor-pointer disabled:opacity-60"
-              >
-                Back — change workspace
-              </button>
+            <div>
+              <dt>Workspace</dt>
+              <dd>{pendingActivation?.workspaceMode === "financial" ? "Financial (FPS)" : "POS"}</dd>
             </div>
+            <div>
+              <dt>Trial</dt>
+              <dd>30 days free · cancel anytime</dd>
+            </div>
+          </dl>
 
-            <p className="text-[11px] text-gray-400 font-semibold">
-              🔒 Secure checkout powered by Stripe
-            </p>
+          <div className="mt-4 flex w-full flex-col gap-2.5 sm:flex-row-reverse">
+            <button
+              type="button"
+              onClick={() => void handleActivateStripeTrial()}
+              disabled={activatingStripe}
+              className={`${ui.primary} ${ob.navCta} sm:flex-1`}
+            >
+              {activatingStripe ? (
+                <>
+                  <span className="size-3.5 rounded-full border-2 border-current border-t-transparent [animation:almadelSpin_700ms_linear_infinite]" />
+                  Opening secure checkout…
+                </>
+              ) : (
+                <>
+                  <Icon name="card" size={16} />
+                  Activate 30-day trial with Stripe
+                </>
+              )}
+            </button>
+            <button
+              type="button"
+              disabled={activatingStripe}
+              onClick={() => {
+                setShowStripeModal(false);
+                holdForModeChoiceRef.current = false;
+                setShowSuccessModal(true);
+              }}
+              className={`${ui.secondary} ${ob.navCta}`}
+            >
+              <Icon name="left" size={15} />
+              Change workspace
+            </button>
           </div>
+
+          <span className={ob.secure}>
+            <Icon name="lock" size={13} />
+            Secure checkout powered by Stripe
+          </span>
         </div>
       )}
-
-      {/* Footer */}
-      <footer className="text-center text-xs font-medium text-gray-400 py-4">
-        © {new Date().getFullYear()} Almadel Management Platform. All data is securely encrypted.
-      </footer>
-    </div>
+    </OnboardingFrame>
   );
 }

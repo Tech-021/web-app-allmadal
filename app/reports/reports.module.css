@@ -1,0 +1,202 @@
+/* Reports: dense, legible data surfaces. */
+
+.stack {
+  display: flex;
+  flex-direction: column;
+  gap: clamp(14px, 2vw, 18px);
+}
+
+.subbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 10px 16px;
+}
+
+.caption {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12.5px;
+  color: var(--muted);
+}
+
+/* ---------- Bar chart ---------- */
+.chart {
+  position: relative;
+  height: 200px;
+  padding-top: 8px;
+}
+
+.gridLines {
+  position: absolute;
+  inset: 8px 0 0 0;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  pointer-events: none;
+}
+
+.gridLines span {
+  height: 1px;
+  background: var(--grid);
+}
+
+.gridLines span:last-child {
+  background: var(--border-strong);
+}
+
+.bars {
+  position: relative;
+  height: 100%;
+  display: flex;
+  align-items: flex-end;
+  gap: clamp(3px, 0.8vw, 10px);
+}
+
+.chart[data-dense] .bars {
+  gap: clamp(2px, 0.35vw, 5px);
+}
+
+.barCol {
+  position: relative;
+  flex: 1;
+  height: 100%;
+  display: flex;
+  align-items: flex-end;
+  outline: none;
+}
+
+.bar {
+  width: 100%;
+  border-radius: 4px 4px 1px 1px;
+  background: linear-gradient(180deg, color-mix(in oklab, var(--c1) 82%, white), var(--c1));
+  transform-origin: bottom;
+  animation: rpGrow 700ms var(--ease) backwards;
+  transition: filter var(--dur-1) var(--ease), opacity var(--dur-1) var(--ease);
+}
+
+.barEmpty {
+  height: 2px;
+  background: var(--border-strong);
+  animation: none;
+}
+
+.bars:hover .bar:not(.barEmpty) {
+  opacity: 0.45;
+}
+
+.barCol:hover .bar,
+.barCol:focus-visible .bar {
+  opacity: 1 !important;
+  filter: saturate(1.15);
+}
+
+@keyframes rpGrow {
+  from { transform: scaleY(0); }
+  to { transform: scaleY(1); }
+}
+
+.tip {
+  position: absolute;
+  left: 50%;
+  bottom: calc(100% + 6px);
+  transform: translate(-50%, 4px);
+  z-index: 3;
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  padding: 7px 10px;
+  border-radius: 8px;
+  background: var(--surface);
+  border: 1px solid var(--border-strong);
+  box-shadow: var(--shadow-md);
+  white-space: nowrap;
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity var(--dur-1) var(--ease), transform var(--dur-2) var(--ease);
+}
+
+.barCol:hover .tip,
+.barCol:focus-visible .tip {
+  opacity: 1;
+  transform: translate(-50%, 0);
+}
+
+.barCol .tip {
+  bottom: auto;
+  top: -54px;
+}
+
+.tip strong {
+  font-family: var(--font-mono);
+  font-size: 12.5px;
+  font-weight: 500;
+}
+
+.tip span {
+  font-size: 11.5px;
+  color: var(--muted);
+}
+
+.axis {
+  display: flex;
+  justify-content: space-between;
+  padding-top: 10px;
+  font-family: var(--font-mono);
+  font-size: 11px;
+  color: var(--muted);
+}
+
+/* ---------- Ranking ---------- */
+.rank {
+  display: inline-grid;
+  place-items: center;
+  min-width: 26px;
+  height: 22px;
+  padding: 0 6px;
+  border-radius: 6px;
+  font-family: var(--font-mono);
+  font-size: 11.5px;
+  color: var(--muted);
+  background: var(--sunken);
+}
+
+.rankTop {
+  color: var(--brand-ink);
+  background: var(--brand-soft);
+  box-shadow: inset 0 0 0 1px var(--brand-line);
+}
+
+.miniTrack {
+  width: 64px;
+  height: 4px;
+  border-radius: 4px;
+  background: var(--sunken);
+  overflow: hidden;
+}
+
+.miniTrack span {
+  display: block;
+  height: 100%;
+  border-radius: inherit;
+  background: var(--c1);
+  transform-origin: left;
+  animation: rpWidth 700ms var(--ease) backwards;
+}
+
+@keyframes rpWidth {
+  from { transform: scaleX(0); }
+  to { transform: scaleX(1); }
+}
+
+@media (max-width: 640px) {
+  .chart {
+    height: 160px;
+  }
+  .subbar {
+    align-items: stretch;
+    flex-direction: column;
+  }
+}

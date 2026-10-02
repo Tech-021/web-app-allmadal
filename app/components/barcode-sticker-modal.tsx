@@ -1,6 +1,9 @@
 "use client";
 
 import React, { useState, useEffect, useRef } from "react";
+import { Icon } from "@/app/components/icons";
+import { EmptyState } from "@/app/components/page-layout";
+import ui from "@/app/components/workspace-ui.module.css";
 import JsBarcode from "jsbarcode";
 import { Product } from "@/app/lib/api";
 import { useBusiness } from "@/app/components/business-context";
@@ -204,50 +207,40 @@ export function BarcodeStickerModal({
 
   return (
     <div
-      className="fixed inset-0 z-50 flex items-center justify-center p-2 sm:p-4 bg-slate-950/80 backdrop-blur-sm animate-in fade-in duration-200"
+      className="al-overlay fixed inset-0 z-50 flex items-end justify-center bg-[var(--scrim)] backdrop-blur-[4px] sm:items-center sm:p-4"
       onMouseDown={(e) => {
         if (e.target === e.currentTarget) onClose();
       }}
     >
-      <div className="relative w-full max-w-6xl max-h-[94vh] bg-white rounded-3xl shadow-2xl overflow-hidden flex flex-col border border-slate-200">
-        {/* Header */}
-        <div className="px-6 py-4 border-b border-slate-200 flex items-center justify-between bg-slate-50/80">
-          <div className="flex items-center gap-3">
-            <span className="flex items-center justify-center size-10 rounded-2xl bg-emerald-500/10 text-emerald-600 text-xl border border-emerald-500/20">
-              🏷️
+      <div
+        role="dialog"
+        aria-modal="true"
+        aria-label="Barcode sticker generator"
+        className="relative flex max-h-[96dvh] w-full max-w-6xl flex-col overflow-hidden rounded-t-[20px] border border-[var(--border-strong)] bg-[var(--surface)] shadow-[var(--shadow-lg)] sm:max-h-[94vh] sm:rounded-[18px]"
+      >
+        <div className="flex flex-wrap items-center justify-between gap-3 border-b border-[var(--border)] px-4 py-3.5 sm:px-6">
+          <div className="flex min-w-0 items-center gap-2.5">
+            <span className={ui.iconTile}>
+              <Icon name="tag" size={15} />
             </span>
-            <div>
-              <h2 className="text-lg font-black text-slate-900 tracking-tight">
-                {language === "ur" ? "Barcode Sticker Generator" : "Barcode Sticker Label Generator"}
+            <div className="min-w-0">
+              <h2 className="m-0 truncate text-[16px] font-semibold tracking-[-0.015em] text-[var(--text)]">
+                {language === "ur" ? "Barcode Sticker Generator" : "Barcode labels"}
               </h2>
-              <p className="text-xs text-slate-500 font-semibold">
-                {language === "ur"
-                  ? "Thermal roll ya A4 sheet par stickers print karein"
-                  : "Generate & print retail adhesive barcode stickers for thermal rolls or A4 sheets"}
+              <p className="m-0 truncate text-[12.5px] text-[var(--muted)]">
+                {language === "ur" ? "Thermal roll ya A4 sheet par stickers print karein" : "Print adhesive barcode stickers on thermal rolls or A4 sheets"}
               </p>
             </div>
           </div>
-
-          <div className="flex items-center gap-3">
-            <button
-              type="button"
-              onClick={handlePrint}
-              disabled={totalStickerCount === 0}
-              className="flex items-center gap-2 px-5 py-2.5 rounded-xl bg-[#00875a] hover:bg-[#00704a] text-white font-extrabold text-xs shadow-md shadow-[#00875a]/25 transition cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed active:scale-95"
-            >
-              <span>🖨️</span>
-              <span>
-                {language === "ur"
-                  ? `Print Karein (${totalStickerCount} Stickers)`
-                  : `Print ${totalStickerCount} Sticker${totalStickerCount !== 1 ? "s" : ""}`}
-              </span>
+          <div className="flex items-center gap-2">
+            <button type="button" onClick={handlePrint} disabled={totalStickerCount === 0} className={ui.primary}>
+              <Icon name="printer" size={14} />
+              {language === "ur"
+                ? `Print Karein (${totalStickerCount} Stickers)`
+                : `Print ${totalStickerCount} sticker${totalStickerCount !== 1 ? "s" : ""}`}
             </button>
-            <button
-              type="button"
-              onClick={onClose}
-              className="size-8 rounded-full bg-slate-200 hover:bg-slate-300 text-slate-600 flex items-center justify-center text-sm font-bold transition cursor-pointer"
-            >
-              ✕
+            <button type="button" onClick={onClose} className={ui.iconButton} aria-label="Close">
+              <Icon name="x" size={15} />
             </button>
           </div>
         </div>
@@ -257,14 +250,14 @@ export function BarcodeStickerModal({
           {/* Left Column: Settings, Product Selection & Layout (5 cols) */}
           <div className="lg:col-span-5 p-5 space-y-5 bg-slate-50/50 overflow-y-auto max-h-[82vh]">
             {/* Paper / Roll Layout Selector */}
-            <div className="bg-white p-4 rounded-2xl border border-slate-200 shadow-xs space-y-2.5">
-              <label className="text-xs font-black text-slate-800 uppercase tracking-wider block">
+            <div className="bg-white p-4 rounded-2xl border border-slate-200 shadow-[var(--shadow-xs)] space-y-2.5">
+              <label className="block text-[12.5px] font-medium text-[var(--text-2)]">
                 {language === "ur" ? "1. Label / Paper Ka Size Chunein" : "1. Select Sticker Paper Size"}
               </label>
               <select
                 value={selectedLayout}
                 onChange={(e) => setSelectedLayout(e.target.value as LabelLayoutType)}
-                className="w-full px-3 py-2.5 bg-slate-50 border border-slate-300 rounded-xl text-xs font-bold text-slate-800 focus:outline-none focus:border-emerald-500 focus:bg-white transition"
+                className={ui.select}
               >
                 <optgroup label="Thermal Roll Printers (Xprinter / Zebra / Rongta)">
                   {LAYOUTS.filter((l) => l.category === "thermal").map((l) => (
@@ -287,8 +280,8 @@ export function BarcodeStickerModal({
             </div>
 
             {/* Content Toggles */}
-            <div className="bg-white p-4 rounded-2xl border border-slate-200 shadow-xs space-y-3">
-              <label className="text-xs font-black text-slate-800 uppercase tracking-wider block">
+            <div className="bg-white p-4 rounded-2xl border border-slate-200 shadow-[var(--shadow-xs)] space-y-3">
+              <label className="block text-[12.5px] font-medium text-[var(--text-2)]">
                 {language === "ur" ? "2. Sticker Par Kya Dikhana Hai?" : "2. Label Content Options"}
               </label>
 
@@ -298,7 +291,7 @@ export function BarcodeStickerModal({
                     type="checkbox"
                     checked={showBusinessName}
                     onChange={(e) => setShowBusinessName(e.target.checked)}
-                    className="size-4 rounded accent-[#00875a]"
+                    className="size-4 rounded accent-[var(--brand)]"
                   />
                   <span>Show Store Name</span>
                 </label>
@@ -317,7 +310,7 @@ export function BarcodeStickerModal({
                     type="checkbox"
                     checked={showProductName}
                     onChange={(e) => setShowProductName(e.target.checked)}
-                    className="size-4 rounded accent-[#00875a]"
+                    className="size-4 rounded accent-[var(--brand)]"
                   />
                   <span>Show Product Name</span>
                 </label>
@@ -328,7 +321,7 @@ export function BarcodeStickerModal({
                       type="checkbox"
                       checked={showPrice}
                       onChange={(e) => setShowPrice(e.target.checked)}
-                      className="size-4 rounded accent-[#00875a]"
+                      className="size-4 rounded accent-[var(--brand)]"
                     />
                     <span>Show Selling Price</span>
                   </label>
@@ -353,7 +346,7 @@ export function BarcodeStickerModal({
                     type="checkbox"
                     checked={showBarcodeText}
                     onChange={(e) => setShowBarcodeText(e.target.checked)}
-                    className="size-4 rounded accent-[#00875a]"
+                    className="size-4 rounded accent-[var(--brand)]"
                   />
                   <span>Show Barcode Digits Below Lines</span>
                 </label>
@@ -363,7 +356,7 @@ export function BarcodeStickerModal({
                     type="checkbox"
                     checked={showSku}
                     onChange={(e) => setShowSku(e.target.checked)}
-                    className="size-4 rounded accent-[#00875a]"
+                    className="size-4 rounded accent-[var(--brand)]"
                   />
                   <span>Show SKU / Item Code</span>
                 </label>
@@ -371,12 +364,12 @@ export function BarcodeStickerModal({
             </div>
 
             {/* Product Selection & Quantity Configurator */}
-            <div className="bg-white p-4 rounded-2xl border border-slate-200 shadow-xs space-y-3">
+            <div className="bg-white p-4 rounded-2xl border border-slate-200 shadow-[var(--shadow-xs)] space-y-3">
               <div className="flex items-center justify-between">
-                <label className="text-xs font-black text-slate-800 uppercase tracking-wider block">
+                <label className="block text-[12.5px] font-medium text-[var(--text-2)]">
                   {language === "ur" ? "3. Samaan Aur Tadaad" : "3. Products & Quantities"}
                 </label>
-                <span className="text-xs font-bold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-full border border-emerald-200">
+                <span className={`${ui.chip} ${ui.chipPos}`}>
                   {totalStickerCount} label{totalStickerCount !== 1 ? "s" : ""} selected
                 </span>
               </div>
@@ -408,7 +401,7 @@ export function BarcodeStickerModal({
                 <button
                   type="button"
                   onClick={clearAllQuantities}
-                  className="px-2.5 py-1 bg-red-50 hover:bg-red-100 text-red-600 rounded-lg text-[11px] font-bold transition cursor-pointer"
+                  className={`${ui.danger} ${ui.btnSm}`}
                 >
                   Clear All
                 </button>
@@ -420,7 +413,7 @@ export function BarcodeStickerModal({
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
                 placeholder="Search products to print…"
-                className="w-full px-3 py-2 bg-slate-50 border border-slate-300 rounded-xl text-xs font-semibold text-slate-800 focus:outline-none focus:border-emerald-500 focus:bg-white"
+                className={`${ui.input} ${ui.search}`}
               />
 
               {/* Product Rows */}
@@ -432,7 +425,7 @@ export function BarcodeStickerModal({
                     <div
                       key={p.id}
                       className={`py-2 px-2 rounded-xl flex items-center justify-between gap-2 transition ${
-                        isSelected ? "bg-emerald-50/60" : "hover:bg-slate-50"
+                        isSelected ? "bg-[var(--brand-soft)]" : "hover:bg-[var(--hl)]"
                       }`}
                     >
                       <div className="min-w-0 flex-1">
@@ -441,7 +434,7 @@ export function BarcodeStickerModal({
                         </p>
                         <p className="text-[11px] text-slate-500 font-mono flex items-center gap-2">
                           <span>{p.barcode || "No Barcode"}</span>
-                          <span className="font-semibold text-emerald-700">
+                          <span className="font-mono font-medium text-[var(--brand-ink)]">
                             ₨ {Number(p.sellingPrice || p.price || 0).toLocaleString()}
                           </span>
                         </p>
@@ -464,12 +457,12 @@ export function BarcodeStickerModal({
                           onChange={(e) =>
                             handleQtyChange(p.id, parseInt(e.target.value, 10) || 0)
                           }
-                          className="w-11 text-center py-0.5 text-xs font-black border border-slate-300 rounded-lg bg-white"
+                          className="w-11 rounded-[7px] border border-[var(--border)] bg-[var(--surface)] py-0.5 text-center font-mono text-xs"
                         />
                         <button
                           type="button"
                           onClick={() => handleQtyChange(p.id, qty + 1)}
-                          className="size-6 rounded-lg bg-[#00875a] hover:bg-[#00704a] text-white font-bold flex items-center justify-center text-xs cursor-pointer active:scale-90"
+                          className="size-6 rounded-lg bg-[var(--brand)] hover:bg-[var(--brand-strong)] text-white font-bold flex items-center justify-center text-xs cursor-pointer active:scale-90"
                         >
                           +
                         </button>
@@ -482,28 +475,26 @@ export function BarcodeStickerModal({
           </div>
 
           {/* Right Column: Live Printable Sheet Preview (7 cols) */}
-          <div className="lg:col-span-7 p-6 bg-slate-200/70 overflow-y-auto max-h-[82vh] flex flex-col items-center">
-            <div className="w-full flex items-center justify-between mb-4">
-              <span className="text-xs font-black text-slate-600 uppercase tracking-wider">
-                Live Sticker Sheet Preview ({activeLayout.name})
+          <div className="lg:col-span-7 flex max-h-[82vh] flex-col items-center overflow-y-auto bg-[var(--sunken)] p-4 sm:p-6">
+            <div className="mb-4 flex w-full flex-wrap items-center justify-between gap-2">
+              <span className="text-[12.5px] font-medium text-[var(--text-2)]">
+                Live preview · <span className="text-[var(--muted)]">{activeLayout.name}</span>
               </span>
-              <span className="text-xs font-bold text-slate-500">
-                100% Scaled Vector SVGs (Sharp for Laser Scanners)
+              <span className={ui.chip}>
+                <Icon name="check" size={11} />
+                Vector, scanner-sharp
               </span>
             </div>
 
             {totalStickerCount === 0 ? (
-              <div className="m-auto text-center p-8 bg-white border border-slate-300 rounded-2xl shadow-sm text-slate-500 max-w-sm">
-                <span className="text-3xl block mb-2">🏷️</span>
-                <p className="text-xs font-bold">No stickers selected to print</p>
-                <p className="text-[11px] text-slate-400 mt-1">
-                  Increase quantity (+) on any product on the left to preview its barcode sticker here.
-                </p>
+              <div className="m-auto max-w-sm rounded-[14px] border border-[var(--border)] bg-[var(--surface)] shadow-[var(--shadow-xs)]">
+                <EmptyState icon="tag" title="No stickers selected" body="Increase the quantity (+) on any product to preview its barcode sticker here." />
               </div>
             ) : (
               <div
+                data-theme="light"
                 id="almadel-printable-stickers"
-                className={`bg-white shadow-xl p-4 border border-slate-300 transition-all ${
+                className={`bg-white shadow-[var(--shadow-lg)] p-4 border border-slate-300 transition-all ${
                   activeLayout.category === "sheet"
                     ? "w-[210mm] min-h-[297mm] max-w-full"
                     : "w-[80mm] max-w-full"
@@ -535,9 +526,9 @@ export function BarcodeStickerModal({
         </div>
 
         {/* Footer */}
-        <div className="px-6 py-3 border-t border-slate-200 bg-white flex items-center justify-between text-xs text-slate-500 font-semibold">
-          <div className="flex items-center gap-2">
-            <span>💡</span>
+        <div className="flex flex-wrap items-center justify-between gap-3 border-t border-[var(--border)] bg-[var(--surface-2)] px-4 py-3 pb-[calc(12px+env(safe-area-inset-bottom))] text-[12px] text-[var(--muted)] sm:px-6">
+          <div className="flex items-start gap-2">
+            <Icon name="info" size={13} className="mt-0.5 shrink-0" />
             <span>
               {language === "ur"
                 ? "Print window mein 'Margins: None' aur 'Scale: 100%' chunein."
@@ -548,8 +539,9 @@ export function BarcodeStickerModal({
             type="button"
             onClick={handlePrint}
             disabled={totalStickerCount === 0}
-            className="px-6 py-2 rounded-xl bg-[#00875a] hover:bg-[#00704a] text-white font-extrabold shadow-sm transition cursor-pointer disabled:opacity-50"
+            className={ui.secondary}
           >
+            <Icon name="printer" size={14} />
             {language === "ur" ? "Print Window Kholein" : "Open Print Dialog"}
           </button>
         </div>

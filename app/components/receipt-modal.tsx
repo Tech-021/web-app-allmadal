@@ -1,6 +1,8 @@
 "use client";
 
 import React from "react";
+import { Icon } from "@/app/components/icons";
+import ui from "@/app/components/workspace-ui.module.css";
 
 export interface ReceiptSale {
   id: string;
@@ -31,11 +33,11 @@ export function ReceiptModal({
   });
 
   return (
-    <div className="fixed inset-0 z-[110] grid place-items-center bg-black/45 backdrop-blur-xs p-4">
-      <div className="w-full max-w-sm rounded-3xl bg-white p-6 shadow-2xl border border-gray-100 font-sans text-gray-800">
+    <div className="al-overlay fixed inset-0 z-[110] grid place-items-center bg-[var(--scrim)] backdrop-blur-[3px] p-4">
+      <div data-theme="light" className="w-full max-w-sm rounded-3xl bg-white p-6 shadow-[var(--shadow-lg)] border border-gray-100 font-sans text-gray-800">
         {/* Receipt Header */}
         <div className="text-center space-y-1 mb-5">
-          <div className="inline-grid size-10 place-items-center rounded-2xl bg-[#00875a] text-white font-extrabold mx-auto shadow-md">
+          <div className="inline-grid size-10 place-items-center rounded-2xl bg-[var(--brand)] text-white font-extrabold mx-auto shadow-[var(--shadow-md)]">
             A
           </div>
           <h2 className="text-lg font-extrabold text-gray-900 tracking-tight">Almadel</h2>
@@ -80,7 +82,7 @@ export function ReceiptModal({
           </div>
           <div className="flex justify-between text-sm font-extrabold text-gray-900 pt-2 border-t border-gray-200">
             <span>Total</span>
-            <span className="text-[#00875a]">Rs. {sale.total.toLocaleString()}</span>
+            <span className="text-[var(--brand)]">Rs. {sale.total.toLocaleString()}</span>
           </div>
           <div className="flex justify-between text-[11px] text-gray-500 pt-1">
             <span>Payment Method</span>
@@ -90,22 +92,17 @@ export function ReceiptModal({
 
         {/* Shukriya Footer */}
         <div className="text-center mt-6 pt-4 border-t border-dashed border-gray-200">
-          <p className="text-sm font-extrabold text-[#00875a]">Shukriya!</p>
-          <p className="text-[11px] font-semibold text-gray-500 mt-0.5">Dobara Aane Ka Shukriya 🤍</p>
+          <p className="text-sm font-extrabold text-[var(--brand)]">Shukriya!</p>
+          <p className="text-[11px] font-semibold text-gray-500 mt-0.5">Dobara Aane Ka Shukriya</p>
         </div>
 
         {/* Modal Actions */}
-        <div className="mt-6 flex gap-2">
-          <button
-            onClick={() => window.print()}
-            className="flex-1 rounded-full border border-gray-200 bg-white py-2 text-xs font-bold text-gray-700 hover:bg-gray-50 transition"
-          >
-            🖨️ Print
+        <div className="mt-6 grid grid-cols-2 gap-2">
+          <button onClick={() => window.print()} className={ui.secondary}>
+            <Icon name="printer" size={14} />
+            Print
           </button>
-          <button
-            onClick={onClose}
-            className="flex-1 rounded-full bg-[#00875a] py-2 text-xs font-extrabold text-white shadow-md hover:bg-[#006b3f] transition"
-          >
+          <button onClick={onClose} className={ui.primary}>
             Close
           </button>
         </div>

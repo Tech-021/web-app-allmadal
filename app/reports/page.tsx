@@ -10,6 +10,10 @@ import { useBusiness } from "@/app/components/business-context";
 import { useLanguage } from "@/app/components/language-context";
 import { PaginationControls } from "@/app/components/pagination-controls";
 import ui from "@/app/components/workspace-ui.module.css";
+import { Icon } from "@/app/components/icons";
+import { Skeleton } from "@/app/components/motion";
+import { Metric, MetricStrip, PageHeader, TableEmptyRow, TableSkeletonRows } from "@/app/components/page-layout";
+import rp from "./reports.module.css";
 
 // --- TYPES ---
 interface SalesReportData {
@@ -313,80 +317,55 @@ export default function ReportsPage() {
         }
       `}</style>
 
-      {/* Header & Main Nav Tabs */}
-      <div className={ui.head}>
-        <div>
-          <label>{t("reports.title", "Reports & Analytics")}</label>
-          <h1>{t("reports.title", "Reports & Analytics")}</h1>
-          <p>
+      <PageHeader
+        eyebrow="Analytics"
+        title={t("reports.title", "Reports & Analytics")}
+        description={
+          <>
             {t("reports.subtitle", "Sales summaries, product performance, and inventory health for")}{" "}
-            <strong>{activeBusiness?.name || "Active Store"}</strong>.
-          </p>
-        </div>
+            <strong className="font-medium text-[var(--text)]">{activeBusiness?.name || "Active Store"}</strong>.
+          </>
+        }
+        actions={
+          <div className="no-print flex flex-wrap gap-2">
+            <button onClick={handleExportCsv} className={ui.secondary} title="Download CSV spreadsheet">
+              <Icon name="download" size={14} />
+              {t("reports.export_csv", "Export CSV")}
+            </button>
+            <button onClick={() => window.print()} className={ui.secondary} title="Print current report">
+              <Icon name="printer" size={14} />
+              {t("reports.print", "Print Report")}
+            </button>
+          </div>
+        }
+      />
 
-        {/* Global Export & Print Action Buttons */}
-        <div className="flex flex-wrap items-center gap-2 no-print">
+      <div className={`${ui.tabBar} no-print`} role="tablist" aria-label="Report type">
+        {(
+          [
+            { id: "sales", icon: "cart", label: t("reports.sales_report", "Sales Report") },
+            { id: "products", icon: "box", label: t("reports.product_report", "Product Report") },
+            { id: "stock", icon: "layers", label: t("reports.stock_report", "Stock Report") },
+          ] as const
+        ).map((tab) => (
           <button
-            onClick={handleExportCsv}
-            className={ui.secondary}
-            title="Download CSV Spreadsheet"
+            key={tab.id}
+            role="tab"
+            aria-selected={activeTab === tab.id}
+            onClick={() => setActiveTab(tab.id)}
+            className={activeTab === tab.id ? ui.tabBarOn : ""}
           >
-            📥 {t("reports.export_csv", "Export CSV")}
+            <Icon name={tab.icon} size={15} />
+            {tab.label}
           </button>
-          <button
-            onClick={() => window.print()}
-            className={ui.secondary}
-            title="Print Current Report"
-          >
-            🖨️ {t("reports.print", "Print Report")}
-          </button>
-        </div>
+        ))}
       </div>
 
-      {/* 3 CORE PRD SECTION 17 TABS */}
-      <div className="flex items-center gap-2 border-b border-slate-200 mb-6 pb-2 no-print overflow-x-auto">
-        <button
-          onClick={() => setActiveTab("sales")}
-          className={`flex items-center gap-2 px-4 py-2.5 rounded-xl font-bold text-sm transition-all ${
-            activeTab === "sales"
-              ? "bg-[#00875a] text-white shadow-sm"
-              : "text-slate-600 hover:text-slate-900 hover:bg-slate-100"
-          }`}
-        >
-          <span>🛒</span> {t("reports.sales_report", "Sales Report")}
-        </button>
-
-        <button
-          onClick={() => setActiveTab("products")}
-          className={`flex items-center gap-2 px-4 py-2.5 rounded-xl font-bold text-sm transition-all ${
-            activeTab === "products"
-              ? "bg-[#00875a] text-white shadow-sm"
-              : "text-slate-600 hover:text-slate-900 hover:bg-slate-100"
-          }`}
-        >
-          <span>📦</span> {t("reports.product_report", "Product Report")}
-        </button>
-
-        <button
-          onClick={() => setActiveTab("stock")}
-          className={`flex items-center gap-2 px-4 py-2.5 rounded-xl font-bold text-sm transition-all ${
-            activeTab === "stock"
-              ? "bg-[#00875a] text-white shadow-sm"
-              : "text-slate-600 hover:text-slate-900 hover:bg-slate-100"
-          }`}
-        >
-          <span>📊</span> {t("reports.stock_report", "Stock Report")}
-        </button>
-      </div>
-
-      {/* ======================================================== */}
-      {/* 1. SALES REPORT (Daily, Weekly, Monthly)                 */}
-      {/* ======================================================== */}
+      {/* ======================== 1. SALES REPORT ======================== */}
       {activeTab === "sales" && (
-        <div className="space-y-6 print-area">
-          {/* Sub-Tabs: Daily | Weekly | Monthly */}
-          <div className="flex items-center justify-between flex-wrap gap-3 no-print">
-            <div className="flex items-center gap-1.5 p-1 bg-white rounded-2xl border border-slate-200 shadow-xs">
+        <div className={`${rp.stack} print-area`}>
+          <div className={`${rp.subbar} no-print`}>
+            <div className={ui.segmented} role="tablist" aria-label="Period">
               {(
                 [
                   { id: "daily", label: t("reports.daily", "Daily (Today)") },
@@ -394,201 +373,172 @@ export default function ReportsPage() {
                   { id: "monthly", label: t("reports.monthly", "Monthly (30 Days)") },
                 ] as const
               ).map((p) => (
-                <button
-                  key={p.id}
-                  onClick={() => setSalesPeriod(p.id)}
-                  className={`px-3.5 py-1.5 rounded-xl text-xs font-bold transition ${
-                    salesPeriod === p.id
-                      ? "bg-[#00875a] text-white shadow-xs"
-                      : "text-slate-600 hover:text-slate-900"
-                  }`}
-                >
+                <button key={p.id} role="tab" aria-selected={salesPeriod === p.id} onClick={() => setSalesPeriod(p.id)} className={salesPeriod === p.id ? ui.segmentedOn : ""}>
                   {p.label}
                 </button>
               ))}
             </div>
-
-            <span className="text-xs font-bold text-slate-500 uppercase tracking-wide">
-              {salesPeriod === "daily"
-                ? "Today's Live Sales"
-                : salesPeriod === "weekly"
-                ? "Past 7 Calendar Days"
-                : "Past 30 Calendar Days"}
+            <span className={rp.caption}>
+              <Icon name="calendar" size={13} />
+              {salesPeriod === "daily" ? "Today's live sales" : salesPeriod === "weekly" ? "Past 7 calendar days" : "Past 30 calendar days"}
             </span>
           </div>
 
-          {/* KPI Stat Cards */}
-          <section className="grid grid-cols-2 sm:grid-cols-4 gap-4">
-            <article className="p-4 rounded-2xl bg-white border border-slate-200 shadow-xs space-y-1">
-              <span className="text-[11px] font-bold text-slate-500 uppercase tracking-wide">
-                Total Revenue
-              </span>
-              <p className="text-2xl font-black text-[#00875a]">
-                {loading ? "..." : money(salesData?.summary.totalRevenue)}
-              </p>
-              <small className="block text-[11px] text-slate-500">
-                Cash: {money(salesData?.summary.cashTotal)} • Online: {money(salesData?.summary.onlineTotal)}
-              </small>
-            </article>
+          <MetricStrip>
+            <Metric
+              label="Total revenue"
+              icon="pkr"
+              tone="pos"
+              value={loading ? <Skeleton className="h-6 w-24" /> : money(salesData?.summary.totalRevenue)}
+              hint={`Cash ${money(salesData?.summary.cashTotal)} · Online ${money(salesData?.summary.onlineTotal)}`}
+            />
+            <Metric
+              label="Orders / invoices"
+              icon="invoice"
+              value={loading ? <Skeleton className="h-6 w-16" /> : (salesData?.summary.totalOrders || 0).toLocaleString()}
+              hint={`Average order ${money(salesData?.summary.averageOrder)}`}
+            />
+            <Metric
+              label="Items sold"
+              icon="box"
+              value={loading ? <Skeleton className="h-6 w-16" /> : (salesData?.summary.totalItems || 0).toLocaleString()}
+              hint="Units sold through POS"
+            />
+            <Metric
+              label="Discounts given"
+              icon="tag"
+              value={loading ? <Skeleton className="h-6 w-20" /> : money(salesData?.summary.totalDiscounts)}
+              hint="Customer bill discounts"
+            />
+          </MetricStrip>
 
-            <article className="p-4 rounded-2xl bg-white border border-slate-200 shadow-xs space-y-1">
-              <span className="text-[11px] font-bold text-slate-500 uppercase tracking-wide">
-                Total Orders / Invoices
-              </span>
-              <p className="text-2xl font-black text-blue-700">
-                {loading ? "..." : `${salesData?.summary.totalOrders || 0} Orders`}
-              </p>
-              <small className="block text-[11px] text-slate-500">
-                Average order: {money(salesData?.summary.averageOrder)}
-              </small>
-            </article>
-
-            <article className="p-4 rounded-2xl bg-white border border-slate-200 shadow-xs space-y-1">
-              <span className="text-[11px] font-bold text-slate-500 uppercase tracking-wide">
-                Items Sold
-              </span>
-              <p className="text-2xl font-black text-purple-700">
-                {loading ? "..." : `${salesData?.summary.totalItems || 0} Units`}
-              </p>
-              <small className="block text-[11px] text-slate-500">Products sold through POS</small>
-            </article>
-
-            <article className="p-4 rounded-2xl bg-white border border-slate-200 shadow-xs space-y-1">
-              <span className="text-[11px] font-bold text-slate-500 uppercase tracking-wide">
-                Discounts Awarded
-              </span>
-              <p className="text-2xl font-black text-amber-700">
-                {loading ? "..." : money(salesData?.summary.totalDiscounts)}
-              </p>
-              <small className="block text-[11px] text-slate-500">Customer bill discounts</small>
-            </article>
-          </section>
-
-          {/* Weekly / Monthly Chart & Breakdown Table */}
           {(salesPeriod === "weekly" || salesPeriod === "monthly") && (
-            <div className="space-y-4">
-              {/* Visual Daily Sales Bar Graph */}
-              <div className="p-5 bg-white rounded-2xl border border-slate-200 shadow-xs">
-                <div className="flex items-center justify-between mb-4">
-                  <h3 className="text-sm font-extrabold text-slate-900">
-                    Sales Revenue Trend ({salesPeriod === "weekly" ? "7 Days" : "30 Days"})
-                  </h3>
-                  <span className="text-xs font-bold text-emerald-700 bg-emerald-50 px-2.5 py-1 rounded-full">
-                    Max: {money(Math.max(...(salesData?.breakdown.map((b) => b.totalAmount) || [0]), 1))}
+            <>
+              <section className={`${ui.panel} ${ui.panelFlush}`}>
+                <div className={ui.panelHead}>
+                  <div>
+                    <h2>Revenue trend</h2>
+                    <p>{salesPeriod === "weekly" ? "Last 7 days" : "Last 30 days"} · hover a bar for detail</p>
+                  </div>
+                  <span className={ui.chip}>
+                    Peak <span className="font-mono">{money(Math.max(...(salesData?.breakdown.map((b) => b.totalAmount) || [0]), 0))}</span>
                   </span>
                 </div>
-
-                <div className="h-40 flex items-end gap-1.5 sm:gap-2 pt-6 pb-2 border-b border-slate-200">
-                  {(salesData?.breakdown || []).map((b) => {
-                    const maxVal = Math.max(...(salesData?.breakdown.map((x) => x.totalAmount) || [0]), 1);
-                    const heightPct = Math.max(6, Math.round((b.totalAmount / maxVal) * 100));
+                <div className={ui.panelBody}>
+                  {(() => {
+                    const rows = salesData?.breakdown || [];
+                    const maxVal = Math.max(...rows.map((x) => x.totalAmount), 1);
                     return (
-                      <div
-                        key={b.date}
-                        className="flex-1 flex flex-col items-center gap-1 group relative h-full justify-end"
-                      >
-                        {/* Tooltip on hover */}
-                        <div className="opacity-0 group-hover:opacity-100 transition-opacity absolute -top-8 px-2 py-1 bg-slate-900 text-white text-[10px] font-bold rounded shadow pointer-events-none whitespace-nowrap z-10">
-                          {b.displayDate}: {money(b.totalAmount)} ({b.orders} orders)
+                      <div className={rp.chart} data-dense={rows.length > 14 ? "" : undefined}>
+                        <div className={rp.gridLines} aria-hidden>
+                          <span />
+                          <span />
+                          <span />
+                          <span />
                         </div>
-                        <div
-                          style={{ height: `${heightPct}%` }}
-                          className={`w-full rounded-t-md transition-all ${
-                            b.totalAmount > 0
-                              ? "bg-gradient-to-t from-[#00875a] to-emerald-400 group-hover:brightness-110"
-                              : "bg-slate-100"
-                          }`}
-                        />
+                        <div className={rp.bars}>
+                          {rows.map((b, i) => {
+                            const heightPct = b.totalAmount > 0 ? Math.max(4, Math.round((b.totalAmount / maxVal) * 100)) : 0;
+                            return (
+                              <div key={b.date} className={rp.barCol} tabIndex={0} aria-label={`${b.displayDate}: ${money(b.totalAmount)}, ${b.orders} orders`}>
+                                <div className={rp.tip}>
+                                  <strong>{money(b.totalAmount)}</strong>
+                                  <span>
+                                    {b.displayDate} · {b.orders} orders
+                                  </span>
+                                </div>
+                                <div
+                                  className={`${rp.bar} ${b.totalAmount > 0 ? "" : rp.barEmpty}`}
+                                  style={{ height: heightPct ? `${heightPct}%` : undefined, animationDelay: `${Math.min(i * 18, 400)}ms` }}
+                                />
+                              </div>
+                            );
+                          })}
+                        </div>
                       </div>
                     );
-                  })}
+                  })()}
+                  <div className={rp.axis}>
+                    <span>{salesData?.breakdown[0]?.displayDate}</span>
+                    <span>{salesData?.breakdown[Math.floor((salesData?.breakdown.length || 0) / 2)]?.displayDate}</span>
+                    <span>{salesData?.breakdown[(salesData?.breakdown.length || 1) - 1]?.displayDate}</span>
+                  </div>
                 </div>
+              </section>
 
-                {/* Day labels below */}
-                <div className="flex justify-between text-[10px] text-slate-500 font-bold pt-2 px-1">
-                  <span>{salesData?.breakdown[0]?.displayDate}</span>
-                  <span>{salesData?.breakdown[Math.floor((salesData?.breakdown.length || 0) / 2)]?.displayDate}</span>
-                  <span>{salesData?.breakdown[salesData?.breakdown.length - 1]?.displayDate}</span>
+              <section className={`${ui.panel} ${ui.panelFlush}`}>
+                <div className={ui.panelHead}>
+                  <div>
+                    <h2>Day-by-day breakdown</h2>
+                    <p>Orders, units and revenue per day</p>
+                  </div>
                 </div>
-              </div>
-
-              {/* Day-by-Day Table */}
-              <div className="bg-white rounded-2xl border border-slate-200 shadow-xs overflow-hidden">
-                <div className="p-4 border-b border-slate-200 bg-slate-50/50">
-                  <h3 className="text-sm font-extrabold text-slate-900">Day-by-Day Sales Breakdown</h3>
-                </div>
-                <div className="overflow-x-auto">
-                  <table className="w-full text-left text-xs border-collapse">
+                <div className={`${ui.tableWrap} ${ui.tableBare}`}>
+                  <table className={ui.table}>
                     <thead>
-                      <tr className="border-b border-slate-200 bg-slate-50/80 font-bold text-slate-600">
-                        <th className="py-3 px-4">Date</th>
-                        <th className="py-3 px-4">Day</th>
-                        <th className="py-3 px-4 text-center">Orders</th>
-                        <th className="py-3 px-4 text-center">Units Sold</th>
-                        <th className="py-3 px-4 text-right">Discounts</th>
-                        <th className="py-3 px-4 text-right font-black text-slate-900">Total Revenue</th>
+                      <tr>
+                        <th>Date</th>
+                        <th>Day</th>
+                        <th className="text-right">Orders</th>
+                        <th className="text-right">Units sold</th>
+                        <th className="text-right">Discounts</th>
+                        <th className="text-right">Revenue</th>
                       </tr>
                     </thead>
-                    <tbody className="divide-y divide-slate-100">
-                      {(salesData?.breakdown || []).map((b) => (
-                        <tr key={b.date} className="hover:bg-slate-50/80 transition">
-                          <td className="py-3 px-4 font-bold text-slate-800">{b.displayDate}</td>
-                          <td className="py-3 px-4 text-slate-500 font-semibold">{b.dayName}</td>
-                          <td className="py-3 px-4 text-center font-bold text-blue-700">{b.orders}</td>
-                          <td className="py-3 px-4 text-center text-slate-700">{b.totalItems}</td>
-                          <td className="py-3 px-4 text-right text-amber-700">{money(b.discounts)}</td>
-                          <td className="py-3 px-4 text-right font-black text-emerald-800">
-                            {money(b.totalAmount)}
-                          </td>
-                        </tr>
-                      ))}
+                    <tbody>
+                      {loading ? (
+                        <TableSkeletonRows cols={6} />
+                      ) : (salesData?.breakdown || []).length === 0 ? (
+                        <TableEmptyRow colSpan={6} icon="chart" title="No sales in this period" body="Completed sales will appear here day by day." />
+                      ) : (
+                        (salesData?.breakdown || []).map((b) => (
+                          <tr key={b.date}>
+                            <td className="font-medium">{b.displayDate}</td>
+                            <td className="text-[var(--muted)]">{b.dayName}</td>
+                            <td className="text-right font-mono">{b.orders}</td>
+                            <td className="text-right font-mono">{b.totalItems}</td>
+                            <td className="text-right font-mono text-[var(--muted)]">{b.discounts > 0 ? money(b.discounts) : "—"}</td>
+                            <td className="text-right font-mono font-medium">{money(b.totalAmount)}</td>
+                          </tr>
+                        ))
+                      )}
                     </tbody>
                   </table>
                 </div>
-              </div>
-            </div>
+              </section>
+            </>
           )}
 
-          {/* Daily Detailed Invoices Table */}
           {salesPeriod === "daily" && (
-            <div className="bg-white rounded-2xl border border-slate-200 shadow-xs overflow-hidden">
-              <div className="p-4 border-b border-slate-200 bg-slate-50/50 flex items-center justify-between">
+            <section className={`${ui.panel} ${ui.panelFlush}`}>
+              <div className={ui.panelHead}>
                 <div>
-                  <h3 className="text-sm font-extrabold text-slate-900">Today's Transactions</h3>
-                  <p className="text-xs text-slate-500">Click any row to open receipt preview</p>
+                  <h2>Today&apos;s transactions</h2>
+                  <p>Select a row to preview its receipt</p>
                 </div>
-                <span className="text-xs font-bold text-[#00875a] bg-emerald-50 px-2.5 py-1 rounded-full">
-                  {salesData?.sales.length || 0} Invoices
+                <span className={ui.chip}>
+                  <span className="font-mono">{salesData?.sales.length || 0}</span> invoices
                 </span>
               </div>
-
-              <div className="overflow-x-auto">
-                <table className="w-full text-left text-xs border-collapse">
+              <div className={`${ui.tableWrap} ${ui.tableBare}`}>
+                <table className={ui.table}>
                   <thead>
-                    <tr className="border-b border-slate-200 bg-slate-50/80 font-bold text-slate-600">
-                      <th className="py-3 px-4">Invoice #</th>
-                      <th className="py-3 px-4">Time</th>
-                      <th className="py-3 px-4">Customer</th>
-                      <th className="py-3 px-4">Cashier</th>
-                      <th className="py-3 px-4 text-center">Items</th>
-                      <th className="py-3 px-4 text-center">Payment</th>
-                      <th className="py-3 px-4 text-right">Discount</th>
-                      <th className="py-3 px-4 text-right font-black text-slate-900">Total</th>
+                    <tr>
+                      <th>Invoice #</th>
+                      <th>Time</th>
+                      <th>Customer</th>
+                      <th>Cashier</th>
+                      <th className="text-right">Items</th>
+                      <th>Payment</th>
+                      <th className="text-right">Discount</th>
+                      <th className="text-right">Total</th>
                     </tr>
                   </thead>
-                  <tbody className="divide-y divide-slate-100">
+                  <tbody>
                     {loading ? (
-                      <tr>
-                        <td colSpan={8} className="py-8 text-center text-slate-400">
-                          Loading sales transactions...
-                        </td>
-                      </tr>
+                      <TableSkeletonRows cols={8} />
                     ) : (salesData?.sales || []).length === 0 ? (
-                      <tr>
-                        <td colSpan={8} className="py-8 text-center text-slate-400">
-                          No sales recorded for today yet.
-                        </td>
-                      </tr>
+                      <TableEmptyRow colSpan={8} icon="receipt" title="No sales recorded today" body="Completed POS sales show up here in real time." />
                     ) : (
                       paginatedSales.map((s) => (
                         <tr
@@ -602,50 +552,32 @@ export default function ReportsPage() {
                               createdAt: s.createdAt,
                             })
                           }
-                          className="hover:bg-emerald-50/40 cursor-pointer transition"
-                          title="Click to view full printable receipt"
+                          className="cursor-pointer"
+                          title="View printable receipt"
                         >
-                          <td className="py-3 px-4 font-mono font-bold text-emerald-800">{s.invoiceNumber}</td>
-                          <td className="py-3 px-4 text-slate-500">
-                            {new Date(s.createdAt).toLocaleTimeString("en-PK", {
-                              hour: "2-digit",
-                              minute: "2-digit",
-                            })}
+                          <td className="font-mono text-[12.5px] text-[var(--brand-ink)]">{s.invoiceNumber}</td>
+                          <td className="font-mono text-[12.5px] text-[var(--muted)]">
+                            {new Date(s.createdAt).toLocaleTimeString("en-PK", { hour: "2-digit", minute: "2-digit" })}
                           </td>
-                          <td className="py-3 px-4 font-bold text-slate-800">
-                            {s.customerName}
-                            {s.customerMobile && (
-                              <small className="block text-[10px] text-slate-400 font-normal">
-                                {s.customerMobile}
-                              </small>
-                            )}
+                          <td>
+                            <span className="font-medium">{s.customerName}</span>
+                            {s.customerMobile && <small className="block font-mono text-[11.5px] text-[var(--faint)]">{s.customerMobile}</small>}
                           </td>
-                          <td className="py-3 px-4 text-slate-600">{s.cashier}</td>
-                          <td className="py-3 px-4 text-center font-bold text-slate-700">{s.totalItems}</td>
-                          <td className="py-3 px-4 text-center">
-                            <span
-                              className={`px-2 py-0.5 rounded-full text-[10px] font-extrabold uppercase ${
-                                (s.paymentMethod || "").toLowerCase() === "cash"
-                                  ? "bg-emerald-100 text-emerald-800"
-                                  : "bg-blue-100 text-blue-800"
-                              }`}
-                            >
+                          <td className="text-[var(--text-2)]">{s.cashier}</td>
+                          <td className="text-right font-mono">{s.totalItems}</td>
+                          <td>
+                            <span className={`${ui.chip} ${(s.paymentMethod || "").toLowerCase() === "cash" ? ui.chipPos : ui.chipInfo}`}>
                               {s.paymentMethod || "Cash"}
                             </span>
                           </td>
-                          <td className="py-3 px-4 text-right text-amber-700">
-                            {s.discountAmount > 0 ? money(s.discountAmount) : "-"}
-                          </td>
-                          <td className="py-3 px-4 text-right font-black text-emerald-800 text-sm">
-                            {money(s.totalAmount)}
-                          </td>
+                          <td className="text-right font-mono text-[var(--muted)]">{s.discountAmount > 0 ? money(s.discountAmount) : "—"}</td>
+                          <td className="text-right font-mono font-medium">{money(s.totalAmount)}</td>
                         </tr>
                       ))
                     )}
                   </tbody>
                 </table>
               </div>
-
               {(salesData?.sales.length || 0) > 0 && (
                 <PaginationControls
                   currentPage={salesPage}
@@ -661,213 +593,108 @@ export default function ReportsPage() {
                   className="no-print"
                 />
               )}
-            </div>
+            </section>
           )}
         </div>
       )}
 
-      {/* ======================================================== */}
-      {/* 2. PRODUCT REPORT (Best Selling & Least Selling)         */}
-      {/* ======================================================== */}
+      {/* ======================== 2. PRODUCT REPORT ======================== */}
       {activeTab === "products" && (
-        <div className="space-y-6 print-area">
-          {/* Sub-Switch: Best Selling vs Least Selling */}
-          <div className="flex items-center justify-between flex-wrap gap-3 no-print">
-            <div className="flex items-center gap-1.5 p-1 bg-white rounded-2xl border border-slate-200 shadow-xs">
-              <button
-                onClick={() => setProductType("best")}
-                className={`px-3.5 py-1.5 rounded-xl text-xs font-bold transition flex items-center gap-1.5 ${
-                  productType === "best"
-                    ? "bg-[#00875a] text-white shadow-xs"
-                    : "text-slate-600 hover:text-slate-900"
-                }`}
-              >
-                <span>🔥</span> {t("reports.best_selling", "Best Selling Products")}
+        <div className={`${rp.stack} print-area`}>
+          <div className={`${rp.subbar} no-print`}>
+            <div className={ui.segmented} role="tablist" aria-label="Product ranking">
+              <button role="tab" aria-selected={productType === "best"} onClick={() => setProductType("best")} className={productType === "best" ? ui.segmentedOn : ""}>
+                <Icon name="upright" size={13} />
+                {t("reports.best_selling", "Best Selling Products")}
               </button>
-
-              <button
-                onClick={() => setProductType("least")}
-                className={`px-3.5 py-1.5 rounded-xl text-xs font-bold transition flex items-center gap-1.5 ${
-                  productType === "least"
-                    ? "bg-[#00875a] text-white shadow-xs"
-                    : "text-slate-600 hover:text-slate-900"
-                }`}
-              >
-                <span>❄️</span> {t("reports.least_selling", "Least Selling Products")}
+              <button role="tab" aria-selected={productType === "least"} onClick={() => setProductType("least")} className={productType === "least" ? ui.segmentedOn : ""}>
+                <Icon name="downright" size={13} />
+                {t("reports.least_selling", "Least Selling Products")}
               </button>
             </div>
-
-            <span className="text-xs font-bold text-slate-500 uppercase tracking-wide">
-              {productType === "best"
-                ? "Highest Volume & Revenue Performers"
-                : "Slow Moving & Dead Stock (Zero Sales)"}
-            </span>
+            <span className={rp.caption}>{productType === "best" ? "Highest volume & revenue performers" : "Slow-moving and idle stock"}</span>
           </div>
 
-          {/* KPI Summary Grid */}
-          <section className="grid grid-cols-2 sm:grid-cols-4 gap-4">
-            <article className="p-4 rounded-2xl bg-white border border-slate-200 shadow-xs space-y-1">
-              <span className="text-[11px] font-bold text-slate-500 uppercase tracking-wide">
-                Catalog Products
-              </span>
-              <p className="text-2xl font-black text-slate-900">
-                {productData?.summary.totalCatalogProducts || 0}
-              </p>
-              <small className="block text-[11px] text-slate-500">Total active retail products</small>
-            </article>
+          <MetricStrip>
+            <Metric label="Catalogue products" icon="box" value={(productData?.summary.totalCatalogProducts || 0).toLocaleString()} hint="Active retail products" />
+            <Metric label="Active sellers" icon="upright" tone="pos" value={(productData?.summary.productsWithSales || 0).toLocaleString()} hint="Products with recorded sales" />
+            <Metric
+              label="Dead stock"
+              icon="alert"
+              tone={(productData?.summary.zeroSalesProducts || 0) > 0 ? "neg" : undefined}
+              value={(productData?.summary.zeroSalesProducts || 0).toLocaleString()}
+              hint="Zero sales, idle on shelves"
+            />
+            <Metric
+              label="Units sold"
+              icon="cart"
+              value={(productData?.summary.totalUnitsSold || 0).toLocaleString()}
+              hint={`${money(productData?.summary.totalSalesRevenue)} gross`}
+            />
+          </MetricStrip>
 
-            <article className="p-4 rounded-2xl bg-white border border-slate-200 shadow-xs space-y-1">
-              <span className="text-[11px] font-bold text-slate-500 uppercase tracking-wide">
-                Active Sellers
-              </span>
-              <p className="text-2xl font-black text-emerald-700">
-                {productData?.summary.productsWithSales || 0}
-              </p>
-              <small className="block text-[11px] text-slate-500">Products with recorded sales</small>
-            </article>
-
-            <article className="p-4 rounded-2xl bg-white border border-slate-200 shadow-xs space-y-1">
-              <span className="text-[11px] font-bold text-slate-500 uppercase tracking-wide">
-                Dead Stock (0 Sales)
-              </span>
-              <p className="text-2xl font-black text-rose-600">
-                {productData?.summary.zeroSalesProducts || 0}
-              </p>
-              <small className="block text-[11px] text-slate-500">Products sitting idle on shelves</small>
-            </article>
-
-            <article className="p-4 rounded-2xl bg-white border border-slate-200 shadow-xs space-y-1">
-              <span className="text-[11px] font-bold text-slate-500 uppercase tracking-wide">
-                Total Volume Sold
-              </span>
-              <p className="text-2xl font-black text-purple-700">
-                {productData?.summary.totalUnitsSold || 0} Units
-              </p>
-              <small className="block text-[11px] text-slate-500">
-                {money(productData?.summary.totalSalesRevenue)} gross
-              </small>
-            </article>
-          </section>
-
-          {/* Product Performance Table */}
-          <div className="bg-white rounded-2xl border border-slate-200 shadow-xs overflow-hidden">
-            <div className="p-4 border-b border-slate-200 bg-slate-50/50 flex items-center justify-between">
-              <h3 className="text-sm font-extrabold text-slate-900">
-                {productType === "best" ? "🔥 Top Performing Products" : "❄️ Slow-Moving & Idle Inventory"}
-              </h3>
-              <span className="text-xs font-bold text-slate-500">
-                {productType === "best"
-                  ? `${productData?.bestSelling.length || 0} Sellers`
-                  : `${productData?.leastSelling.length || 0} Products`}
+          <section className={`${ui.panel} ${ui.panelFlush}`}>
+            <div className={ui.panelHead}>
+              <div>
+                <h2>{productType === "best" ? "Top performing products" : "Slow-moving & idle inventory"}</h2>
+                <p>{productType === "best" ? "Ranked by units sold" : "Products with the fewest sales"}</p>
+              </div>
+              <span className={ui.chip}>
+                <span className="font-mono">{productType === "best" ? productData?.bestSelling.length || 0 : productData?.leastSelling.length || 0}</span>
+                products
               </span>
             </div>
-
-            <div className="overflow-x-auto">
-              <table className="w-full text-left text-xs border-collapse">
+            <div className={`${ui.tableWrap} ${ui.tableBare}`}>
+              <table className={ui.table}>
                 <thead>
-                  <tr className="border-b border-slate-200 bg-slate-50/80 font-bold text-slate-600">
-                    <th className="py-3 px-4 w-12 text-center">Rank</th>
-                    <th className="py-3 px-4">Product Name</th>
-                    <th className="py-3 px-4">Category</th>
-                    <th className="py-3 px-4 text-right">Price</th>
-                    <th className="py-3 px-4 text-center">Volume Sold</th>
-                    <th className="py-3 px-4 text-right">Total Revenue</th>
-                    <th className="py-3 px-4 text-center">In Stock</th>
-                    <th className="py-3 px-4 text-right">Tied Capital</th>
-                    <th className="py-3 px-4 text-center">Status</th>
+                  <tr>
+                    <th className="w-14">Rank</th>
+                    <th>Product</th>
+                    <th>Category</th>
+                    <th className="text-right">Price</th>
+                    <th>Volume sold</th>
+                    <th className="text-right">Revenue</th>
+                    <th className="text-right">In stock</th>
+                    <th className="text-right">Tied capital</th>
+                    <th>Status</th>
                   </tr>
                 </thead>
-                <tbody className="divide-y divide-slate-100">
+                <tbody>
                   {loading ? (
-                    <tr>
-                      <td colSpan={9} className="py-8 text-center text-slate-400">
-                        Analyzing product sales...
-                      </td>
-                    </tr>
+                    <TableSkeletonRows cols={9} />
+                  ) : paginatedProducts.length === 0 ? (
+                    <TableEmptyRow colSpan={9} icon="box" title="No product sales yet" body="Rankings appear once products start selling." />
                   ) : (
                     paginatedProducts.map((prod, idx) => {
                       const globalRank = (productPage - 1) * productPageSize + idx + 1;
-                      const maxUnits = Math.max(
-                        ...(productData?.bestSelling.map((x) => x.quantitySold) || [1]),
-                        1
-                      );
+                      const maxUnits = Math.max(...(productData?.bestSelling.map((x) => x.quantitySold) || [1]), 1);
                       const barWidth = Math.min(100, Math.round((prod.quantitySold / maxUnits) * 100));
-
                       return (
-                        <tr key={prod.id} className="hover:bg-slate-50 transition">
-                          <td className="py-3 px-4 text-center font-black">
-                            {productType === "best" ? (
-                              <span
-                                className={`inline-block size-6 leading-6 rounded-md text-[11px] font-black ${
-                                  globalRank === 1
-                                    ? "bg-amber-100 text-amber-800"
-                                    : globalRank === 2
-                                    ? "bg-slate-200 text-slate-800"
-                                    : globalRank === 3
-                                    ? "bg-orange-100 text-orange-800"
-                                    : "bg-slate-100 text-slate-600"
-                                }`}
-                              >
-                                #{globalRank}
+                        <tr key={prod.id}>
+                          <td>
+                            <span className={`${rp.rank} ${productType === "best" && globalRank <= 3 ? rp.rankTop : ""}`}>{globalRank}</span>
+                          </td>
+                          <td>
+                            <span className="block font-medium">{prod.name}</span>
+                            <small className="font-mono text-[11.5px] text-[var(--faint)]">{prod.barcode}</small>
+                          </td>
+                          <td className="text-[var(--text-2)]">{prod.category}</td>
+                          <td className="text-right font-mono">{money(prod.sellingPrice)}</td>
+                          <td>
+                            <div className="flex items-center gap-2.5">
+                              <span className="w-10 font-mono">{prod.quantitySold}</span>
+                              <span className={rp.miniTrack}>
+                                <span style={{ width: `${barWidth}%` }} />
                               </span>
-                            ) : (
-                              <span className="text-slate-400 font-semibold">{globalRank}</span>
-                            )}
-                          </td>
-                          <td className="py-3 px-4">
-                            <strong className="block text-slate-900 text-sm font-bold">{prod.name}</strong>
-                            <small className="text-[10px] text-slate-400 font-mono">
-                              Barcode: {prod.barcode}
-                            </small>
-                          </td>
-                          <td className="py-3 px-4 text-slate-600 font-semibold">{prod.category}</td>
-                          <td className="py-3 px-4 text-right font-bold text-slate-800">
-                            {money(prod.sellingPrice)}
-                          </td>
-                          <td className="py-3 px-4 text-center">
-                            <div className="flex flex-col items-center gap-1">
-                              <span className="font-extrabold text-slate-800">
-                                {prod.quantitySold} units
-                              </span>
-                              {prod.quantitySold > 0 && (
-                                <div className="w-16 h-1.5 bg-slate-100 rounded-full overflow-hidden">
-                                  <div
-                                    style={{ width: `${barWidth}%` }}
-                                    className="h-full bg-emerald-600 rounded-full"
-                                  />
-                                </div>
-                              )}
                             </div>
                           </td>
-                          <td className="py-3 px-4 text-right font-black text-emerald-800 text-sm">
-                            {money(prod.totalRevenue)}
+                          <td className="text-right font-mono font-medium">{money(prod.totalRevenue)}</td>
+                          <td className="text-right">
+                            <span className={`font-mono ${prod.stock <= 0 ? "text-[var(--neg)]" : prod.stock <= 5 ? "text-[var(--warn)]" : ""}`}>{prod.stock}</span>
                           </td>
-                          <td className="py-3 px-4 text-center font-bold">
-                            <span
-                              className={`px-2 py-0.5 rounded-full text-[10px] ${
-                                prod.stock <= 0
-                                  ? "bg-rose-100 text-rose-800"
-                                  : prod.stock <= 5
-                                  ? "bg-amber-100 text-amber-800"
-                                  : "bg-emerald-50 text-emerald-800"
-                              }`}
-                            >
-                              {prod.stock} units
-                            </span>
-                          </td>
-                          <td className="py-3 px-4 text-right text-slate-600 font-bold">
-                            {money(prod.tiedUpCapital)}
-                          </td>
-                          <td className="py-3 px-4 text-center">
-                            <span
-                              className={`px-2 py-0.5 rounded-md text-[10px] font-extrabold uppercase ${
-                                prod.status.includes("Dead")
-                                  ? "bg-rose-100 text-rose-800"
-                                  : prod.status.includes("Slow")
-                                  ? "bg-amber-100 text-amber-800"
-                                  : "bg-emerald-100 text-emerald-800"
-                              }`}
-                            >
+                          <td className="text-right font-mono text-[var(--muted)]">{money(prod.tiedUpCapital)}</td>
+                          <td>
+                            <span className={`${ui.chip} ${prod.status.includes("Dead") ? ui.chipNeg : prod.status.includes("Slow") ? ui.chipWarn : ui.chipPos}`}>
                               {prod.status}
                             </span>
                           </td>
@@ -878,7 +705,6 @@ export default function ReportsPage() {
                 </tbody>
               </table>
             </div>
-
             {currentProductList.length > 0 && (
               <PaginationControls
                 currentPage={productPage}
@@ -894,210 +720,125 @@ export default function ReportsPage() {
                 className="no-print"
               />
             )}
-          </div>
+          </section>
         </div>
       )}
 
-      {/* ======================================================== */}
-      {/* 3. STOCK REPORT (Current Inventory, Low Stock, Out of Stock) */}
-      {/* ======================================================== */}
+      {/* ======================== 3. STOCK REPORT ======================== */}
       {activeTab === "stock" && (
-        <div className="space-y-6 print-area">
-          {/* Sub-Filters: Current Inventory | Low Stock | Out of Stock */}
-          <div className="flex items-center justify-between flex-wrap gap-3 no-print">
-            <div className="flex items-center gap-1.5 p-1 bg-white rounded-2xl border border-slate-200 shadow-xs">
-              <button
-                onClick={() => setStockFilter("all")}
-                className={`px-3.5 py-1.5 rounded-xl text-xs font-bold transition flex items-center gap-1.5 ${
-                  stockFilter === "all"
-                    ? "bg-[#00875a] text-white shadow-xs"
-                    : "text-slate-600 hover:text-slate-900"
-                }`}
-              >
-                <span>📋</span> {t("reports.current_inventory", "Current Inventory")} (
-                {stockData?.inventory.length || 0})
+        <div className={`${rp.stack} print-area`}>
+          <div className={`${rp.subbar} no-print`}>
+            <div className={ui.segmented} role="tablist" aria-label="Stock filter">
+              <button role="tab" aria-selected={stockFilter === "all"} onClick={() => setStockFilter("all")} className={stockFilter === "all" ? ui.segmentedOn : ""}>
+                {t("reports.current_inventory", "Current Inventory")}
+                <span className="font-mono text-[var(--faint)]">{stockData?.inventory.length || 0}</span>
               </button>
-
-              <button
-                onClick={() => setStockFilter("low")}
-                className={`px-3.5 py-1.5 rounded-xl text-xs font-bold transition flex items-center gap-1.5 ${
-                  stockFilter === "low"
-                    ? "bg-amber-600 text-white shadow-xs"
-                    : "text-slate-600 hover:text-slate-900"
-                }`}
-              >
-                <span>⚠️</span> {t("reports.low_stock", "Low Stock")} ({stockData?.lowStock.length || 0})
+              <button role="tab" aria-selected={stockFilter === "low"} onClick={() => setStockFilter("low")} className={stockFilter === "low" ? ui.segmentedOn : ""}>
+                <span className="size-1.5 rounded-full bg-[var(--warn)]" />
+                {t("reports.low_stock", "Low Stock")}
+                <span className="font-mono text-[var(--faint)]">{stockData?.lowStock.length || 0}</span>
               </button>
-
-              <button
-                onClick={() => setStockFilter("out")}
-                className={`px-3.5 py-1.5 rounded-xl text-xs font-bold transition flex items-center gap-1.5 ${
-                  stockFilter === "out"
-                    ? "bg-rose-600 text-white shadow-xs"
-                    : "text-slate-600 hover:text-slate-900"
-                }`}
-              >
-                <span>⛔</span> {t("reports.out_of_stock", "Out of Stock")} (
-                {stockData?.outOfStock.length || 0})
+              <button role="tab" aria-selected={stockFilter === "out"} onClick={() => setStockFilter("out")} className={stockFilter === "out" ? ui.segmentedOn : ""}>
+                <span className="size-1.5 rounded-full bg-[var(--neg)]" />
+                {t("reports.out_of_stock", "Out of Stock")}
+                <span className="font-mono text-[var(--faint)]">{stockData?.outOfStock.length || 0}</span>
               </button>
             </div>
-
-            <span className="text-xs font-bold text-slate-500 uppercase tracking-wide">
-              {stockFilter === "all"
-                ? "Full Catalog Inventory & Valuation"
-                : stockFilter === "low"
-                ? "Items Approaching Stockout Threshold"
-                : "Items Depleted to Zero"}
+            <span className={rp.caption}>
+              {stockFilter === "all" ? "Full catalogue inventory & valuation" : stockFilter === "low" ? "Items approaching their reorder threshold" : "Items depleted to zero"}
             </span>
           </div>
 
-          {/* Stock KPI Summary Grid */}
-          <section className="grid grid-cols-2 sm:grid-cols-4 gap-4">
-            <article className="p-4 rounded-2xl bg-white border border-slate-200 shadow-xs space-y-1">
-              <span className="text-[11px] font-bold text-slate-500 uppercase tracking-wide">
-                Total Stock Units
-              </span>
-              <p className="text-2xl font-black text-slate-900">
-                {stockData?.summary.totalUnits || 0} Units
-              </p>
-              <small className="block text-[11px] text-slate-500">
-                Across {stockData?.summary.totalProducts || 0} items
-              </small>
-            </article>
+          <MetricStrip>
+            <Metric
+              label="Stock units"
+              icon="layers"
+              value={(stockData?.summary.totalUnits || 0).toLocaleString()}
+              hint={`Across ${stockData?.summary.totalProducts || 0} items`}
+            />
+            <Metric label="Retail valuation" icon="pkr" tone="pos" value={money(stockData?.summary.totalRetailValue)} hint="At customer selling price" />
+            <Metric label="Cost valuation" icon="wallet" value={money(stockData?.summary.totalCostValue)} hint="Capital invested in stock" />
+            {(() => {
+              const alerts = (stockData?.summary.lowStockCount || 0) + (stockData?.summary.outOfStockCount || 0);
+              return (
+                <Metric
+                  label="Inventory alerts"
+                  icon="alert"
+                  tone={alerts > 0 ? "neg" : "pos"}
+                  value={alerts.toLocaleString()}
+                  hint={`${stockData?.summary.outOfStockCount || 0} out · ${stockData?.summary.lowStockCount || 0} low`}
+                />
+              );
+            })()}
+          </MetricStrip>
 
-            <article className="p-4 rounded-2xl bg-white border border-slate-200 shadow-xs space-y-1">
-              <span className="text-[11px] font-bold text-slate-500 uppercase tracking-wide">
-                Total Retail Valuation
-              </span>
-              <p className="text-2xl font-black text-[#00875a]">
-                {money(stockData?.summary.totalRetailValue)}
-              </p>
-              <small className="block text-[11px] text-slate-500">Stock at customer selling price</small>
-            </article>
-
-            <article className="p-4 rounded-2xl bg-white border border-slate-200 shadow-xs space-y-1">
-              <span className="text-[11px] font-bold text-slate-500 uppercase tracking-wide">
-                Cost Valuation (Investment)
-              </span>
-              <p className="text-2xl font-black text-blue-700">
-                {money(stockData?.summary.totalCostValue)}
-              </p>
-              <small className="block text-[11px] text-slate-500">Capital invested in stock</small>
-            </article>
-
-            <article className="p-4 rounded-2xl bg-white border border-slate-200 shadow-xs space-y-1">
-              <span className="text-[11px] font-bold text-slate-500 uppercase tracking-wide">
-                Inventory Alerts
-              </span>
-              <p
-                className={`text-2xl font-black ${
-                  (stockData?.summary.lowStockCount || 0) + (stockData?.summary.outOfStockCount || 0) > 0
-                    ? "text-rose-600"
-                    : "text-emerald-700"
-                }`}
-              >
-                {(stockData?.summary.lowStockCount || 0) + (stockData?.summary.outOfStockCount || 0)} Alerts
-              </p>
-              <small className="block text-[11px] text-slate-500">
-                {stockData?.summary.outOfStockCount || 0} out of stock • {stockData?.summary.lowStockCount || 0} low
-              </small>
-            </article>
-          </section>
-
-          {/* Stock Table */}
-          <div className="bg-white rounded-2xl border border-slate-200 shadow-xs overflow-hidden">
-            <div className="p-4 border-b border-slate-200 bg-slate-50/50 flex items-center justify-between">
-              <h3 className="text-sm font-extrabold text-slate-900">
-                {stockFilter === "all"
-                  ? "Full Inventory Stock Ledger"
-                  : stockFilter === "low"
-                  ? "⚠️ Low Stock Reorder List"
-                  : "⛔ Out of Stock Urgent Restock"}
-              </h3>
-              <span className="text-xs font-bold text-slate-500">
-                {stockFilter === "low"
-                  ? `${stockData?.lowStock.length || 0} items low`
-                  : stockFilter === "out"
-                  ? `${stockData?.outOfStock.length || 0} items depleted`
-                  : `${stockData?.inventory.length || 0} items listed`}
+          <section className={`${ui.panel} ${ui.panelFlush}`}>
+            <div className={ui.panelHead}>
+              <div>
+                <h2>{stockFilter === "all" ? "Inventory ledger" : stockFilter === "low" ? "Low stock reorder list" : "Out of stock — restock now"}</h2>
+                <p>Stock levels, thresholds and valuation</p>
+              </div>
+              <span className={ui.chip}>
+                <span className="font-mono">{currentStockList.length}</span> items
               </span>
             </div>
-
-            <div className="overflow-x-auto">
-              <table className="w-full text-left text-xs border-collapse">
+            <div className={`${ui.tableWrap} ${ui.tableBare}`}>
+              <table className={ui.table}>
                 <thead>
-                  <tr className="border-b border-slate-200 bg-slate-50/80 font-bold text-slate-600">
-                    <th className="py-3 px-4">Product Name</th>
-                    <th className="py-3 px-4">Category</th>
-                    <th className="py-3 px-4 text-right">Cost Price</th>
-                    <th className="py-3 px-4 text-right">Selling Price</th>
-                    <th className="py-3 px-4 text-center">Current Stock</th>
-                    <th className="py-3 px-4 text-center">Alert Threshold</th>
-                    <th className="py-3 px-4 text-right">Stock Valuation</th>
-                    <th className="py-3 px-4 text-center">Status</th>
-                    <th className="py-3 px-4 text-center no-print">Action</th>
+                  <tr>
+                    <th>Product</th>
+                    <th>Category</th>
+                    <th className="text-right">Cost</th>
+                    <th className="text-right">Price</th>
+                    <th className="text-right">Stock</th>
+                    <th className="text-right">Threshold</th>
+                    <th className="text-right">Valuation</th>
+                    <th>Status</th>
+                    <th className="no-print text-right">Action</th>
                   </tr>
                 </thead>
-                <tbody className="divide-y divide-slate-100">
+                <tbody>
                   {loading ? (
-                    <tr>
-                      <td colSpan={9} className="py-8 text-center text-slate-400">
-                        Loading inventory records...
-                      </td>
-                    </tr>
+                    <TableSkeletonRows cols={9} />
+                  ) : paginatedStock.length === 0 ? (
+                    <TableEmptyRow
+                      colSpan={9}
+                      icon={stockFilter === "all" ? "box" : "check"}
+                      title={stockFilter === "all" ? "No inventory yet" : stockFilter === "low" ? "Nothing running low" : "Nothing out of stock"}
+                      body={stockFilter === "all" ? "Add products to start tracking stock and valuation." : "All stock levels are healthy."}
+                    />
                   ) : (
                     paginatedStock.map((prod) => (
-                      <tr key={prod.id} className="hover:bg-slate-50 transition">
-                        <td className="py-3 px-4">
-                          <strong className="block text-slate-900 text-sm font-bold">{prod.name}</strong>
-                          <small className="text-[10px] text-slate-400 font-mono">
-                            Barcode: {prod.barcode}
-                          </small>
+                      <tr key={prod.id}>
+                        <td>
+                          <span className="block font-medium">{prod.name}</span>
+                          <small className="font-mono text-[11.5px] text-[var(--faint)]">{prod.barcode}</small>
                         </td>
-                        <td className="py-3 px-4 text-slate-600 font-semibold">{prod.category}</td>
-                        <td className="py-3 px-4 text-right text-slate-500 font-semibold">
-                          {money(prod.costPrice)}
-                        </td>
-                        <td className="py-3 px-4 text-right font-bold text-slate-800">
-                          {money(prod.sellingPrice)}
-                        </td>
-                        <td className="py-3 px-4 text-center">
+                        <td className="text-[var(--text-2)]">{prod.category}</td>
+                        <td className="text-right font-mono text-[var(--muted)]">{money(prod.costPrice)}</td>
+                        <td className="text-right font-mono">{money(prod.sellingPrice)}</td>
+                        <td className="text-right">
                           <span
-                            className={`font-black text-sm ${
-                              prod.stock <= 0
-                                ? "text-rose-600"
-                                : prod.stock <= prod.lowStockThreshold
-                                ? "text-amber-700"
-                                : "text-emerald-700"
+                            className={`font-mono font-medium ${
+                              prod.stock <= 0 ? "text-[var(--neg)]" : prod.stock <= prod.lowStockThreshold ? "text-[var(--warn)]" : "text-[var(--pos)]"
                             }`}
                           >
                             {prod.stock}
                           </span>
                         </td>
-                        <td className="py-3 px-4 text-center text-slate-500">
-                          ≤ {prod.lowStockThreshold}
-                        </td>
-                        <td className="py-3 px-4 text-right font-black text-emerald-800 text-sm">
-                          {money(prod.totalRetailValue)}
-                        </td>
-                        <td className="py-3 px-4 text-center">
+                        <td className="text-right font-mono text-[var(--muted)]">≤ {prod.lowStockThreshold}</td>
+                        <td className="text-right font-mono font-medium">{money(prod.totalRetailValue)}</td>
+                        <td>
                           <span
-                            className={`px-2 py-0.5 rounded-full text-[10px] font-extrabold uppercase ${
-                              prod.stockStatus === "Out of Stock"
-                                ? "bg-rose-100 text-rose-800"
-                                : prod.stockStatus === "Low Stock"
-                                ? "bg-amber-100 text-amber-800"
-                                : "bg-emerald-100 text-emerald-800"
-                            }`}
+                            className={
+                              prod.stockStatus === "Out of Stock" ? ui.outOfStock : prod.stockStatus === "Low Stock" ? ui.lowStock : ui.healthy
+                            }
                           >
                             {prod.stockStatus}
                           </span>
                         </td>
-                        <td className="py-3 px-4 text-center no-print">
-                          <Link
-                            href={`/products?search=${encodeURIComponent(prod.name)}`}
-                            className="inline-block px-2.5 py-1 text-[11px] font-bold text-slate-700 bg-white border border-slate-300 rounded-lg hover:bg-[#00875a] hover:border-[#00875a] hover:text-white transition"
-                          >
+                        <td className="no-print text-right">
+                          <Link href={`/products?search=${encodeURIComponent(prod.name)}`} className={`${ui.secondary} ${ui.btnSm}`}>
                             Restock
                           </Link>
                         </td>
@@ -1107,7 +848,6 @@ export default function ReportsPage() {
                 </tbody>
               </table>
             </div>
-
             {currentStockList.length > 0 && (
               <PaginationControls
                 currentPage={stockPage}
@@ -1123,7 +863,7 @@ export default function ReportsPage() {
                 className="no-print"
               />
             )}
-          </div>
+          </section>
         </div>
       )}
 

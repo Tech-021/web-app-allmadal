@@ -8,6 +8,8 @@ import { logActivity } from "@/app/lib/logger";
 import { PaginationControls } from "@/app/components/pagination-controls";
 import { useBusiness } from "@/app/components/business-context";
 import ui from "@/app/components/workspace-ui.module.css";
+import { Icon } from "@/app/components/icons";
+import { Metric, MetricStrip, PageHeader, TableEmptyRow, TableSkeletonRows } from "@/app/components/page-layout";
 
 export type Category = {
   id: string | number;
@@ -209,137 +211,120 @@ export default function CategoriesPage() {
 
   return (
     <WorkspaceShell>
-      <div className={ui.head}>
-        <div>
-          <label>Inventory</label>
-          <h1>Categories</h1>
-          <p>Organize your products into catalog categories for seamless store navigation.</p>
-        </div>
-        <button className={ui.primary} onClick={() => open()}>
-          ＋ Add category
-        </button>
-      </div>
+      <PageHeader
+        eyebrow="Inventory"
+        title="Categories"
+        description="Group products into categories so the catalogue and POS stay easy to browse."
+        actions={
+          <button className={ui.primary} onClick={() => open()}>
+            <Icon name="plus" size={15} />
+            Add category
+          </button>
+        }
+      />
 
-      {error && <div className={ui.error}>{error}</div>}
-      {notice && <div className={ui.notice}>{notice}</div>}
+      {error && (
+        <div className={ui.error} role="alert">
+          <Icon name="alert" size={15} className="mt-px shrink-0" />
+          {error}
+        </div>
+      )}
+      {notice && (
+        <div className={ui.notice} role="status">
+          <Icon name="check" size={15} className="mt-px shrink-0" />
+          {notice}
+        </div>
+      )}
 
-      <section className={ui.metrics}>
-        <div className={ui.metric}>
-          <span>Total Categories</span>
-          <strong>{categories.length}</strong>
-        </div>
-        <div className={ui.metric}>
-          <span>Categorized Products</span>
-          <strong>{totalCategorizedProducts}</strong>
-        </div>
-        <div className={ui.metric}>
-          <span>Uncategorized Products</span>
-          <strong>{uncategorizedCount}</strong>
-        </div>
-      </section>
-
-      <div className={ui.toolbar}>
-        <input
-          className={`${ui.input} ${ui.search}`}
-          placeholder="Search category name or description…"
-          value={query}
-          onChange={(e) => setQuery(e.target.value)}
+      <MetricStrip columns={3}>
+        <Metric label="Categories" icon="tag" value={categories.length.toLocaleString()} hint="In your catalogue" />
+        <Metric label="Categorised products" icon="box" tone="pos" value={totalCategorizedProducts.toLocaleString()} hint="Assigned to a category" />
+        <Metric
+          label="Uncategorised"
+          icon="alert"
+          tone={uncategorizedCount > 0 ? "warn" : undefined}
+          value={uncategorizedCount.toLocaleString()}
+          hint={uncategorizedCount > 0 ? "Assign these for cleaner reports" : "Everything is organised"}
         />
-        <button className={ui.secondary} onClick={() => void load()}>
-          Refresh
-        </button>
-      </div>
+      </MetricStrip>
 
-      <section className={ui.panel}>
-        <div className={ui.tableWrap}>
+      <section className={`${ui.panel} ${ui.panelFlush}`}>
+        <div className={ui.panelHead}>
+          <input
+            className={`${ui.input} ${ui.search} max-w-[440px]`}
+            placeholder="Search category name or description…"
+            value={query}
+            onChange={(e) => setQuery(e.target.value)}
+            aria-label="Search categories"
+          />
+          <button className={ui.iconButton} onClick={() => void load()} aria-label="Refresh" title="Refresh">
+            <Icon name="refresh" size={15} />
+          </button>
+        </div>
+        <div className={`${ui.tableWrap} ${ui.tableBare}`}>
           <table className={ui.table}>
             <thead>
               <tr>
-                <th>Category Name</th>
+                <th>Category</th>
                 <th>Description</th>
-                <th>Products Count</th>
-                <th>Total Stock</th>
-                <th>Inventory Value</th>
-                <th>Actions</th>
+                <th className="text-right">Products</th>
+                <th className="text-right">Total stock</th>
+                <th className="text-right">Inventory value</th>
+                <th className="text-right">Actions</th>
               </tr>
             </thead>
             <tbody>
-              {paginatedShown.map((c) => {
-                const initial = c.name[0]?.toUpperCase() || "C";
-                return (
-                  <tr key={String(c.id)}>
-                    <td>
-                      <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
-                        <div
-                          style={{
-                            width: 36,
-                            height: 36,
-                            borderRadius: 10,
-                            background: "#e6f4ed",
-                            color: "#00875a",
-                            fontWeight: 800,
-                            fontSize: 14,
-                            display: "grid",
-                            placeItems: "center",
-                            flexShrink: 0,
-                          }}
-                        >
-                          {initial}
+              {loading && !categories.length ? (
+                <TableSkeletonRows cols={6} rows={4} />
+              ) : !shown.length ? (
+                <TableEmptyRow
+                  colSpan={6}
+                  icon="tag"
+                  title={query ? "No categories match your search" : "No categories yet"}
+                  body={query ? "Try a different name or description." : "Create your first category to start organising products."}
+                  action={
+                    !query && (
+                      <button className={ui.primary} onClick={() => open()}>
+                        <Icon name="plus" size={15} />
+                        Add category
+                      </button>
+                    )
+                  }
+                />
+              ) : (
+                paginatedShown.map((c) => {
+                  const initial = c.name[0]?.toUpperCase() || "C";
+                  return (
+                    <tr key={String(c.id)}>
+                      <td>
+                        <div className={ui.productCell}>
+                          <span className={ui.productThumbPlaceholder}>{initial}</span>
+                          <div className="min-w-0">
+                            <span className="block truncate font-medium">{c.name}</span>
+                            <span className="font-mono text-[11.5px] text-[var(--faint)]">{c.name.toLowerCase().replace(/\s+/g, "-")}</span>
+                          </div>
                         </div>
-                        <div>
-                          <strong style={{ fontSize: 13.5, color: "#111827", display: "block" }}>
-                            {c.name}
-                          </strong>
-                          <span className={ui.muted}>Slug: {c.name.toLowerCase().replace(/\s+/g, "-")}</span>
+                      </td>
+                      <td className="max-w-[320px]">
+                        {c.description ? <span className="text-[var(--text-2)]">{c.description}</span> : <span className="text-[var(--faint)]">—</span>}
+                      </td>
+                      <td className="text-right font-mono">{c.productCount ?? 0}</td>
+                      <td className="text-right font-mono">{c.totalStock ?? 0}</td>
+                      <td className="text-right font-mono font-medium">{money(c.totalValue ?? 0)}</td>
+                      <td>
+                        <div className="flex justify-end gap-1.5">
+                          <button className={`${ui.secondary} ${ui.btnSm}`} onClick={() => open(c)}>
+                            <Icon name="edit" size={13} />
+                            Edit
+                          </button>
+                          <button className={`${ui.iconButton} hover:!text-[var(--neg)]`} onClick={() => void remove(c)} aria-label={`Delete ${c.name}`} title="Delete">
+                            <Icon name="trash" size={14} />
+                          </button>
                         </div>
-                      </div>
-                    </td>
-                    <td>
-                      {c.description ? (
-                        <span style={{ fontSize: 13, color: "#4b5563" }}>{c.description}</span>
-                      ) : (
-                        <span className={ui.muted}>No description</span>
-                      )}
-                    </td>
-                    <td>
-                      <span className={ui.badge} style={{ fontWeight: 800 }}>
-                        {c.productCount ?? 0} item{c.productCount === 1 ? "" : "s"}
-                      </span>
-                    </td>
-                    <td>
-                      <strong>{c.totalStock ?? 0} units</strong>
-                    </td>
-                    <td>
-                      <strong style={{ color: "#00875a" }}>{money(c.totalValue ?? 0)}</strong>
-                    </td>
-                    <td>
-                      <div className={ui.actions}>
-                        <button className={ui.secondary} onClick={() => open(c)}>
-                          Edit
-                        </button>
-                        <button className={ui.danger} onClick={() => void remove(c)}>
-                          Delete
-                        </button>
-                      </div>
-                    </td>
-                  </tr>
-                );
-              })}
-              {!loading && !shown.length && (
-                <tr>
-                  <td colSpan={6} className={ui.empty}>
-                    {query
-                      ? "No categories match your search."
-                      : "No categories found. Click '+ Add category' to create one."}
-                  </td>
-                </tr>
-              )}
-              {loading && !categories.length && (
-                <tr>
-                  <td colSpan={6} className={ui.empty}>
-                    Loading categories…
-                  </td>
-                </tr>
+                      </td>
+                    </tr>
+                  );
+                })
               )}
             </tbody>
           </table>
@@ -368,17 +353,23 @@ export default function CategoriesPage() {
             if (e.target === e.currentTarget) setEditing(undefined);
           }}
         >
-          <form className={ui.sheet} onSubmit={submit}>
+          <form className={ui.sheet} style={{ width: "min(480px, 100%)" }} onSubmit={submit} role="dialog" aria-modal="true" aria-label={editing ? "Edit category" : "Add category"}>
             <div className={ui.sheetHead}>
-              <h2>{editing ? "Edit category" : "Add category"}</h2>
-              <button type="button" className={ui.secondary} onClick={() => setEditing(undefined)}>
-                Close
+              <div className="flex items-center gap-2.5">
+                <span className={ui.iconTile}>
+                  <Icon name={editing ? "edit" : "tag"} size={15} />
+                </span>
+                <h2>{editing ? "Edit category" : "Add category"}</h2>
+              </div>
+              <button type="button" className={ui.iconButton} onClick={() => setEditing(undefined)} aria-label="Close">
+                <Icon name="x" size={15} />
               </button>
             </div>
-            <div className={ui.formGrid}>
-              <div className={`${ui.field} ${ui.span2}`}>
-                <label>Category Name *</label>
+            <div className="flex flex-col gap-4">
+              <div className={ui.field}>
+                <label htmlFor="cat-name">Category name *</label>
                 <input
+                  id="cat-name"
                   className={ui.input}
                   value={name}
                   onChange={(e) => setName(e.target.value)}
@@ -387,14 +378,9 @@ export default function CategoriesPage() {
                   autoFocus
                 />
               </div>
-              <div className={`${ui.field} ${ui.span2}`}>
-                <label>Description (Optional)</label>
-                <input
-                  className={ui.input}
-                  value={description}
-                  onChange={(e) => setDescription(e.target.value)}
-                  placeholder="Short description for this category…"
-                />
+              <div className={ui.field}>
+                <label htmlFor="cat-desc">Description (optional)</label>
+                <input id="cat-desc" className={ui.input} value={description} onChange={(e) => setDescription(e.target.value)} placeholder="Short description for this category…" />
               </div>
             </div>
             <div className={ui.formActions}>
@@ -402,7 +388,7 @@ export default function CategoriesPage() {
                 Cancel
               </button>
               <button className={ui.primary} disabled={saving}>
-                {saving ? "Saving…" : editing ? "Save changes" : "Add Category"}
+                {saving ? "Saving…" : editing ? "Save changes" : "Add category"}
               </button>
             </div>
           </form>

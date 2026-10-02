@@ -1,5 +1,5 @@
 import type { Metadata, Viewport } from "next";
-import { Plus_Jakarta_Sans } from "next/font/google";
+import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
 import { AuthProvider } from "@/hooks/useAuth";
 import { ToastProvider } from "@/app/components/toast-context";
@@ -7,16 +7,22 @@ import { BusinessProvider } from "@/app/components/business-context";
 import { RealtimeProvider } from "@/app/components/realtime-provider";
 
 import { LanguageProvider } from "@/app/components/language-context";
+import { ThemeProvider, themeInitScript } from "@/app/components/theme-context";
 
-const plusJakartaSans = Plus_Jakarta_Sans({
+const geistSans = Geist({
   subsets: ["latin"],
-  weight: ["400", "500", "600", "700", "800"],
-  variable: "--font-sans",
+  variable: "--font-geist-sans",
+  display: "swap",
+});
+
+const geistMono = Geist_Mono({
+  subsets: ["latin"],
+  variable: "--font-geist-mono",
   display: "swap",
 });
 
 export const viewport: Viewport = {
-  themeColor: "#00875a",
+  themeColor: "#f5f4f0",
   width: "device-width",
   initialScale: 1,
 };
@@ -43,9 +49,13 @@ export default function RootLayout({
       lang="en"
       suppressHydrationWarning
       data-scroll-behavior="smooth"
-      className={`h-full antialiased ${plusJakartaSans.variable}`}
+      className={`h-full antialiased ${geistSans.variable} ${geistMono.variable}`}
     >
-      <body suppressHydrationWarning className={`min-h-full flex flex-col ${plusJakartaSans.className}`}>
+      <head>
+        <script dangerouslySetInnerHTML={{ __html: themeInitScript }} />
+      </head>
+      <body suppressHydrationWarning className="min-h-full flex flex-col font-sans">
+        <ThemeProvider>
         <LanguageProvider>
           <AuthProvider>
             <RealtimeProvider>
@@ -55,6 +65,7 @@ export default function RootLayout({
             </RealtimeProvider>
           </AuthProvider>
         </LanguageProvider>
+        </ThemeProvider>
       </body>
     </html>
   );

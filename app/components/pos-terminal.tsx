@@ -10,6 +10,8 @@ import { formatCurrencyInput, parseCurrencyInput } from "@/app/lib/validators";
 import { useLanguage } from "@/app/components/language-context";
 import { CameraBarcodeScannerModal } from "@/app/components/camera-barcode-scanner-modal";
 import { PaginationControls } from "@/app/components/pagination-controls";
+import { Icon } from "@/app/components/icons";
+import { AnimatedNumber, Skeleton } from "@/app/components/motion";
 
 interface PosCartItem {
   product: Product;
@@ -278,14 +280,14 @@ export function PosTerminal({ onSaleCompleted }: PosTerminalProps) {
         price: Number(match.sellingPrice ?? match.price ?? 0),
         found: true,
       });
-      showToast(`✅ ${match.name} ${t("scanner.added_success", "added to bill")}`, "success");
+      showToast(`${match.name} ${t("scanner.added_success", "added to bill")}`, "success");
     } else {
       setScannerLastScanned({
         code: trimmed,
         productName: t("scanner.not_found", "Product not found"),
         found: false,
       });
-      showToast(`⚠️ Barcode "${trimmed}" not found in inventory`, "info");
+      showToast(`Barcode "${trimmed}" not found in inventory`, "info");
     }
   };
 
@@ -489,17 +491,21 @@ export function PosTerminal({ onSaleCompleted }: PosTerminalProps) {
     }
   };
 
+  const unitsInCart = cart.reduce((sum, item) => sum + item.quantity, 0);
+  const fieldCls =
+    "w-full h-10 px-3 rounded-[9px] bg-[var(--surface)] border border-[var(--border)] text-[13.5px] text-[var(--text)] outline-none transition-[border-color,box-shadow] duration-150 hover:border-[var(--border-strong)] focus:border-[var(--brand)] focus:shadow-[0_0_0_3px_var(--ring)]";
+
   return (
     <>
-      <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
-        {/* Left Side: Product Search, Categories & Catalog Grid (7 Cols) */}
-        <div className="lg:col-span-7 space-y-4">
-          {/* Search & Barcode Input */}
-          <div className="bg-white p-4 rounded-3xl border border-slate-200/80 shadow-xs space-y-3">
+      <div className="grid grid-cols-1 lg:grid-cols-12 gap-5 items-start">
+        {/* ================= Catalog ================= */}
+        <div className="lg:col-span-7 xl:col-span-8 flex flex-col gap-4 min-w-0">
+          {/* Search, barcode & camera */}
+          <div className="flex flex-col gap-3">
             <div className="flex items-center gap-2">
-              <div className="relative flex-1">
-                <span className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-slate-400">
-                  🔍
+              <div className="relative flex-1 min-w-0">
+                <span className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-[var(--brand)]">
+                  <Icon name="scan" size={19} />
                 </span>
                 <input
                   ref={searchInputRef}
@@ -508,133 +514,128 @@ export function PosTerminal({ onSaleCompleted }: PosTerminalProps) {
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
                   onKeyDown={handleBarcodeKeyDown}
-                  className="w-full pl-10 pr-4 py-3 rounded-2xl bg-slate-50 border border-slate-200 text-sm font-bold text-slate-900 outline-none focus:bg-white focus:border-[#00875a] transition"
+                  aria-label={t("pos.scanner_input", "Scan barcode or search product")}
+                  className="w-full h-12 pl-11 pr-20 rounded-xl bg-[var(--surface)] border border-[var(--border)] text-[15px] text-[var(--text)] shadow-[var(--shadow-xs)] outline-none transition-[border-color,box-shadow] duration-150 hover:border-[var(--border-strong)] focus:border-[var(--brand)] focus:shadow-[0_0_0_3px_var(--ring)] max-sm:text-[16px]"
                 />
                 {searchQuery && (
                   <button
                     type="button"
                     onClick={() => setSearchQuery("")}
-                    className="absolute inset-y-0 right-0 pr-3.5 flex items-center text-xs font-bold text-slate-400 hover:text-slate-600"
+                    className="absolute inset-y-0 right-2 my-auto h-8 min-h-8 px-2.5 rounded-lg flex items-center gap-1 text-xs font-medium text-[var(--muted)] hover:bg-[var(--surface-2)] hover:text-[var(--text)]"
                   >
-                    ✕ Clear
+                    <Icon name="x" size={13} />
+                    Clear
                   </button>
                 )}
               </div>
 
-              {/* Camera Barcode & QR Scanner Button */}
               <button
                 type="button"
                 onClick={() => setScannerOpen(true)}
-                className="flex items-center gap-1.5 px-3.5 py-3 rounded-2xl bg-[#00875a] hover:bg-[#00704a] text-white text-xs font-black shadow-xs shrink-0 transition cursor-pointer active:scale-95"
+                className="h-12 min-h-12 flex items-center gap-2 px-4 rounded-xl border border-[var(--border)] bg-[var(--surface)] text-[var(--text)] text-[13.5px] font-medium shadow-[var(--shadow-xs)] shrink-0 transition-colors hover:border-[var(--brand-line)] hover:text-[var(--brand)] cursor-pointer active:scale-[0.98]"
                 title={t("pos.scan_camera_tip", "Scan barcode with mobile camera or webcam")}
+                aria-label={t("pos.scan_camera", "Camera Scanner")}
               >
-                <span className="text-sm">📷</span>
+                <Icon name="camera" size={18} />
                 <span className="hidden sm:inline">{t("pos.scan_camera", "Camera Scanner")}</span>
               </button>
             </div>
 
-            {/* Category Filter Pills */}
-            <div className="flex items-center gap-1.5 overflow-x-auto pb-1 text-xs font-bold no-scrollbar">
-              <button
-                type="button"
-                onClick={() => setSelectedCategory("all")}
-                className={`px-3 py-1.5 rounded-xl transition shrink-0 cursor-pointer ${
-                  selectedCategory === "all"
-                    ? "bg-[#00875a] text-white shadow-xs"
-                    : "bg-slate-100 hover:bg-slate-200 text-slate-600"
-                }`}
-              >
-                {t("nav.all_products", "All Items")} ({products.length})
-              </button>
-              {categories.map((cat) => (
-                <button
-                  key={cat}
-                  type="button"
-                  onClick={() => setSelectedCategory(cat)}
-                  className={`px-3 py-1.5 rounded-xl transition shrink-0 capitalize cursor-pointer ${
-                    selectedCategory === cat
-                      ? "bg-[#00875a] text-white shadow-xs"
-                      : "bg-slate-100 hover:bg-slate-200 text-slate-600"
-                  }`}
-                >
-                  {cat}
-                </button>
-              ))}
+            {/* Category chips */}
+            <div className="flex items-center gap-1.5 overflow-x-auto pb-1 no-scrollbar" role="tablist" aria-label="Categories">
+              {[{ key: "all", label: `${t("nav.all_products", "All Items")}`, count: products.length }, ...categories.map((cat) => ({
+                key: cat,
+                label: cat,
+                count: products.filter((p) => p.category === cat).length,
+              }))].map((c) => {
+                const on = selectedCategory === c.key;
+                return (
+                  <button
+                    key={c.key}
+                    type="button"
+                    role="tab"
+                    aria-selected={on}
+                    onClick={() => setSelectedCategory(c.key)}
+                    className={`h-8 min-h-8 px-3 rounded-full border text-[12.5px] font-medium transition-colors shrink-0 capitalize cursor-pointer flex items-center gap-1.5 ${
+                      on
+                        ? "bg-[var(--text)] border-[var(--text)] text-[var(--surface)]"
+                        : "bg-[var(--surface)] border-[var(--border)] text-[var(--text-2)] hover:border-[var(--border-strong)] hover:text-[var(--text)]"
+                    }`}
+                  >
+                    {c.label}
+                    <span className={`tabular-nums text-[11px] ${on ? "opacity-60" : "text-[var(--muted)]"}`}>{c.count}</span>
+                  </button>
+                );
+              })}
             </div>
           </div>
 
-          {/* Product Grid */}
+          {/* Product grid */}
           {loading ? (
-            <div className="p-12 text-center text-xs font-bold text-slate-400 bg-white rounded-3xl border border-slate-200/80">
-              Loading inventory catalog...
+            <div className="grid grid-cols-2 sm:grid-cols-3 xl:grid-cols-4 gap-3" aria-busy="true" aria-label="Loading inventory catalog">
+              {Array.from({ length: 8 }).map((_, i) => (
+                <div key={i} className="rounded-xl border border-[var(--border)] bg-[var(--surface)] p-3 flex flex-col gap-2.5">
+                  <Skeleton className="h-16" />
+                  <Skeleton className="h-3 w-4/5" />
+                  <Skeleton className="h-3 w-2/5" />
+                </div>
+              ))}
             </div>
           ) : filteredProducts.length === 0 ? (
-            <div className="p-12 text-center bg-white rounded-3xl border border-slate-200/80 space-y-2">
-              <span className="text-3xl">📦</span>
-              <p className="text-sm font-extrabold text-slate-800">No matching products found</p>
-              <p className="text-xs text-slate-500 font-medium">
-                Try searching for another product name, SKU or barcode.
-              </p>
+            <div className="py-14 px-6 text-center rounded-xl border border-dashed border-[var(--border-strong)] bg-[var(--surface-2)] flex flex-col items-center gap-2 al-page-enter">
+              <span className="size-11 rounded-xl grid place-items-center bg-[var(--surface)] text-[var(--muted)] shadow-[inset_0_0_0_1px_var(--border)]">
+                <Icon name="box" size={20} />
+              </span>
+              <p className="m-0 mt-1 text-sm font-medium text-[var(--text)]">No matching products found</p>
+              <p className="m-0 text-[13px] text-[var(--muted)]">Try searching for another product name, SKU or barcode.</p>
             </div>
           ) : (
             <>
-              <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+              <div className="grid grid-cols-2 sm:grid-cols-3 xl:grid-cols-4 gap-3 al-stagger">
                 {paginatedCatalogProducts.map((p) => {
                   const price = Number(p.sellingPrice ?? p.price ?? 0);
                   const stock = Number(p.stock || 0);
                   const low = stock <= Number(p.lowStockThreshold || 5);
                   const isOutOfStock = stock <= 0;
                   const thumbUrl = resolveImageUrl(p.imageUrl);
+                  const inCart = cart.find((item) => item.product.id === p.id)?.quantity ?? 0;
+                  const initials = (p.name || "?").split(/\s+/).slice(0, 2).map((w) => w[0]).join("").toUpperCase();
 
                   return (
                     <button
                       key={p.id}
                       type="button"
                       onClick={() => addToCart(p)}
-                      className="p-3.5 bg-white rounded-2xl border border-slate-200/80 hover:border-[#00875a] hover:shadow-md text-left transition group cursor-pointer flex flex-col justify-between"
+                      className={`group relative text-left rounded-xl border bg-[var(--surface)] overflow-hidden flex flex-col transition-[border-color,box-shadow,transform] duration-150 cursor-pointer active:scale-[0.98] ${
+                        inCart > 0
+                          ? "border-[var(--brand-line)] shadow-[0_0_0_3px_var(--ring)]"
+                          : "border-[var(--border)] shadow-[var(--shadow-xs)] hover:border-[var(--border-strong)] hover:shadow-[var(--shadow-md)]"
+                      } ${isOutOfStock ? "opacity-70" : ""}`}
                     >
-                      <div>
-                        <div className="mb-2 h-16 w-full overflow-hidden rounded-xl border border-slate-100 bg-slate-50 flex items-center justify-center">
-                          {thumbUrl ? (
-                            <img
-                              src={thumbUrl}
-                              alt=""
-                              className="h-full w-full object-cover"
-                            />
-                          ) : (
-                            <span className="text-2xl opacity-40" aria-hidden>📦</span>
-                          )}
-                        </div>
-                        <div className="flex items-start justify-between gap-1 mb-1.5">
-                          <span className="text-[10px] font-bold text-slate-400 truncate uppercase">
-                            {p.category || "General"}
+                      <div className="relative h-[76px] w-full overflow-hidden border-b border-[var(--border)] bg-[radial-gradient(120%_90%_at_15%_0%,var(--brand-soft),transparent_70%),var(--surface-2)] flex items-end">
+                        {thumbUrl ? (
+                          // eslint-disable-next-line @next/next/no-img-element
+                          <img src={thumbUrl} alt="" className="absolute inset-0 h-full w-full object-cover" />
+                        ) : (
+                          <span className="pl-3 pb-2 text-[20px] font-semibold tracking-[-0.04em] text-[var(--brand)] opacity-80" aria-hidden>
+                            {initials}
                           </span>
-                          <span
-                            className={`text-[9px] font-black px-1.5 py-0.5 rounded-md ${
-                              isOutOfStock
-                                ? "bg-red-100 text-red-700"
-                                : low
-                                ? "bg-amber-100 text-amber-800"
-                                : "bg-emerald-50 text-[#00875a]"
-                            }`}
-                          >
-                            {isOutOfStock ? "Out of Stock" : `${stock} in stock`}
+                        )}
+                        {inCart > 0 && (
+                          <span className="absolute top-2 right-2 min-w-[22px] h-[22px] px-1.5 rounded-full bg-[var(--brand)] text-[var(--on-brand)] text-[11.5px] font-semibold grid place-items-center tabular-nums al-pop">
+                            {inCart}
                           </span>
-                        </div>
-                        <strong className="block text-xs font-extrabold text-slate-900 group-hover:text-[#00875a] transition line-clamp-2 leading-snug">
-                          {p.name}
-                        </strong>
+                        )}
                       </div>
-
-                      <div className="mt-3 pt-2 border-t border-slate-100 flex items-center justify-between">
-                        <div>
+                      <div className="flex flex-col gap-1.5 p-3 flex-1">
+                        <span className="text-[11px] text-[var(--muted)] truncate capitalize">{p.category || "General"}</span>
+                        <strong className="block text-[13px] font-medium text-[var(--text)] line-clamp-2 leading-snug min-h-[34px]">{p.name}</strong>
+                        <div className="mt-auto pt-1 flex items-end justify-between gap-2">
                           {p.discountType && p.discountType !== "none" && Number(p.discountValue || 0) > 0 ? (
-                            <div>
-                              <span className="block text-[10px] line-through text-slate-400">
-                                ₨ {price.toLocaleString()}
-                              </span>
-                              <div className="flex items-center gap-1">
-                                <span className="text-xs font-black text-[#00875a]">
+                            <div className="min-w-0">
+                              <span className="block text-[11px] line-through text-[var(--faint)] tabular-nums">₨ {price.toLocaleString()}</span>
+                              <div className="flex items-center gap-1 flex-wrap">
+                                <span className="text-[14px] font-semibold text-[var(--text)] tabular-nums">
                                   ₨{" "}
                                   {Math.max(
                                     0,
@@ -643,20 +644,22 @@ export function PosTerminal({ onSaleCompleted }: PosTerminalProps) {
                                       : price - Number(p.discountValue)
                                   ).toLocaleString()}
                                 </span>
-                                <span className="text-[9px] font-extrabold px-1 rounded bg-emerald-100 text-emerald-800">
+                                <span className="text-[10.5px] font-medium px-1.5 rounded-full bg-[var(--brand-soft)] text-[var(--brand)]">
                                   {p.discountType === "percentage" ? `-${p.discountValue}%` : `-₨${p.discountValue}`}
                                 </span>
                               </div>
                             </div>
                           ) : (
-                            <span className="text-xs font-black text-slate-900">
-                              ₨ {price.toLocaleString()}
-                            </span>
+                            <span className="text-[14px] font-semibold text-[var(--text)] tabular-nums">₨ {price.toLocaleString()}</span>
                           )}
+                          <span
+                            className={`shrink-0 text-[11px] tabular-nums ${
+                              isOutOfStock ? "text-[var(--neg)]" : low ? "text-[var(--warn)]" : "text-[var(--muted)]"
+                            }`}
+                          >
+                            {isOutOfStock ? "Out of Stock" : `${stock} in stock`}
+                          </span>
                         </div>
-                        <span className="size-6 rounded-lg bg-emerald-50 group-hover:bg-[#00875a] text-[#00875a] group-hover:text-white flex items-center justify-center text-xs font-black transition">
-                          +
-                        </span>
                       </div>
                     </button>
                   );
@@ -675,42 +678,47 @@ export function PosTerminal({ onSaleCompleted }: PosTerminalProps) {
                   }}
                   pageSizeOptions={[6, 9, 12, 18, 24, 36]}
                   itemLabel={t("term.products", "products")}
-                  className="rounded-2xl border border-slate-200/80 shadow-xs"
+                  className="rounded-xl border border-[var(--border)] bg-[var(--surface)]"
                 />
               )}
             </>
           )}
         </div>
 
-        {/* Right Side: Running Cart, Customer & Checkout (5 Cols) */}
-        <div className="lg:col-span-5 bg-white rounded-3xl border border-slate-200/80 shadow-md p-5 space-y-4 sticky top-4">
-          <div className="flex items-center justify-between pb-3 border-b border-slate-100">
-            <div>
-              <h3 className="text-base font-black text-slate-900 tracking-tight flex items-center gap-2">
-                <span>🛒</span> {t("pos.cart", "Customer Bill")}
-              </h3>
-              <p className="text-[11px] font-medium text-slate-400">
-                {cart.length} unique {cart.length === 1 ? "item" : "items"}
+        {/* ================= Bill ================= */}
+        <aside
+          id="pos-bill"
+          className="lg:col-span-5 xl:col-span-4 rounded-2xl border border-[var(--border)] bg-[var(--surface)] shadow-[var(--shadow-md)] overflow-hidden lg:sticky lg:top-[76px] lg:max-h-[max(560px,calc(100vh-236px))] flex flex-col scroll-mt-20"
+          aria-label={t("pos.cart", "Customer Bill")}
+        >
+          <div className="flex items-center justify-between gap-3 px-4 py-3.5 border-b border-[var(--border)] bg-[var(--surface-2)]">
+            <div className="min-w-0">
+              <h3 className="m-0 text-[15px] font-semibold tracking-[-0.01em] text-[var(--text)]">{t("pos.cart", "Customer Bill")}</h3>
+              <p className="m-0 text-[12px] text-[var(--muted)] tabular-nums">
+                {cart.length} unique {cart.length === 1 ? "item" : "items"} · {unitsInCart} units
               </p>
             </div>
             {cart.length > 0 && (
               <button
                 type="button"
                 onClick={clearCart}
-                className="text-xs font-bold text-red-500 hover:text-red-700 hover:underline cursor-pointer"
+                className="h-8 min-h-8 px-2.5 rounded-lg flex items-center gap-1.5 text-[12.5px] font-medium text-[var(--neg)] hover:bg-[var(--neg-soft)] cursor-pointer"
               >
+                <Icon name="trash" size={14} />
                 {t("pos.clear_cart", "Clear Bill")}
               </button>
             )}
           </div>
 
-          {/* Cart Items List */}
-          <div className="space-y-2 max-h-56 overflow-y-auto pr-1">
+          {/* Cart lines */}
+          <div className="max-h-[300px] lg:max-h-none lg:flex-1 lg:min-h-[140px] overflow-y-auto">
             {cart.length === 0 ? (
-              <div className="py-10 text-center text-slate-400 space-y-1">
-                <span className="text-2xl">🛍️</span>
-                <p className="text-xs font-bold">Cart is empty</p>
-                <p className="text-[11px]">Click items on the left or scan barcode to add</p>
+              <div className="py-10 px-6 text-center flex flex-col items-center gap-1.5">
+                <span className="size-10 rounded-xl grid place-items-center bg-[var(--surface-2)] text-[var(--muted)] shadow-[inset_0_0_0_1px_var(--border)]">
+                  <Icon name="cart" size={19} />
+                </span>
+                <p className="m-0 mt-1 text-[13.5px] font-medium text-[var(--text)]">Cart is empty</p>
+                <p className="m-0 text-[12.5px] text-[var(--muted)]">Click items on the left or scan barcode to add</p>
               </div>
             ) : (
               cart.map((item) => {
@@ -730,98 +738,90 @@ export function PosTerminal({ onSaleCompleted }: PosTerminalProps) {
                 const isEditingDiscount = editingDiscountProductId === item.product.id;
 
                 return (
-                  <div
-                    key={item.product.id}
-                    className="p-2.5 bg-slate-50 rounded-2xl border border-slate-100 space-y-2"
-                  >
-                    <div className="flex items-center justify-between gap-2">
+                  <div key={item.product.id} className="px-4 py-3 border-b border-[var(--border)] last:border-b-0 al-page-enter">
+                    <div className="flex items-center gap-3">
                       <div className="flex-1 min-w-0">
-                        <div className="flex items-center gap-1.5 flex-wrap">
-                          <strong className="block text-xs font-bold text-slate-900 truncate">
-                            {item.product.name}
-                          </strong>
+                        <div className="flex items-center gap-1.5 min-w-0">
+                          <strong className="block text-[13.5px] font-medium text-[var(--text)] truncate">{item.product.name}</strong>
                           {hasDiscount && (
-                            <span className="text-[9px] font-extrabold px-1.5 py-0.5 rounded bg-emerald-100 text-emerald-800">
+                            <span className="shrink-0 text-[10.5px] font-medium px-1.5 rounded-full bg-[var(--brand-soft)] text-[var(--brand)]">
                               {item.discountType === "percentage" ? `${item.discountValue}% Off` : `-₨${item.discountValue}`}
                             </span>
                           )}
                         </div>
-                        <div className="flex items-center gap-1.5 text-[10px]">
+                        <div className="flex items-center gap-1.5 text-[12px] tabular-nums">
                           {hasDiscount ? (
                             <>
-                              <span className="line-through text-slate-400">₨ {rate.toLocaleString()}</span>
-                              <span className="font-bold text-emerald-700">₨ {netRate.toLocaleString()} each</span>
+                              <span className="line-through text-[var(--faint)]">₨ {rate.toLocaleString()}</span>
+                              <span className="text-[var(--brand)]">₨ {netRate.toLocaleString()} each</span>
                             </>
                           ) : (
-                            <span className="text-slate-500">₨ {rate.toLocaleString()} each</span>
+                            <span className="text-[var(--muted)]">₨ {rate.toLocaleString()} each</span>
                           )}
                         </div>
                       </div>
 
-                      <div className="flex items-center gap-1 shrink-0">
+                      <div className="flex items-center h-8 rounded-[9px] border border-[var(--border)] bg-[var(--surface)] shrink-0">
                         <button
                           type="button"
                           onClick={() => updateCartQty(item.product.id, item.quantity - 1)}
-                          className="size-7 rounded-lg bg-white border border-slate-200 hover:bg-slate-100 font-bold text-xs cursor-pointer"
+                          aria-label={`Decrease ${item.product.name}`}
+                          className="size-8 min-h-8 grid place-items-center rounded-l-[9px] text-[var(--text-2)] hover:bg-[var(--surface-2)] cursor-pointer"
                         >
-                          -
+                          <Icon name="minus" size={14} strokeWidth={2} />
                         </button>
-                        <span className="w-7 text-center text-xs font-black text-slate-900">
-                          {item.quantity}
-                        </span>
+                        <span className="w-7 text-center text-[13px] font-semibold text-[var(--text)] tabular-nums">{item.quantity}</span>
                         <button
                           type="button"
                           onClick={() => updateCartQty(item.product.id, item.quantity + 1)}
                           disabled={max > 0 && item.quantity >= max}
-                          className="size-7 rounded-lg bg-white border border-slate-200 hover:bg-slate-100 font-bold text-xs disabled:opacity-40 cursor-pointer"
+                          aria-label={`Increase ${item.product.name}`}
+                          className="size-8 min-h-8 grid place-items-center rounded-r-[9px] text-[var(--text-2)] hover:bg-[var(--surface-2)] disabled:opacity-35 cursor-pointer"
                         >
-                          +
+                          <Icon name="plus" size={14} strokeWidth={2} />
                         </button>
                       </div>
 
-                      <div className="w-20 text-right shrink-0">
+                      <div className="w-[76px] text-right shrink-0 tabular-nums">
                         {hasDiscount && (
-                          <span className="block text-[10px] line-through text-slate-400">
-                            ₨ {(rate * item.quantity).toLocaleString()}
-                          </span>
+                          <span className="block text-[11px] line-through text-[var(--faint)]">₨ {(rate * item.quantity).toLocaleString()}</span>
                         )}
-                        <strong className="text-xs font-black text-slate-900">
-                          ₨ {lineTotal.toLocaleString()}
-                        </strong>
-                      </div>
-
-                      <div className="flex items-center gap-1 shrink-0">
-                        {activeBusiness?.allowDiscounts !== false && (
-                          <button
-                            type="button"
-                            onClick={() => setEditingDiscountProductId(isEditingDiscount ? null : item.product.id)}
-                            className={`size-6 rounded grid place-items-center text-xs font-bold transition cursor-pointer ${
-                              isEditingDiscount ? "bg-emerald-600 text-white" : "text-emerald-700 hover:bg-emerald-50"
-                            }`}
-                            title="Set discount for this product"
-                          >
-                            🏷️
-                          </button>
-                        )}
-                        <button
-                          type="button"
-                          onClick={() => removeFromCart(item.product.id)}
-                          className="size-6 text-red-500 hover:bg-red-50 rounded grid place-items-center text-xs font-bold cursor-pointer"
-                        >
-                          ✕
-                        </button>
+                        <strong className="text-[13.5px] font-semibold text-[var(--text)]">₨ {lineTotal.toLocaleString()}</strong>
                       </div>
                     </div>
 
-                    {/* Inline Item Discount Editor */}
+                    <div className="mt-1.5 flex items-center gap-1 -ml-1.5">
+                      {activeBusiness?.allowDiscounts !== false && (
+                        <button
+                          type="button"
+                          onClick={() => setEditingDiscountProductId(isEditingDiscount ? null : item.product.id)}
+                          className={`h-7 min-h-7 px-1.5 rounded-md flex items-center gap-1 text-[12px] font-medium transition-colors cursor-pointer ${
+                            isEditingDiscount ? "bg-[var(--brand-soft)] text-[var(--brand)]" : "text-[var(--muted)] hover:text-[var(--brand)]"
+                          }`}
+                          title="Set discount for this product"
+                        >
+                          <Icon name="tag" size={13} />
+                          Discount
+                        </button>
+                      )}
+                      <button
+                        type="button"
+                        onClick={() => removeFromCart(item.product.id)}
+                        className="h-7 min-h-7 px-1.5 rounded-md flex items-center gap-1 text-[12px] font-medium text-[var(--muted)] hover:text-[var(--neg)] cursor-pointer"
+                      >
+                        <Icon name="x" size={13} />
+                        Remove
+                      </button>
+                    </div>
+
                     {isEditingDiscount && activeBusiness?.allowDiscounts !== false && (
-                      <div className="p-2 bg-emerald-50/70 rounded-xl border border-emerald-200/80 flex items-center justify-between gap-2 text-xs">
-                        <span className="text-[10px] font-bold text-emerald-900">Item Disc:</span>
+                      <div className="mt-2 p-2 rounded-[10px] bg-[var(--brand-soft)] border border-[var(--brand-line)] flex items-center justify-between gap-2 text-xs al-pop">
+                        <span className="text-[12px] font-medium text-[var(--brand-ink)]">Item Disc:</span>
                         <div className="flex items-center gap-1.5">
                           <select
                             value={item.discountType || "none"}
                             onChange={(e) => updateItemDiscount(item.product.id, e.target.value as any, item.discountValue || 0)}
-                            className="text-[11px] font-bold px-1.5 py-1 rounded-lg bg-white border border-emerald-300 text-slate-800 outline-none"
+                            className="h-8 min-h-8 text-[12px] px-1.5 rounded-lg bg-[var(--surface)] border border-[var(--border)] text-[var(--text)] outline-none"
                           >
                             <option value="none">No Disc</option>
                             <option value="fixed">Fixed (₨ Off)</option>
@@ -834,13 +834,13 @@ export function PosTerminal({ onSaleCompleted }: PosTerminalProps) {
                               placeholder={item.discountType === "percentage" ? "10" : "50"}
                               value={item.discountValue || ""}
                               onChange={(e) => updateItemDiscount(item.product.id, item.discountType || "fixed", Number(e.target.value) || 0)}
-                              className="w-16 text-[11px] font-bold px-1.5 py-1 rounded-lg bg-white border border-emerald-300 text-slate-900 outline-none"
+                              className="w-16 h-8 min-h-8 text-[12px] px-1.5 rounded-lg bg-[var(--surface)] border border-[var(--border)] text-[var(--text)] outline-none tabular-nums"
                             />
                           )}
                           <button
                             type="button"
                             onClick={() => setEditingDiscountProductId(null)}
-                            className="text-[10px] px-2 py-1 bg-emerald-700 hover:bg-emerald-800 text-white font-black rounded-lg cursor-pointer"
+                            className="h-8 min-h-8 px-2.5 text-[12px] bg-[var(--brand)] hover:bg-[var(--brand-strong)] text-[var(--on-brand)] font-medium rounded-lg cursor-pointer"
                           >
                             Done
                           </button>
@@ -853,82 +853,70 @@ export function PosTerminal({ onSaleCompleted }: PosTerminalProps) {
             )}
           </div>
 
-          {/* Customer Selection */}
-          <div className="p-3 bg-slate-50/80 rounded-2xl border border-slate-200/70 space-y-2 text-xs">
-            <div className="flex items-center justify-between">
-              <span className="font-extrabold text-slate-700">Customer:</span>
-              <div className="flex gap-1 text-[10px] font-bold">
-                <button
-                  type="button"
-                  onClick={() => setCustomerMode("walkin")}
-                  className={`px-2 py-0.5 rounded-md ${
-                    customerMode === "walkin" ? "bg-white text-slate-900 shadow-xs" : "text-slate-500"
-                  }`}
-                >
-                  Walk-in
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setCustomerMode("existing")}
-                  className={`px-2 py-0.5 rounded-md ${
-                    customerMode === "existing" ? "bg-white text-slate-900 shadow-xs" : "text-slate-500"
-                  }`}
-                >
-                  Khata Customer
-                </button>
+          <div className="flex flex-col gap-3 px-4 py-3.5 border-t border-[var(--border)] lg:overflow-y-auto lg:shrink lg:min-h-[96px]">
+            {/* Customer */}
+            <div className="flex flex-col gap-2">
+              <div className="flex items-center justify-between">
+                <span className="text-[12.5px] font-medium text-[var(--text-2)]">Customer</span>
+                <div className="inline-flex p-[3px] rounded-[9px] bg-[var(--sunken)] border border-[var(--border)] gap-0.5">
+                  {(["walkin", "existing"] as const).map((m) => (
+                    <button
+                      key={m}
+                      type="button"
+                      onClick={() => setCustomerMode(m)}
+                      className={`h-7 min-h-7 px-2.5 rounded-md text-[12px] font-medium transition-colors ${
+                        customerMode === m
+                          ? "bg-[var(--surface)] text-[var(--text)] shadow-[var(--shadow-xs),0_0_0_1px_var(--border)]"
+                          : "text-[var(--muted)] hover:text-[var(--text)]"
+                      }`}
+                    >
+                      {m === "walkin" ? "Walk-in" : "Khata Customer"}
+                    </button>
+                  ))}
+                </div>
               </div>
+
+              {customerMode === "walkin" ? (
+                <div className="grid grid-cols-2 gap-2">
+                  <input
+                    type="text"
+                    placeholder="Customer Name (Optional)"
+                    value={walkinName}
+                    onChange={(e) => setWalkinName(e.target.value)}
+                    className={fieldCls}
+                  />
+                  <input
+                    type="tel"
+                    placeholder="Mobile (Optional)"
+                    value={walkinMobile}
+                    onChange={(e) => setWalkinMobile(e.target.value)}
+                    className={fieldCls}
+                  />
+                </div>
+              ) : (
+                <select value={selectedCustomerId} onChange={(e) => setSelectedCustomerId(e.target.value)} className={fieldCls}>
+                  <option value="">-- Choose Existing Customer --</option>
+                  {customers.map((c) => (
+                    <option key={c.id} value={c.id}>
+                      {c.name} ({c.mobile})
+                    </option>
+                  ))}
+                </select>
+              )}
             </div>
 
-            {customerMode === "walkin" ? (
-              <div className="flex gap-2">
-                <input
-                  type="text"
-                  placeholder="Customer Name (Optional)"
-                  value={walkinName}
-                  onChange={(e) => setWalkinName(e.target.value)}
-                  className="w-1/2 px-2.5 py-1.5 rounded-xl bg-white border border-slate-200 text-xs font-bold text-slate-800 outline-none"
-                />
-                <input
-                  type="tel"
-                  placeholder="Mobile (Optional)"
-                  value={walkinMobile}
-                  onChange={(e) => setWalkinMobile(e.target.value)}
-                  className="w-1/2 px-2.5 py-1.5 rounded-xl bg-white border border-slate-200 text-xs font-bold text-slate-800 outline-none"
-                />
-              </div>
-            ) : (
-              <select
-                value={selectedCustomerId}
-                onChange={(e) => setSelectedCustomerId(e.target.value)}
-                className="w-full px-2.5 py-1.5 rounded-xl bg-white border border-slate-200 text-xs font-bold text-slate-800 outline-none"
-              >
-                <option value="">-- Choose Existing Customer --</option>
-                {customers.map((c) => (
-                  <option key={c.id} value={c.id}>
-                    {c.name} ({c.mobile})
-                  </option>
-                ))}
-              </select>
-            )}
-          </div>
-
-          {/* Discount & Payment Method */}
-          <div className="space-y-2 text-xs">
+            {/* Bill discount */}
             {activeBusiness?.allowDiscounts === false ? (
-              <div className="py-2 px-3 rounded-xl bg-slate-100 border border-slate-200 text-slate-500 font-bold flex items-center justify-between">
+              <div className="h-10 px-3 rounded-[9px] bg-[var(--surface-2)] border border-[var(--border)] text-[13px] text-[var(--muted)] flex items-center justify-between">
                 <span>{t("term.discount", "Discount")}</span>
-                <span className="text-[11px] text-slate-400 font-semibold flex items-center gap-1">
-                  <span>🔒</span>
-                  <span>Disabled by Store Owner</span>
+                <span className="text-[12px] flex items-center gap-1.5">
+                  <Icon name="lock" size={13} />
+                  Disabled by Store Owner
                 </span>
               </div>
             ) : (
-              <div className="flex gap-2">
-                <select
-                  value={discountType}
-                  onChange={(e) => setDiscountType(e.target.value as any)}
-                  className="w-1/2 px-2 py-1.5 rounded-xl bg-slate-50 border border-slate-200 font-bold text-slate-700 outline-none"
-                >
+              <div className="grid grid-cols-2 gap-2">
+                <select value={discountType} onChange={(e) => setDiscountType(e.target.value as any)} className={fieldCls} aria-label="Bill discount type">
                   <option value="none">No Discount</option>
                   <option value="fixed">Fixed (₨ Off)</option>
                   <option value="percentage">Percent (% Off)</option>
@@ -940,117 +928,140 @@ export function PosTerminal({ onSaleCompleted }: PosTerminalProps) {
                     placeholder={discountType === "percentage" ? "10%" : "200"}
                     value={discountType === "fixed" ? formatCurrencyInput(discountValue) : discountValue}
                     onChange={(e) => setDiscountValue(e.target.value)}
-                    className="w-1/2 px-2.5 py-1.5 rounded-xl bg-slate-50 border border-slate-200 font-black text-slate-900 outline-none"
+                    className={`${fieldCls} tabular-nums al-pop`}
+                    aria-label="Bill discount value"
                   />
                 )}
               </div>
             )}
 
-            {/* Payment Method Selector */}
-            <div className="grid grid-cols-2 gap-2">
-              <button
-                type="button"
-                onClick={() => {
-                  setPaymentMethod("cash");
-                  if (cart.length > 0) setCashTendered(String(grandTotal));
-                }}
-                className={`py-2 px-3 rounded-xl border font-bold text-xs flex items-center justify-center gap-1.5 transition ${
-                  paymentMethod === "cash"
-                    ? "bg-[#e6f4ed] text-[#00875a] border-[#00875a]"
-                    : "bg-slate-50 text-slate-600 border-slate-200"
-                }`}
-              >
-                <span>💵</span> {t("term.cash", "Cash")}
-              </button>
-              <button
-                type="button"
-                onClick={() => setPaymentMethod("online")}
-                className={`py-2 px-3 rounded-xl border font-bold text-xs flex items-center justify-center gap-1.5 transition ${
-                  paymentMethod === "online"
-                    ? "bg-[#e6f4ed] text-[#00875a] border-[#00875a]"
-                    : "bg-slate-50 text-slate-600 border-slate-200"
-                }`}
-              >
-                <span>🏦</span> {t("term.online", "Online / Bank")}
-              </button>
+            {/* Payment method */}
+            <div className="grid grid-cols-2 gap-2" role="radiogroup" aria-label={t("pos.select_payment", "Select Payment Method")}>
+              {(["cash", "online"] as const).map((m) => {
+                const on = paymentMethod === m;
+                return (
+                  <button
+                    key={m}
+                    type="button"
+                    role="radio"
+                    aria-checked={on}
+                    onClick={() => {
+                      if (m === "cash") {
+                        setPaymentMethod("cash");
+                        if (cart.length > 0) setCashTendered(String(grandTotal));
+                      } else {
+                        setPaymentMethod("online");
+                      }
+                    }}
+                    className={`h-11 min-h-11 px-3 rounded-[10px] border text-[13.5px] font-medium flex items-center justify-center gap-2 transition-[border-color,box-shadow,color] duration-150 cursor-pointer ${
+                      on
+                        ? "border-[var(--brand)] text-[var(--brand)] bg-[var(--brand-soft)] shadow-[0_0_0_3px_var(--ring)]"
+                        : "border-[var(--border)] text-[var(--text-2)] bg-[var(--surface)] hover:border-[var(--border-strong)]"
+                    }`}
+                  >
+                    <Icon name={m === "cash" ? "pkr" : "card"} size={16} />
+                    {m === "cash" ? t("term.cash", "Cash") : t("term.online", "Online / Bank")}
+                  </button>
+                );
+              })}
             </div>
 
             {paymentMethod === "cash" && (
-              <div className="flex items-center gap-2 p-2 bg-slate-50 rounded-xl border border-slate-200">
-                <div className="flex-1">
-                  <label className="block text-[10px] font-bold text-slate-500">Cash Received (₨)</label>
+              <div className="grid grid-cols-2 gap-2 al-pop">
+                <label className="flex flex-col gap-1">
+                  <span className="text-[12px] font-medium text-[var(--text-2)]">Cash Received (₨)</span>
                   <input
                     type="text"
                     inputMode="numeric"
                     placeholder={grandTotal > 0 ? `Min ₨ ${grandTotal.toLocaleString()}` : "e.g. 5,000"}
                     value={formatCurrencyInput(cashTendered)}
                     onChange={(e) => setCashTendered(e.target.value)}
-                    className={`w-full px-2 py-1 rounded bg-white border text-xs font-black text-slate-900 outline-none ${
-                      cart.length > 0 && !isCashTenderSufficient
-                        ? "border-rose-400 ring-1 ring-rose-200"
-                        : "border-slate-200"
+                    className={`${fieldCls} font-medium tabular-nums ${
+                      cart.length > 0 && !isCashTenderSufficient ? "!border-[var(--neg)] shadow-[0_0_0_3px_var(--neg-soft)]" : ""
                     }`}
                   />
                   {cart.length > 0 && !isCashTenderSufficient && (
-                    <p className="mt-0.5 text-[10px] font-bold text-rose-600">
-                      Need at least ₨ {grandTotal.toLocaleString()}
-                    </p>
+                    <span className="text-[11.5px] font-medium text-[var(--neg)] tabular-nums">Need at least ₨ {grandTotal.toLocaleString()}</span>
                   )}
-                </div>
-                {changeDue > 0 && (
-                  <div className="text-right">
-                    <span className="block text-[10px] font-bold text-slate-500">Change Due</span>
-                    <strong className="text-xs font-black text-emerald-700">₨ {changeDue.toLocaleString()}</strong>
+                </label>
+                <div className="flex flex-col gap-1">
+                  <span className="text-[12px] font-medium text-[var(--text-2)]">Change Due</span>
+                  <div
+                    className={`h-10 px-3 rounded-[9px] border flex items-center text-[14px] font-semibold tabular-nums ${
+                      changeDue > 0
+                        ? "bg-[var(--brand-soft)] border-[var(--brand-line)] text-[var(--brand)]"
+                        : "bg-[var(--surface-2)] border-[var(--border)] text-[var(--muted)]"
+                    }`}
+                  >
+                    ₨ {changeDue.toLocaleString()}
                   </div>
-                )}
+                </div>
               </div>
             )}
+
           </div>
 
-          {/* Subtotal & Total Bill Breakdown */}
-          <div className="p-3.5 rounded-2xl bg-slate-900 text-white space-y-1.5">
-            <div className="flex justify-between text-xs text-slate-300">
-              <span>{t("term.subtotal", "Gross Subtotal")}</span>
-              <span>₨ {grossSubtotal.toLocaleString()}</span>
-            </div>
-            {itemDiscountsTotal > 0 && (
-              <div className="flex justify-between text-xs text-emerald-400">
-                <span>Product Discounts</span>
-                <span>- ₨ {itemDiscountsTotal.toLocaleString()}</span>
+          {/* Totals + checkout (always visible) */}
+          <div className="flex flex-col gap-3 px-4 pt-3 pb-4 border-t border-[var(--border)] bg-[var(--surface-2)] shrink-0">
+            <div className="flex flex-col gap-1.5 text-[13px] tabular-nums">
+              <div className="flex justify-between text-[var(--text-2)]">
+                <span>{t("term.subtotal", "Gross Subtotal")}</span>
+                <span>₨ {grossSubtotal.toLocaleString()}</span>
               </div>
-            )}
-            {cartDiscountAmount > 0 && (
-              <div className="flex justify-between text-xs text-emerald-400">
-                <span>Bill Discount ({discountType === "percentage" ? `${discountValue}%` : `Fixed`})</span>
-                <span>- ₨ {cartDiscountAmount.toLocaleString()}</span>
+              {itemDiscountsTotal > 0 && (
+                <div className="flex justify-between text-[var(--pos)]">
+                  <span>Product Discounts</span>
+                  <span>- ₨ {itemDiscountsTotal.toLocaleString()}</span>
+                </div>
+              )}
+              {cartDiscountAmount > 0 && (
+                <div className="flex justify-between text-[var(--pos)]">
+                  <span>Bill Discount ({discountType === "percentage" ? `${discountValue}%` : `Fixed`})</span>
+                  <span>- ₨ {cartDiscountAmount.toLocaleString()}</span>
+                </div>
+              )}
+              <div className="flex justify-between items-end pt-2">
+                <span className="text-[11px] font-medium uppercase tracking-[0.08em] text-[var(--muted)] pb-1">{t("term.total", "Total")}</span>
+                <span className="text-[32px] leading-none font-semibold tracking-[-0.04em] text-[var(--text)]">
+                  <AnimatedNumber value={grandTotal} duration={260} format={(n, final) => `₨ ${(final ? n : Math.round(n)).toLocaleString()}`} />
+                </span>
               </div>
-            )}
-            <div className="flex justify-between items-baseline pt-2 border-t border-slate-800">
-              <span className="text-xs font-extrabold text-slate-400 uppercase tracking-wider">{t("term.total", "Total")}</span>
-              <span className="text-xl font-black text-emerald-400">
-                ₨ {grandTotal.toLocaleString()}
-              </span>
             </div>
-          </div>
 
-          {/* Complete Sale CTA */}
-          <button
-            type="button"
-            onClick={handleCheckout}
-            disabled={checkingOut || cart.length === 0 || !isCashTenderSufficient}
-            className="w-full py-4 px-6 rounded-2xl bg-gradient-to-r from-[#00875a] to-[#006644] hover:from-[#00744e] hover:to-[#005236] text-white font-black text-sm sm:text-base shadow-lg shadow-[#00875a]/25 transition flex items-center justify-center gap-2 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed active:scale-[0.99]"
-          >
-            {checkingOut ? (
-              <span>Completing Sale...</span>
-            ) : (
-              <>
-                <span>{t("pos.complete_btn", "Complete Sale (Bill Banayein)")}</span>
-                <span className="text-lg">➔</span>
-              </>
-            )}
-          </button>
-        </div>
+            <button
+              type="button"
+              onClick={handleCheckout}
+              disabled={checkingOut || cart.length === 0 || !isCashTenderSufficient}
+              className="w-full h-[52px] min-h-[52px] px-5 rounded-xl bg-[var(--brand)] hover:bg-[var(--brand-strong)] text-[var(--on-brand)] font-semibold text-[15px] shadow-[inset_0_1px_0_rgba(255,255,255,.18),0_1px_2px_rgba(10,94,72,.35)] transition-[background-color,transform,opacity] duration-150 flex items-center justify-center gap-2 cursor-pointer disabled:opacity-45 disabled:cursor-not-allowed active:scale-[0.99]"
+            >
+              {checkingOut ? (
+                <>
+                  <span className="size-4 rounded-full border-2 border-current border-t-transparent animate-spin" aria-hidden />
+                  <span>Completing Sale...</span>
+                </>
+              ) : (
+                <>
+                  <Icon name="check" size={18} strokeWidth={2.2} />
+                  <span>{t("pos.complete_btn", "Complete Sale (Bill Banayein)")}</span>
+                </>
+              )}
+            </button>
+          </div>
+        </aside>
       </div>
+
+      {/* Mobile: floating bill summary that jumps to the bill */}
+      {cart.length > 0 && (
+        <a
+          href="#pos-bill"
+          className="lg:hidden fixed left-3 right-3 bottom-[calc(86px+max(10px,env(safe-area-inset-bottom)))] z-30 h-14 px-4 rounded-2xl bg-[var(--text)] text-[var(--surface)] shadow-[var(--shadow-lg)] flex items-center gap-3 no-underline al-page-enter"
+        >
+          <span className="size-8 rounded-full grid place-items-center bg-[var(--brand)] text-[var(--on-brand)] text-[13px] font-semibold tabular-nums">{unitsInCart}</span>
+          <span className="flex-1 text-[14px] font-medium">View bill</span>
+          <span className="text-[16px] font-semibold tabular-nums">₨ {grandTotal.toLocaleString()}</span>
+          <Icon name="right" size={16} />
+        </a>
+      )}
 
       {/* Post-Sale Receipt Modal */}
       {receipt && (

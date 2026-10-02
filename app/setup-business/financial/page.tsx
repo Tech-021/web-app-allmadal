@@ -8,6 +8,19 @@ import { useToast } from "@/app/components/toast-context";
 import { api } from "@/app/lib/api";
 import { logActivity } from "@/app/lib/logger";
 import { validatePhone, validateEmail, validateText, validateNumber, sanitizePhoneInput, formatCurrencyInput, parseCurrencyInput } from "@/app/lib/validators";
+import { Icon, type IconName } from "@/app/components/icons";
+import { FieldError, LoadingScreen, OnboardingFrame, StepHead, YesNo } from "@/app/components/onboarding-frame";
+import ob from "@/app/components/onboarding.module.css";
+import ui from "@/app/components/workspace-ui.module.css";
+
+const FPS_STEPS = [
+  { title: "Starting point", hint: "Start date, cash & banks" },
+  { title: "Supplier udhaar", hint: "What you owe" },
+  { title: "Customer udhaar", hint: "What you're owed" },
+  { title: "Inventory", hint: "Stock value & items" },
+  { title: "Tax information", hint: "NTN / STRN" },
+  { title: "Logo & branding", hint: "Receipts & reports" },
+];
 
 type BankAccount = {
   bankName: string;
@@ -525,685 +538,410 @@ function FinancialSetupContent() {
   };
 
   if (authLoading) {
-    return (
-      <div className="min-h-screen bg-slate-50 flex items-center justify-center p-4">
-        <div className="animate-spin size-8 border-4 border-emerald-600 border-t-transparent rounded-full" />
-      </div>
-    );
+    return <LoadingScreen label="Preparing financial setup…" />;
   }
 
-  return (
-    <div className="min-h-screen bg-[#f8fafc] text-slate-800 flex flex-col justify-between">
-      {/* Top Header */}
-      <header className="bg-white border-b border-slate-200/80 sticky top-0 z-40">
-        <div className="max-w-4xl mx-auto px-4 py-3.5 flex items-center justify-between">
-          <div className="flex items-center gap-3">
-            <span className="size-9 rounded-xl bg-[#e6f4ed] text-[#00875a] flex items-center justify-center font-black text-lg">
-              A
-            </span>
-            <div>
-              <h1 className="text-sm font-extrabold text-slate-900 leading-tight">
-                Financial Setup (FPS)
-              </h1>
-              <p className="text-[11px] font-semibold text-slate-400">
-                {targetBusiness?.name || "Your Business Workspace"}
-              </p>
-            </div>
-          </div>
+  const moneyInput = (
+    id: string,
+    value: string,
+    onValue: (raw: string) => void,
+    placeholder: string,
+    errorKey?: string,
+  ) => (
+    <div className={ob.money}>
+      <span>Rs</span>
+      <input
+        id={id}
+        type="text"
+        inputMode="numeric"
+        placeholder={placeholder}
+        value={formatCurrencyInput(value === "0" ? "" : value)}
+        onChange={(e) => {
+          onValue(parseCurrencyInput(e.target.value));
+          if (errorKey && errors[errorKey]) setErrors((prev) => ({ ...prev, [errorKey]: "" }));
+        }}
+        aria-invalid={Boolean(errorKey && errors[errorKey])}
+        className={`${ui.input} ${errorKey && errors[errorKey] ? ob.invalid : ""}`}
+      />
+    </div>
+  );
 
-          <div className="flex items-center gap-2">
-            <span className="text-xs font-bold text-slate-500">
-              Step {currentStep} of {totalSteps}
-            </span>
-            <button
-              type="button"
-              onClick={() => router.push("/dashboard")}
-              className="text-xs font-bold text-slate-400 hover:text-slate-700 px-3 py-1.5 rounded-lg hover:bg-slate-100 transition cursor-pointer"
-            >
-              Skip to Dashboard
-            </button>
-          </div>
-        </div>
-
-        {/* Multi-step progress bar */}
-        <div className="w-full bg-slate-100 h-1.5">
-          <div
-            className="bg-[#00875a] h-1.5 transition-all duration-300 ease-out"
-            style={{ width: `${(currentStep / totalSteps) * 100}%` }}
-          />
-        </div>
-      </header>
-
-      {/* Main Form Content */}
-      <main className="max-w-3xl w-full mx-auto px-4 py-8 flex-1">
-        <div className="bg-white rounded-3xl shadow-sm border border-slate-200/80 p-6 sm:p-10">
-          
-          {/* ================= STEP 1: SECTION 4 FINANCIAL STARTING POINT ================= */}
-          {currentStep === 1 && (
-            <div className="space-y-8 animate-in fade-in duration-200">
-              <div>
-                <span className="inline-block px-3 py-1 rounded-full bg-[#e6f4ed] text-[#00875a] text-[11px] font-extrabold uppercase tracking-wider mb-2">
-                  Section 4
+  const udhaarStep = (kind: "supplier" | "customer") => {
+    const isSupplier = kind === "supplier";
+    const enabled = isSupplier ? hasSupplierUdhaar : hasCustomerUdhaar;
+    const setEnabled = isSupplier ? setHasSupplierUdhaar : setHasCustomerUdhaar;
+    const amount = isSupplier ? supplierPayable : customerReceivable;
+    const setAmount = isSupplier ? setSupplierPayable : setCustomerReceivable;
+    const errKey = isSupplier ? "supplierPayable" : "customerReceivable";
+    const rows: Array<{ name: string; mobile: string; openingBalance: number }> = isSupplier ? suppliers : customers;
+    return (
+      <>
+        <StepHead
+          step={currentStep}
+          total={totalSteps}
+          title={isSupplier ? "Supplier udhaar (payables)" : "Customer udhaar (receivables)"}
+          description={
+            isSupplier
+              ? "Record money you currently owe to suppliers so payables are tracked from day one."
+              : "Record money customers currently owe you so customer khata starts accurate."
+          }
+        />
+        <div className={ob.stepBody}>
+          <div className={ob.block}>
+            <div className={ob.blockHead}>
+              <div className={ob.blockTitle}>
+                <span className={ob.iconTile}>
+                  <Icon name={isSupplier ? "truck" : "users"} size={16} />
                 </span>
-                <h2 className="text-2xl font-black text-slate-900 tracking-tight">
-                  Financial Starting Point
-                </h2>
-                <p className="text-xs font-medium text-slate-500 mt-1">
-                  Establish your accounting baseline and opening cash balance.
-                </p>
+                <div>
+                  <h2>{isSupplier ? "Do you owe money to suppliers?" : "Do customers currently owe you money?"}</h2>
+                  <p>{isSupplier ? "Supplier khata / payables" : "Customer khata / receivables"}</p>
+                </div>
               </div>
+              <YesNo value={enabled} onChange={setEnabled} label={isSupplier ? "Supplier udhaar" : "Customer udhaar"} />
+            </div>
 
-              {/* 1. Accounting Start Date */}
-              <div className="space-y-3">
-                <label className="block text-xs font-extrabold text-slate-800">
-                  When do you want to start your accounts?
-                </label>
-                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-                  {[
-                    { id: "today", label: "Today", desc: new Date().toLocaleDateString() },
-                    {
-                      id: "month_start",
-                      label: "Start of this month",
-                      desc: new Date(new Date().getFullYear(), new Date().getMonth(), 1).toLocaleDateString(),
-                    },
-                    { id: "custom", label: "Custom Date", desc: "Select date" },
-                  ].map((opt) => (
-                    <button
-                      key={opt.id}
-                      type="button"
-                      onClick={() => setDateOption(opt.id as typeof dateOption)}
-                      className={`p-4 rounded-2xl border text-left transition cursor-pointer ${
-                        dateOption === opt.id
-                          ? "border-[#00875a] bg-[#e6f4ed]/50 ring-2 ring-[#00875a]/20"
-                          : "border-slate-200 hover:border-slate-300 bg-white"
-                      }`}
-                    >
-                      <strong className="block text-xs font-extrabold text-slate-900">
-                        {opt.label}
-                      </strong>
-                      <span className="text-[11px] font-medium text-slate-500">{opt.desc}</span>
-                    </button>
-                  ))}
+            {enabled && (
+              <div className={ob.inset}>
+                <div className={ob.field}>
+                  <label className={ob.label} htmlFor={`fps-${kind}-total`}>
+                    {isSupplier ? "Total amount you owe suppliers" : "Total amount customers owe you"}
+                  </label>
+                  {moneyInput(`fps-${kind}-total`, amount, (raw) => setAmount(raw || "0"), isSupplier ? "850,000" : "1,250,000", errKey)}
+                  <FieldError>{errors[errKey]}</FieldError>
                 </div>
 
-                {dateOption === "custom" && (
-                  <div className="pt-2 max-w-xs">
-                    <label className="block text-[11px] font-bold text-slate-600 mb-1">
-                      Choose Accounting Start Date
-                    </label>
-                    <input
-                      type="date"
-                      value={customDate}
-                      onChange={(e) => {
-                        setCustomDate(e.target.value);
-                        if (errors.customDate) setErrors((prev) => ({ ...prev, customDate: "" }));
+                <div className={ob.field}>
+                  <div className={ob.labelRow}>
+                    <span className={ob.label}>
+                      {isSupplier ? "Individual suppliers" : "Individual customers"}
+                      <i>{rows.length}</i>
+                    </span>
+                    <button
+                      type="button"
+                      className={ob.linkAction}
+                      onClick={() => {
+                        if (isSupplier) {
+                          setSuppModalError("");
+                          setShowAddSupplierModal(true);
+                        } else {
+                          setCustModalError("");
+                          setShowAddCustomerModal(true);
+                        }
                       }}
-                      className={`w-full px-4 py-2.5 rounded-xl border text-xs font-bold text-slate-900 outline-none transition ${
-                        errors.customDate ? "border-red-500 bg-red-50/50" : "border-slate-200 focus:border-[#00875a]"
-                      }`}
-                    />
-                    {errors.customDate && (
-                      <p className="text-[11px] font-bold text-red-600 mt-1">{errors.customDate}</p>
-                    )}
-                  </div>
-                )}
-              </div>
-
-              {/* 2. Opening Cash Balance */}
-              <div className="space-y-2 pt-4 border-t border-slate-100">
-                <label className="block text-xs font-extrabold text-slate-800">
-                  Opening Cash Balance <span className="text-slate-400 font-normal">(Optional)</span>
-                </label>
-                <p className="text-[11px] font-medium text-slate-500">
-                  How much physical cash do you currently have in your shop drawer or locker?
-                </p>
-                <div className="relative max-w-sm">
-                  <span className="absolute left-4 top-1/2 -translate-y-1/2 text-xs font-extrabold text-slate-400">
-                    ₨
-                  </span>
-                  <input
-                    type="text"
-                    inputMode="numeric"
-                    placeholder="500,000"
-                    value={formatCurrencyInput(openingCash === "0" ? "" : openingCash)}
-                    onChange={(e) => {
-                      const raw = parseCurrencyInput(e.target.value);
-                      setOpeningCash(raw || "0");
-                      if (errors.openingCash) setErrors((prev) => ({ ...prev, openingCash: "" }));
-                    }}
-                    className={`w-full pl-9 pr-4 py-3 rounded-xl border text-sm font-extrabold text-slate-900 outline-none transition ${
-                      errors.openingCash ? "border-red-500 bg-red-50/50" : "border-slate-200 focus:border-[#00875a]"
-                    }`}
-                  />
-                </div>
-                {errors.openingCash && (
-                  <p className="text-[11px] font-bold text-red-600">{errors.openingCash}</p>
-                )}
-              </div>
-
-              {/* 3. Opening Bank Balance */}
-              <div className="space-y-4 pt-4 border-t border-slate-100">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <label className="block text-xs font-extrabold text-slate-800">
-                      Do you have business bank accounts?
-                    </label>
-                    <p className="text-[11px] font-medium text-slate-500">
-                      Include current bank balances to track deposits and transfers.
-                    </p>
-                  </div>
-                  <div className="flex gap-2">
-                    <button
-                      type="button"
-                      onClick={() => setHasBank(true)}
-                      className={`px-4 py-1.5 rounded-xl text-xs font-extrabold transition cursor-pointer ${
-                        hasBank ? "bg-[#00875a] text-white" : "bg-slate-100 text-slate-600 hover:bg-slate-200"
-                      }`}
                     >
-                      Yes
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => setHasBank(false)}
-                      className={`px-4 py-1.5 rounded-xl text-xs font-extrabold transition cursor-pointer ${
-                        !hasBank ? "bg-[#00875a] text-white" : "bg-slate-100 text-slate-600 hover:bg-slate-200"
-                      }`}
-                    >
-                      No
+                      <Icon name="plus" size={14} />
+                      {isSupplier ? "Add supplier" : "Add customer"}
                     </button>
                   </div>
-                </div>
-
-                {hasBank && (
-                  <div className="space-y-3 p-4 rounded-2xl bg-slate-50 border border-slate-200">
-                    {bankAccounts.map((account, idx) => (
-                      <div key={idx} className="space-y-1">
-                        <div className="flex flex-col sm:flex-row items-center gap-2">
-                          <input
-                            type="text"
-                            placeholder="Bank Name (e.g. Meezan, HBL) *"
-                            value={account.bankName}
-                            onChange={(e) => updateBankAccount(idx, "bankName", e.target.value)}
-                            className={`w-full sm:flex-1 px-3 py-2 rounded-xl border bg-white text-xs font-bold text-slate-900 outline-none ${
-                              errors[`bankName_${idx}`] ? "border-red-500 bg-red-50/50" : "border-slate-200 focus:border-[#00875a]"
-                            }`}
-                          />
-                          <input
-                            type="text"
-                            placeholder="Account Number (Optional)"
-                            value={account.accountNumber}
-                            onChange={(e) => updateBankAccount(idx, "accountNumber", e.target.value)}
-                            className="w-full sm:flex-1 px-3 py-2 rounded-xl border border-slate-200 bg-white text-xs font-bold text-slate-900 outline-none focus:border-[#00875a]"
-                          />
-                          <div className="relative w-full sm:w-36">
-                            <span className="absolute left-3 top-1/2 -translate-y-1/2 text-[11px] font-bold text-slate-400">
-                              ₨
-                            </span>
-                            <input
-                              type="text"
-                              inputMode="numeric"
-                              placeholder="Balance"
-                              value={formatCurrencyInput(account.balance || "")}
-                              onChange={(e) => {
-                                const raw = parseCurrencyInput(e.target.value);
-                                updateBankAccount(idx, "balance", Number(raw) || 0);
-                              }}
-                              className="w-full pl-7 pr-3 py-2 rounded-xl border border-slate-200 bg-white text-xs font-bold text-slate-900 outline-none focus:border-[#00875a]"
-                            />
+                  {rows.length > 0 ? (
+                    <div className={ob.list}>
+                      {rows.map((r, i) => (
+                        <div key={i} className={ob.listRow}>
+                          <div className="min-w-0 truncate">
+                            <strong>{r.name}</strong>
+                            {r.mobile && <small>{r.mobile}</small>}
                           </div>
-                          {bankAccounts.length > 1 && (
+                          <div className={ob.listMeta}>
+                            <b className={isSupplier ? "text-[var(--warn)]" : "text-[var(--pos)]"}>Rs {r.openingBalance.toLocaleString()}</b>
                             <button
                               type="button"
-                              onClick={() => removeBankAccount(idx)}
-                              className="text-red-500 hover:text-red-700 text-xs font-bold px-2 py-1 cursor-pointer"
+                              className={ob.remove}
+                              aria-label={`Remove ${r.name}`}
+                              onClick={() =>
+                                isSupplier
+                                  ? setSuppliers(suppliers.filter((_, idx) => idx !== i))
+                                  : setCustomers(customers.filter((_, idx) => idx !== i))
+                              }
                             >
-                              ✕
+                              <Icon name="x" size={14} />
                             </button>
-                          )}
+                          </div>
                         </div>
-                        {errors[`bankName_${idx}`] && (
-                          <p className="text-[10px] font-bold text-red-600 pl-1">{errors[`bankName_${idx}`]}</p>
+                      ))}
+                    </div>
+                  ) : (
+                    <p className={ob.muted}>
+                      You don&apos;t have to enter every {isSupplier ? "supplier" : "customer"} now — you can add them anytime.
+                    </p>
+                  )}
+                </div>
+              </div>
+            )}
+          </div>
+        </div>
+      </>
+    );
+  };
+
+  return (
+    <OnboardingFrame
+      context={targetBusiness?.name || "Your business workspace"}
+      railEyebrow="Financial Starting Point"
+      railTitle="Bring your books in"
+      railText="Set your opening balances once so every report starts accurate. Every step is optional."
+      steps={FPS_STEPS}
+      current={currentStep}
+      topRight={
+        <button type="button" onClick={() => router.push("/dashboard")} className={ob.ghostLink}>
+          Skip to dashboard
+        </button>
+      }
+    >
+      {/* ================= STEP 1: FINANCIAL STARTING POINT ================= */}
+      {currentStep === 1 && (
+        <>
+          <StepHead
+            step={1}
+            total={totalSteps}
+            title="Financial starting point"
+            description="Establish your accounting baseline and the cash you have on hand today."
+          />
+          <div className={ob.stepBody}>
+            <div className={ob.block}>
+              <div className={ob.blockHead}>
+                <div className={ob.blockTitle}>
+                  <span className={ob.iconTile}>
+                    <Icon name="calendar" size={16} />
+                  </span>
+                  <div>
+                    <h2>When do you want to start your accounts?</h2>
+                    <p>Transactions before this date won&apos;t affect your books.</p>
+                  </div>
+                </div>
+              </div>
+              <div className={ob.choices} role="radiogroup" aria-label="Accounting start date">
+                {[
+                  { id: "today", label: "Today", desc: new Date().toLocaleDateString() },
+                  {
+                    id: "month_start",
+                    label: "Start of this month",
+                    desc: new Date(new Date().getFullYear(), new Date().getMonth(), 1).toLocaleDateString(),
+                  },
+                  { id: "custom", label: "Custom date", desc: "Pick any date" },
+                ].map((opt) => (
+                  <button
+                    key={opt.id}
+                    type="button"
+                    role="radio"
+                    aria-checked={dateOption === opt.id}
+                    onClick={() => setDateOption(opt.id as typeof dateOption)}
+                    className={`${ob.choice} ${dateOption === opt.id ? ob.choiceOn : ""}`}
+                  >
+                    <strong>{opt.label}</strong>
+                    <span className="font-mono">{opt.desc}</span>
+                  </button>
+                ))}
+              </div>
+              {dateOption === "custom" && (
+                <div className={`${ob.field} mt-4 max-w-[260px] al-pop`}>
+                  <label className={ob.label} htmlFor="fps-date">
+                    Accounting start date
+                  </label>
+                  <input
+                    id="fps-date"
+                    type="date"
+                    value={customDate}
+                    onChange={(e) => {
+                      setCustomDate(e.target.value);
+                      if (errors.customDate) setErrors((prev) => ({ ...prev, customDate: "" }));
+                    }}
+                    className={`${ui.input} ${errors.customDate ? ob.invalid : ""}`}
+                  />
+                  <FieldError>{errors.customDate}</FieldError>
+                </div>
+              )}
+            </div>
+
+            <div className={ob.block}>
+              <div className={ob.blockHead}>
+                <div className={ob.blockTitle}>
+                  <span className={ob.iconTile}>
+                    <Icon name="coins" size={16} />
+                  </span>
+                  <div>
+                    <h2>
+                      Opening cash balance <span className="font-normal text-[var(--faint)]">· optional</span>
+                    </h2>
+                    <p>How much physical cash is in your shop drawer or locker right now?</p>
+                  </div>
+                </div>
+              </div>
+              {moneyInput("fps-cash", openingCash, (raw) => setOpeningCash(raw || "0"), "500,000", "openingCash")}
+              <FieldError>{errors.openingCash}</FieldError>
+            </div>
+
+            <div className={ob.block}>
+              <div className={ob.blockHead}>
+                <div className={ob.blockTitle}>
+                  <span className={ob.iconTile}>
+                    <Icon name="bank" size={16} />
+                  </span>
+                  <div>
+                    <h2>Do you have business bank accounts?</h2>
+                    <p>Include current balances to track deposits and transfers.</p>
+                  </div>
+                </div>
+                <YesNo value={hasBank} onChange={setHasBank} label="Business bank accounts" />
+              </div>
+
+              {hasBank && (
+                <div className={ob.inset}>
+                  {bankAccounts.map((account, idx) => (
+                    <div key={idx} className="flex flex-col gap-1.5">
+                      <div className={ob.bankRow}>
+                        <input
+                          type="text"
+                          placeholder="Bank name (e.g. Meezan, HBL) *"
+                          aria-label="Bank name"
+                          value={account.bankName}
+                          onChange={(e) => updateBankAccount(idx, "bankName", e.target.value)}
+                          className={`${ui.input} ${errors[`bankName_${idx}`] ? ob.invalid : ""}`}
+                        />
+                        <input
+                          type="text"
+                          placeholder="Account number (optional)"
+                          aria-label="Account number"
+                          value={account.accountNumber}
+                          onChange={(e) => updateBankAccount(idx, "accountNumber", e.target.value)}
+                          className={`${ui.input} font-mono`}
+                        />
+                        <div className={ob.money}>
+                          <span>Rs</span>
+                          <input
+                            type="text"
+                            inputMode="numeric"
+                            placeholder="Balance"
+                            aria-label="Balance"
+                            value={formatCurrencyInput(account.balance || "")}
+                            onChange={(e) => {
+                              const raw = parseCurrencyInput(e.target.value);
+                              updateBankAccount(idx, "balance", Number(raw) || 0);
+                            }}
+                            className={ui.input}
+                          />
+                        </div>
+                        {bankAccounts.length > 1 ? (
+                          <button type="button" onClick={() => removeBankAccount(idx)} className={`${ob.remove} mt-[5px]`} aria-label="Remove bank account">
+                            <Icon name="trash" size={14} />
+                          </button>
+                        ) : (
+                          <span />
                         )}
                       </div>
-                    ))}
-
-                    <button
-                      type="button"
-                      onClick={addBankAccount}
-                      className="text-xs font-extrabold text-[#00875a] hover:underline flex items-center gap-1 cursor-pointer pt-1"
-                    >
-                      + Add another bank account
-                    </button>
-                  </div>
-                )}
-              </div>
-            </div>
-          )}
-
-          {/* ================= STEP 2: SECTION 5 SUPPLIER UDHAAR ================= */}
-          {currentStep === 2 && (
-            <div className="space-y-8 animate-in fade-in duration-200">
-              <div>
-                <span className="inline-block px-3 py-1 rounded-full bg-[#e6f4ed] text-[#00875a] text-[11px] font-extrabold uppercase tracking-wider mb-2">
-                  Section 5
-                </span>
-                <h2 className="text-2xl font-black text-slate-900 tracking-tight">
-                  Supplier Udhaar (Payables)
-                </h2>
-                <p className="text-xs font-medium text-slate-500 mt-1">
-                  Record money you currently owe to suppliers to start tracking payables right away.
-                </p>
-              </div>
-
-              {/* Supplier Udhaar (Payables) */}
-              <div className="space-y-4 p-5 rounded-2xl border border-slate-200 bg-slate-50/50">
-                <div className="flex items-center justify-between">
+                      <FieldError>{errors[`bankName_${idx}`]}</FieldError>
+                    </div>
+                  ))}
                   <div>
-                    <strong className="block text-xs font-extrabold text-slate-900">
-                      Do you owe money to suppliers?
-                    </strong>
-                    <span className="text-[11px] font-medium text-slate-500">
-                      Supplier Khata / Payables
-                    </span>
-                  </div>
-                  <div className="flex gap-2">
-                    <button
-                      type="button"
-                      onClick={() => setHasSupplierUdhaar(true)}
-                      className={`px-4 py-1.5 rounded-xl text-xs font-extrabold transition cursor-pointer ${
-                        hasSupplierUdhaar ? "bg-[#00875a] text-white" : "bg-slate-200 text-slate-700 hover:bg-slate-300"
-                      }`}
-                    >
-                      Yes
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => setHasSupplierUdhaar(false)}
-                      className={`px-4 py-1.5 rounded-xl text-xs font-extrabold transition cursor-pointer ${
-                        !hasSupplierUdhaar ? "bg-[#00875a] text-white" : "bg-slate-200 text-slate-700 hover:bg-slate-300"
-                      }`}
-                    >
-                      No
+                    <button type="button" onClick={addBankAccount} className={ob.linkAction}>
+                      <Icon name="plus" size={14} />
+                      Add another bank account
                     </button>
                   </div>
                 </div>
-
-                {hasSupplierUdhaar && (
-                  <div className="space-y-4 pt-3 border-t border-slate-200">
-                    <div>
-                      <label className="block text-[11px] font-extrabold text-slate-700 mb-1">
-                        Total Amount You Owe Suppliers
-                      </label>
-                      <div className="relative max-w-xs">
-                        <span className="absolute left-3.5 top-1/2 -translate-y-1/2 text-xs font-extrabold text-slate-400">
-                          ₨
-                        </span>
-                        <input
-                          type="text"
-                          inputMode="numeric"
-                          placeholder="850,000"
-                          value={formatCurrencyInput(supplierPayable === "0" ? "" : supplierPayable)}
-                          onChange={(e) => {
-                            const raw = parseCurrencyInput(e.target.value);
-                            setSupplierPayable(raw || "0");
-                            if (errors.supplierPayable) setErrors((prev) => ({ ...prev, supplierPayable: "" }));
-                          }}
-                          className={`w-full pl-8 pr-3 py-2.5 rounded-xl border bg-white text-xs font-extrabold text-slate-900 outline-none ${
-                            errors.supplierPayable ? "border-red-500 bg-red-50/50" : "border-slate-200 focus:border-[#00875a]"
-                          }`}
-                        />
-                      </div>
-                      {errors.supplierPayable && (
-                        <p className="text-[11px] font-bold text-red-600 mt-1">{errors.supplierPayable}</p>
-                      )}
-                    </div>
-
-                    {/* Supplier List */}
-                    <div className="space-y-2">
-                      <div className="flex items-center justify-between">
-                        <span className="text-[11px] font-bold text-slate-500">
-                          Individual Suppliers ({suppliers.length})
-                        </span>
-                        <button
-                          type="button"
-                          onClick={() => {
-                            setSuppModalError("");
-                            setShowAddSupplierModal(true);
-                          }}
-                          className="text-xs font-extrabold text-[#00875a] hover:underline cursor-pointer"
-                        >
-                          + Add Supplier Now
-                        </button>
-                      </div>
-
-                      {suppliers.length > 0 ? (
-                        <div className="space-y-1.5 max-h-40 overflow-y-auto pr-1">
-                          {suppliers.map((s, i) => (
-                            <div
-                              key={i}
-                              className="flex items-center justify-between p-2.5 bg-white rounded-xl border border-slate-200 text-xs font-semibold"
-                            >
-                              <div>
-                                <span className="font-extrabold text-slate-900">{s.name}</span>
-                                {s.mobile && <span className="text-slate-400 text-[11px] ml-2">({s.mobile})</span>}
-                              </div>
-                              <div className="flex items-center gap-3">
-                                <span className="font-extrabold text-amber-700">
-                                  ₨ {s.openingBalance.toLocaleString()}
-                                </span>
-                                <button
-                                  type="button"
-                                  onClick={() => setSuppliers(suppliers.filter((_, idx) => idx !== i))}
-                                  className="text-red-500 hover:text-red-700 text-xs font-bold cursor-pointer"
-                                >
-                                  ✕
-                                </button>
-                              </div>
-                            </div>
-                          ))}
-                        </div>
-                      ) : (
-                        <p className="text-[11px] font-medium text-slate-400 italic">
-                          You don&apos;t have to enter every supplier right now. You can skip and add them anytime.
-                        </p>
-                      )}
-                    </div>
-                  </div>
-                )}
-              </div>
+              )}
             </div>
-          )}
+          </div>
+        </>
+      )}
 
-          {/* ================= STEP 3: SECTION 5 CUSTOMER UDHAAR ================= */}
-          {currentStep === 3 && (
-            <div className="space-y-8 animate-in fade-in duration-200">
-              <div>
-                <span className="inline-block px-3 py-1 rounded-full bg-[#e6f4ed] text-[#00875a] text-[11px] font-extrabold uppercase tracking-wider mb-2">
-                  Section 5
-                </span>
-                <h2 className="text-2xl font-black text-slate-900 tracking-tight">
-                  Customer Udhaar (Receivables)
-                </h2>
-                <p className="text-xs font-medium text-slate-500 mt-1">
-                  Record money customers currently owe you to start tracking customer khata right away.
-                </p>
-              </div>
+      {/* ================= STEP 2 / 3: UDHAAR ================= */}
+      {currentStep === 2 && udhaarStep("supplier")}
+      {currentStep === 3 && udhaarStep("customer")}
 
-              {/* Customer Udhaar (Receivables) */}
-              <div className="space-y-4 p-5 rounded-2xl border border-slate-200 bg-slate-50/50">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <strong className="block text-xs font-extrabold text-slate-900">
-                      Do you currently have customers who owe you money?
-                    </strong>
-                    <span className="text-[11px] font-medium text-slate-500">
-                      Customer Khata / Receivables
-                    </span>
-                  </div>
-                  <div className="flex gap-2">
-                    <button
-                      type="button"
-                      onClick={() => setHasCustomerUdhaar(true)}
-                      className={`px-4 py-1.5 rounded-xl text-xs font-extrabold transition cursor-pointer ${
-                        hasCustomerUdhaar ? "bg-[#00875a] text-white" : "bg-slate-200 text-slate-700 hover:bg-slate-300"
-                      }`}
-                    >
-                      Yes
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => setHasCustomerUdhaar(false)}
-                      className={`px-4 py-1.5 rounded-xl text-xs font-extrabold transition cursor-pointer ${
-                        !hasCustomerUdhaar ? "bg-[#00875a] text-white" : "bg-slate-200 text-slate-700 hover:bg-slate-300"
-                      }`}
-                    >
-                      No
-                    </button>
-                  </div>
-                </div>
-
-                {hasCustomerUdhaar && (
-                  <div className="space-y-4 pt-3 border-t border-slate-200">
-                    <div>
-                      <label className="block text-[11px] font-extrabold text-slate-700 mb-1">
-                        Total Amount Customers Owe You
-                      </label>
-                      <div className="relative max-w-xs">
-                        <span className="absolute left-3.5 top-1/2 -translate-y-1/2 text-xs font-extrabold text-slate-400">
-                          ₨
-                        </span>
-                        <input
-                          type="text"
-                          inputMode="numeric"
-                          placeholder="1,250,000"
-                          value={formatCurrencyInput(customerReceivable === "0" ? "" : customerReceivable)}
-                          onChange={(e) => {
-                            const raw = parseCurrencyInput(e.target.value);
-                            setCustomerReceivable(raw || "0");
-                            if (errors.customerReceivable) setErrors((prev) => ({ ...prev, customerReceivable: "" }));
-                          }}
-                          className={`w-full pl-8 pr-3 py-2.5 rounded-xl border bg-white text-xs font-extrabold text-slate-900 outline-none ${
-                            errors.customerReceivable ? "border-red-500 bg-red-50/50" : "border-slate-200 focus:border-[#00875a]"
-                          }`}
-                        />
-                      </div>
-                      {errors.customerReceivable && (
-                        <p className="text-[11px] font-bold text-red-600 mt-1">{errors.customerReceivable}</p>
-                      )}
-                    </div>
-
-                    {/* Customer List */}
-                    <div className="space-y-2">
-                      <div className="flex items-center justify-between">
-                        <span className="text-[11px] font-bold text-slate-500">
-                          Individual Customers ({customers.length})
-                        </span>
-                        <button
-                          type="button"
-                          onClick={() => {
-                            setCustModalError("");
-                            setShowAddCustomerModal(true);
-                          }}
-                          className="text-xs font-extrabold text-[#00875a] hover:underline cursor-pointer"
-                        >
-                          + Add Customer Now
-                        </button>
-                      </div>
-
-                      {customers.length > 0 ? (
-                        <div className="space-y-1.5 max-h-40 overflow-y-auto pr-1">
-                          {customers.map((c, i) => (
-                            <div
-                              key={i}
-                              className="flex items-center justify-between p-2.5 bg-white rounded-xl border border-slate-200 text-xs font-semibold"
-                            >
-                              <div>
-                                <span className="font-extrabold text-slate-900">{c.name}</span>
-                                <span className="text-slate-400 text-[11px] ml-2">({c.mobile})</span>
-                              </div>
-                              <div className="flex items-center gap-3">
-                                <span className="font-extrabold text-[#00875a]">
-                                  ₨ {c.openingBalance.toLocaleString()}
-                                </span>
-                                <button
-                                  type="button"
-                                  onClick={() => setCustomers(customers.filter((_, idx) => idx !== i))}
-                                  className="text-red-500 hover:text-red-700 text-xs font-bold cursor-pointer"
-                                >
-                                  ✕
-                                </button>
-                              </div>
-                            </div>
-                          ))}
-                        </div>
-                      ) : (
-                        <p className="text-[11px] font-medium text-slate-400 italic">
-                          You don&apos;t have to enter every customer right now. You can skip and add them anytime.
-                        </p>
-                      )}
-                    </div>
-                  </div>
-                )}
-              </div>
-            </div>
-          )}
-
-          {/* ================= STEP 4: SECTION 6 INVENTORY ================= */}
-          {currentStep === 4 && (
-            <div className="space-y-8 animate-in fade-in duration-200">
-              <div>
-                <span className="inline-block px-3 py-1 rounded-full bg-[#e6f4ed] text-[#00875a] text-[11px] font-extrabold uppercase tracking-wider mb-2">
-                  Section 6
-                </span>
-                <h2 className="text-2xl font-black text-slate-900 tracking-tight">
-                  Inventory & Stock
-                </h2>
-                <p className="text-xs font-medium text-slate-500 mt-1">
-                  Track your physical items, stock valuation, and import product catalogs.
-                </p>
-              </div>
-
-              {/* Manage Stock Toggle */}
-              <div className="flex items-center justify-between p-5 rounded-2xl border border-slate-200 bg-slate-50">
-                <div>
-                  <strong className="block text-xs font-extrabold text-slate-900">
-                    Do you want to manage your stock in Almadel?
-                  </strong>
-                  <span className="text-[11px] font-medium text-slate-500">
-                    Track barcode, quantities, and low stock warnings
+      {/* ================= STEP 4: INVENTORY ================= */}
+      {currentStep === 4 && (
+        <>
+          <StepHead
+            step={4}
+            total={totalSteps}
+            title="Inventory & stock"
+            description="Track physical items and stock valuation, and bring in your existing catalogue."
+          />
+          <div className={ob.stepBody}>
+            <div className={ob.block}>
+              <div className={ob.blockHead}>
+                <div className={ob.blockTitle}>
+                  <span className={ob.iconTile}>
+                    <Icon name="box" size={16} />
                   </span>
+                  <div>
+                    <h2>Manage your stock in Almadel?</h2>
+                    <p>Barcodes, quantities and low-stock warnings.</p>
+                  </div>
                 </div>
-                <div className="flex gap-2">
-                  <button
-                    type="button"
-                    onClick={() => setManageStock(true)}
-                    className={`px-4 py-1.5 rounded-xl text-xs font-extrabold transition cursor-pointer ${
-                      manageStock ? "bg-[#00875a] text-white" : "bg-slate-200 text-slate-700 hover:bg-slate-300"
-                    }`}
-                  >
-                    Yes
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setManageStock(false)}
-                    className={`px-4 py-1.5 rounded-xl text-xs font-extrabold transition cursor-pointer ${
-                      !manageStock ? "bg-[#00875a] text-white" : "bg-slate-200 text-slate-700 hover:bg-slate-300"
-                    }`}
-                  >
-                    No
-                  </button>
-                </div>
+                <YesNo value={manageStock} onChange={setManageStock} label="Manage stock" />
               </div>
 
               {manageStock && (
-                <div className="space-y-6">
-                  {/* Current Stock Value */}
-                  <div>
-                    <label className="block text-xs font-extrabold text-slate-800 mb-1">
-                      Estimated Current Stock Value
+                <div className={ob.inset}>
+                  <div className={ob.field}>
+                    <label className={ob.label} htmlFor="fps-stock-value">
+                      Estimated current stock value
                     </label>
-                    <p className="text-[11px] font-medium text-slate-500 mb-2">
-                      Total wholesale/retail value of all items currently on your shelves.
-                    </p>
-                    <div className="relative max-w-xs">
-                      <span className="absolute left-3.5 top-1/2 -translate-y-1/2 text-xs font-extrabold text-slate-400">
-                        ₨
-                      </span>
-                      <input
-                        type="text"
-                        inputMode="numeric"
-                        placeholder="5,500,000"
-                        value={formatCurrencyInput(currentStockValue === "0" ? "" : currentStockValue)}
-                        onChange={(e) => {
-                          const raw = parseCurrencyInput(e.target.value);
-                          setCurrentStockValue(raw || "0");
-                          if (errors.currentStockValue) setErrors((prev) => ({ ...prev, currentStockValue: "" }));
-                        }}
-                        className={`w-full pl-8 pr-3 py-2.5 rounded-xl border text-xs font-extrabold text-slate-900 outline-none ${
-                          errors.currentStockValue ? "border-red-500 bg-red-50/50" : "border-slate-200 focus:border-[#00875a]"
-                        }`}
-                      />
-                    </div>
-                    {errors.currentStockValue && (
-                      <p className="text-[11px] font-bold text-red-600 mt-1">{errors.currentStockValue}</p>
-                    )}
+                    <span className={ob.hint}>Total value of everything currently on your shelves.</span>
+                    {moneyInput("fps-stock-value", currentStockValue, (raw) => setCurrentStockValue(raw || "0"), "5,500,000", "currentStockValue")}
+                    <FieldError>{errors.currentStockValue}</FieldError>
                   </div>
 
-                  {/* Add Existing Stock Now Options */}
-                  <div className="p-5 rounded-2xl border border-slate-200 space-y-4">
-                    <div className="flex items-center justify-between">
-                      <div>
-                        <strong className="block text-xs font-extrabold text-slate-900">
-                          Add Existing Stock Items Now
-                        </strong>
-                        <span className="text-[11px] font-medium text-slate-500">
-                          Import products via Excel, CSV or manual entry
-                        </span>
+                  <div className="border-t border-[var(--border)] pt-4">
+                    <div className={ob.blockHead}>
+                      <div className={ob.blockTitle}>
+                        <div>
+                          <h3>Add existing stock items now</h3>
+                          <p>Import from CSV / Excel, or add items one by one.</p>
+                        </div>
                       </div>
-                      <button
-                        type="button"
-                        onClick={() => setWantAddStockNow(!wantAddStockNow)}
-                        className="text-xs font-bold text-[#00875a] hover:underline cursor-pointer"
-                      >
-                        {wantAddStockNow ? "Hide Importer" : "+ Import Stock"}
+                      <button type="button" onClick={() => setWantAddStockNow(!wantAddStockNow)} className={ui.secondary} aria-expanded={wantAddStockNow}>
+                        <Icon name={wantAddStockNow ? "minus" : "upload"} size={14} />
+                        {wantAddStockNow ? "Hide importer" : "Import stock"}
                       </button>
                     </div>
 
                     {wantAddStockNow && (
-                      <div className="space-y-4 pt-3 border-t border-slate-100">
-                        <div className="flex flex-wrap gap-3">
-                          {/* CSV / Excel File Input */}
-                          <label className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-800 text-xs font-extrabold cursor-pointer transition">
-                            <span>📁 Upload CSV / Excel</span>
-                            <input
-                              type="file"
-                              accept=".csv,.txt"
-                              onChange={handleCsvImport}
-                              className="hidden"
-                            />
+                      <div className="al-pop flex flex-col gap-3">
+                        <div className="flex flex-wrap gap-2">
+                          <label className={ui.secondary}>
+                            <Icon name="file" size={14} />
+                            Upload CSV / Excel
+                            <input type="file" accept=".csv,.txt" onChange={handleCsvImport} className="hidden" />
                           </label>
-
-                          {/* Manual Add Button */}
                           <button
                             type="button"
                             onClick={() => {
                               setProdModalError("");
                               setShowProductModal(true);
                             }}
-                            className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-[#e6f4ed] hover:bg-[#d5eedf] text-[#00875a] text-xs font-extrabold cursor-pointer transition"
+                            className={ui.secondary}
                           >
-                            <span>+ Manual Item Entry</span>
+                            <Icon name="plus" size={14} />
+                            Add item manually
                           </button>
                         </div>
 
-                        {/* Staged Products Table */}
                         {products.length > 0 && (
-                          <div className="space-y-2">
-                            <span className="text-[11px] font-bold text-slate-600">
-                              Staged Products ({products.length})
+                          <div className={ob.field}>
+                            <span className={ob.label}>
+                              Staged products<i>{products.length}</i>
                             </span>
-                            <div className="max-h-48 overflow-y-auto border border-slate-200 rounded-xl divide-y divide-slate-100">
+                            <div className={ob.list}>
                               {products.map((p, idx) => (
-                                <div
-                                  key={idx}
-                                  className="flex items-center justify-between p-2.5 text-xs bg-white hover:bg-slate-50 transition"
-                                >
-                                  <div>
-                                    <strong className="text-slate-900">{p.name}</strong>
-                                    <span className="text-slate-400 text-[10px] ml-2">
-                                      Barcode: {p.barcode} • Qty: {p.stock}
-                                    </span>
+                                <div key={idx} className={ob.listRow}>
+                                  <div className="min-w-0 truncate">
+                                    <strong>{p.name}</strong>
+                                    <small className="font-mono">
+                                      {p.barcode} · qty {p.stock}
+                                    </small>
                                   </div>
-                                  <div className="flex items-center gap-3">
-                                    <span className="font-extrabold text-[#00875a]">
-                                      ₨ {p.sellingPrice.toLocaleString()}
-                                    </span>
+                                  <div className={ob.listMeta}>
+                                    <b>Rs {p.sellingPrice.toLocaleString()}</b>
                                     <button
                                       type="button"
+                                      className={ob.remove}
+                                      aria-label={`Remove ${p.name}`}
                                       onClick={() => setProducts(products.filter((_, i) => i !== idx))}
-                                      className="text-red-500 hover:text-red-700 font-bold"
                                     >
-                                      ✕
+                                      <Icon name="x" size={14} />
                                     </button>
                                   </div>
                                 </div>
@@ -1217,500 +955,356 @@ function FinancialSetupContent() {
                 </div>
               )}
             </div>
-          )}
+          </div>
+        </>
+      )}
 
-          {/* ================= STEP 5: SECTION 7 TAX INFORMATION ================= */}
-          {currentStep === 5 && (
-            <div className="space-y-8 animate-in fade-in duration-200">
-              <div>
-                <span className="inline-block px-3 py-1 rounded-full bg-[#e6f4ed] text-[#00875a] text-[11px] font-extrabold uppercase tracking-wider mb-2">
-                  Section 7
-                </span>
-                <h2 className="text-2xl font-black text-slate-900 tracking-tight">
-                  Tax Information
-                </h2>
-                <p className="text-xs font-medium text-slate-500 mt-1">
-                  Optional tax registration details for FBR, NTN, and tax invoice compliance.
-                </p>
-              </div>
-
-              {/* Tax Registration Selector */}
-              <div className="space-y-3">
-                <label className="block text-xs font-extrabold text-slate-800">
-                  Is your business registered for tax?
-                </label>
-                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-                  {[
-                    { id: "yes", label: "Yes", desc: "Registered (NTN/STRN)" },
-                    { id: "no", label: "No", desc: "Not registered yet" },
-                    { id: "not_sure", label: "I'm not sure", desc: "Decide later" },
-                  ].map((opt) => (
-                    <button
-                      key={opt.id}
-                      type="button"
-                      onClick={() => {
-                        setTaxRegistered(opt.id as typeof taxRegistered);
-                        if (errors.ntn) setErrors((prev) => ({ ...prev, ntn: "" }));
-                      }}
-                      className={`p-4 rounded-2xl border text-left transition cursor-pointer ${
-                        taxRegistered === opt.id
-                          ? "border-[#00875a] bg-[#e6f4ed]/50 ring-2 ring-[#00875a]/20"
-                          : "border-slate-200 hover:border-slate-300 bg-white"
-                      }`}
-                    >
-                      <strong className="block text-xs font-extrabold text-slate-900">
-                        {opt.label}
-                      </strong>
-                      <span className="text-[11px] font-medium text-slate-500">{opt.desc}</span>
-                    </button>
-                  ))}
+      {/* ================= STEP 5: TAX INFORMATION ================= */}
+      {currentStep === 5 && (
+        <>
+          <StepHead
+            step={5}
+            total={totalSteps}
+            title="Tax information"
+            description="Optional registration details for FBR, NTN and tax-invoice compliance."
+          />
+          <div className={ob.stepBody}>
+            <div className={ob.block}>
+              <div className={ob.blockHead}>
+                <div className={ob.blockTitle}>
+                  <span className={ob.iconTile}>
+                    <Icon name="shield" size={16} />
+                  </span>
+                  <div>
+                    <h2>Is your business registered for tax?</h2>
+                    <p>You can add these details later from Settings.</p>
+                  </div>
                 </div>
+              </div>
+              <div className={ob.choices} role="radiogroup" aria-label="Tax registration">
+                {[
+                  { id: "yes", label: "Yes", desc: "Registered (NTN / STRN)" },
+                  { id: "no", label: "No", desc: "Not registered yet" },
+                  { id: "not_sure", label: "I'm not sure", desc: "Decide later" },
+                ].map((opt) => (
+                  <button
+                    key={opt.id}
+                    type="button"
+                    role="radio"
+                    aria-checked={taxRegistered === opt.id}
+                    onClick={() => {
+                      setTaxRegistered(opt.id as typeof taxRegistered);
+                      if (errors.ntn) setErrors((prev) => ({ ...prev, ntn: "" }));
+                    }}
+                    className={`${ob.choice} ${taxRegistered === opt.id ? ob.choiceOn : ""}`}
+                  >
+                    <strong>{opt.label}</strong>
+                    <span>{opt.desc}</span>
+                  </button>
+                ))}
               </div>
 
               {taxRegistered === "yes" && (
-                <div className="space-y-4 p-5 rounded-2xl bg-slate-50 border border-slate-200 animate-in fade-in">
-                  <div>
-                    <label className="block text-[11px] font-extrabold text-slate-700 mb-1">
-                      National Tax Number (NTN) *
-                    </label>
-                    <input
-                      type="text"
-                      placeholder="e.g. 1234567-8"
-                      value={ntn}
-                      onChange={(e) => {
-                        setNtn(e.target.value);
-                        if (errors.ntn) setErrors((prev) => ({ ...prev, ntn: "" }));
-                      }}
-                      className={`w-full px-3.5 py-2.5 rounded-xl border bg-white text-xs font-bold text-slate-900 outline-none ${
-                        errors.ntn ? "border-red-500 bg-red-50/50" : "border-slate-200 focus:border-[#00875a]"
-                      }`}
-                    />
-                    {errors.ntn && (
-                      <p className="text-[11px] font-bold text-red-600 mt-1">{errors.ntn}</p>
-                    )}
+                <div className={ob.inset}>
+                  <div className={ob.grid2}>
+                    <div className={ob.field}>
+                      <label className={ob.label} htmlFor="fps-ntn">
+                        National Tax Number (NTN)<em>*</em>
+                      </label>
+                      <input
+                        id="fps-ntn"
+                        type="text"
+                        placeholder="e.g. 1234567-8"
+                        value={ntn}
+                        onChange={(e) => {
+                          setNtn(e.target.value);
+                          if (errors.ntn) setErrors((prev) => ({ ...prev, ntn: "" }));
+                        }}
+                        className={`${ui.input} font-mono ${errors.ntn ? ob.invalid : ""}`}
+                      />
+                      <FieldError>{errors.ntn}</FieldError>
+                    </div>
+                    <div className={ob.field}>
+                      <label className={ob.label} htmlFor="fps-strn">
+                        Sales Tax Reg. No. (STRN)<i>Optional</i>
+                      </label>
+                      <input
+                        id="fps-strn"
+                        type="text"
+                        placeholder="e.g. 17-00-1234-567-89"
+                        value={strn}
+                        onChange={(e) => setStrn(e.target.value)}
+                        className={`${ui.input} font-mono`}
+                      />
+                    </div>
                   </div>
-
-                  <div>
-                    <label className="block text-[11px] font-extrabold text-slate-700 mb-1">
-                      Sales Tax Registration Number (STRN) <span className="font-normal text-slate-400">(Optional)</span>
+                  <div className={ob.field}>
+                    <label className={ob.label} htmlFor="fps-reg-name">
+                      Business registration name
                     </label>
                     <input
-                      type="text"
-                      placeholder="e.g. 17-00-1234-567-89"
-                      value={strn}
-                      onChange={(e) => setStrn(e.target.value)}
-                      className="w-full px-3.5 py-2.5 rounded-xl border border-slate-200 bg-white text-xs font-bold text-slate-900 outline-none focus:border-[#00875a]"
-                    />
-                  </div>
-
-                  <div>
-                    <label className="block text-[11px] font-extrabold text-slate-700 mb-1">
-                      Business Registration Name
-                    </label>
-                    <input
+                      id="fps-reg-name"
                       type="text"
                       placeholder="e.g. Al-Madina Mobile Center Private Limited"
                       value={taxBusinessName}
                       onChange={(e) => setTaxBusinessName(e.target.value)}
-                      className="w-full px-3.5 py-2.5 rounded-xl border border-slate-200 bg-white text-xs font-bold text-slate-900 outline-none focus:border-[#00875a]"
+                      className={ui.input}
                     />
                   </div>
                 </div>
               )}
             </div>
-          )}
+          </div>
+        </>
+      )}
 
-          {/* ================= STEP 6: SECTION 8 BUSINESS LOGO ================= */}
-          {currentStep === 6 && (
-            <div className="space-y-8 animate-in fade-in duration-200">
-              <div>
-                <span className="inline-block px-3 py-1 rounded-full bg-[#e6f4ed] text-[#00875a] text-[11px] font-extrabold uppercase tracking-wider mb-2">
-                  Section 8
-                </span>
-                <h2 className="text-2xl font-black text-slate-900 tracking-tight">
-                  Business Logo & Branding
-                </h2>
-                <p className="text-xs font-medium text-slate-500 mt-1">
-                  Upload your brand logo. It will appear on printed and digital receipts.
-                </p>
-              </div>
-
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-6 items-start">
-                {/* Upload Box */}
-                <div className="p-6 rounded-2xl border-2 border-dashed border-slate-200 hover:border-[#00875a] bg-slate-50/50 flex flex-col items-center text-center transition">
-                  {logoUrl ? (
-                    <div className="space-y-3">
-                      <div className="size-28 rounded-2xl border border-slate-200 bg-white p-2 shadow-sm mx-auto flex items-center justify-center overflow-hidden">
-                        <img src={logoUrl} alt="Business Logo" className="max-h-full max-w-full object-contain" />
-                      </div>
-                      <button
-                        type="button"
-                        onClick={() => setLogoUrl("")}
-                        className="text-xs font-bold text-red-600 hover:underline cursor-pointer"
-                      >
-                        Remove Logo
-                      </button>
-                    </div>
-                  ) : (
-                    <div className="space-y-3">
-                      <div className="size-16 rounded-2xl bg-[#e6f4ed] text-[#00875a] mx-auto flex items-center justify-center text-2xl font-bold">
-                        🖼️
-                      </div>
-                      <div>
-                        <strong className="block text-xs font-extrabold text-slate-800">
-                          Upload Business Logo
-                        </strong>
-                        <span className="text-[11px] font-medium text-slate-400">
-                          PNG, JPG, or WEBP up to 2MB
-                        </span>
-                      </div>
-                      <label className="inline-block px-4 py-2 rounded-xl bg-[#00875a] hover:bg-[#006b3f] text-white text-xs font-extrabold cursor-pointer transition shadow-md shadow-[#00875a]/20">
-                        Choose File
-                        <input
-                          type="file"
-                          accept="image/png,image/jpeg,image/webp,image/gif"
-                          onChange={handleLogoUpload}
-                          className="hidden"
-                        />
-                      </label>
-                    </div>
-                  )}
-                </div>
-
-                {/* Where will it appear preview card */}
-                <div className="p-5 rounded-2xl bg-white border border-slate-200 space-y-3">
-                  <strong className="block text-xs font-extrabold text-slate-900">
-                    Your logo will appear on:
-                  </strong>
-                  <ul className="space-y-2 text-xs font-semibold text-slate-600">
-                    <li className="flex items-center gap-2">
-                      <span className="size-5 rounded-md bg-[#e6f4ed] text-[#00875a] text-[10px] grid place-items-center font-bold">✓</span>
-                      Printed Invoices & POS Receipts
-                    </li>
-                    <li className="flex items-center gap-2">
-                      <span className="size-5 rounded-md bg-[#e6f4ed] text-[#00875a] text-[10px] grid place-items-center font-bold">✓</span>
-                      Customer Khata & Ledger Statements
-                    </li>
-                    <li className="flex items-center gap-2">
-                      <span className="size-5 rounded-md bg-[#e6f4ed] text-[#00875a] text-[10px] grid place-items-center font-bold">✓</span>
-                      Automated WhatsApp Invoices
-                    </li>
-                    <li className="flex items-center gap-2">
-                      <span className="size-5 rounded-md bg-[#e6f4ed] text-[#00875a] text-[10px] grid place-items-center font-bold">✓</span>
-                      Exportable Financial Reports
-                    </li>
-                  </ul>
-                </div>
-              </div>
-            </div>
-          )}
-
-          {/* Navigation Controls */}
-          <div className="pt-8 border-t border-slate-100 flex items-center justify-between gap-3">
-            {currentStep > 1 ? (
-              <button
-                type="button"
-                onClick={() => setCurrentStep((prev) => Math.max(1, prev - 1))}
-                className="px-5 py-3 rounded-2xl border border-slate-200 hover:bg-slate-50 text-slate-700 text-xs font-extrabold transition cursor-pointer"
-              >
-                ◀ Back
-              </button>
-            ) : (
-              <div />
-            )}
-
-            <div className="flex items-center gap-2">
-              {currentStep < totalSteps ? (
-                <button
-                  type="button"
-                  onClick={handleNextStep}
-                  className="px-6 py-3 rounded-2xl bg-[#00875a] hover:bg-[#006b3f] text-white text-xs font-extrabold shadow-lg shadow-[#00875a]/20 transition cursor-pointer"
-                >
-                  Save & Next ➔
-                </button>
+      {/* ================= STEP 6: BUSINESS LOGO ================= */}
+      {currentStep === 6 && (
+        <>
+          <StepHead
+            step={6}
+            total={totalSteps}
+            title="Logo & branding"
+            description="Upload your logo. It appears on printed and digital receipts."
+          />
+          <div className={`${ob.stepBody} ${ob.grid2}`}>
+            <div className={ob.drop}>
+              {logoUrl ? (
+                <>
+                  <div className={ob.logoPreview}>
+                    <img src={logoUrl} alt="Business logo" />
+                  </div>
+                  <button type="button" onClick={() => setLogoUrl("")} className={`${ui.danger} mt-3`}>
+                    <Icon name="trash" size={14} />
+                    Remove logo
+                  </button>
+                </>
               ) : (
-                <button
-                  type="button"
-                  disabled={isSubmitting}
-                  onClick={handleFinalSubmit}
-                  className="px-8 py-3.5 rounded-2xl bg-gradient-to-r from-emerald-600 to-teal-700 hover:from-emerald-700 hover:to-teal-800 text-white text-xs font-extrabold shadow-xl shadow-emerald-700/25 transition disabled:opacity-50 cursor-pointer"
-                >
-                  {isSubmitting ? "Completing Setup..." : "Finish & Enter Workspace ➔"}
-                </button>
+                <>
+                  <span className={ui.emptyIcon}>
+                    <Icon name="image" size={19} />
+                  </span>
+                  <strong>Upload business logo</strong>
+                  <span>PNG, JPG or WEBP up to 2MB</span>
+                  <label className={`${ui.primary} mt-3`}>
+                    <Icon name="upload" size={14} />
+                    Choose file
+                    <input type="file" accept="image/png,image/jpeg,image/webp,image/gif" onChange={handleLogoUpload} className="hidden" />
+                  </label>
+                </>
               )}
             </div>
-          </div>
-        </div>
-      </main>
 
-      {/* Quick Add Customer Modal */}
-      {showAddCustomerModal && (
-        <div className="fixed inset-0 z-50 bg-black/50 backdrop-blur-xs flex items-center justify-center p-4">
-          <form
-            onSubmit={handleAddCustomer}
-            className="bg-white rounded-3xl p-6 max-w-sm w-full shadow-2xl border border-slate-100 space-y-4"
-          >
-            <h3 className="text-base font-extrabold text-slate-900">Add Customer Khata</h3>
-            {custModalError && (
-              <div className="p-2.5 rounded-xl bg-red-50 text-red-700 text-xs font-bold border border-red-200">
-                {custModalError}
-              </div>
-            )}
-            <div>
-              <label className="block text-[11px] font-bold text-slate-600 mb-1">Customer Name *</label>
-              <input
-                type="text"
-                required
-                placeholder="e.g. Ali Raza"
-                value={custDraft.name}
-                onChange={(e) => setCustDraft({ ...custDraft, name: e.target.value })}
-                className="w-full px-3 py-2 rounded-xl border border-slate-200 text-xs font-bold text-slate-900 outline-none focus:border-[#00875a]"
-              />
-            </div>
-            <div>
-              <label className="block text-[11px] font-bold text-slate-600 mb-1">Mobile Number *</label>
-              <input
-                type="tel"
-                required
-                maxLength={15}
-                placeholder="03001234567"
-                value={custDraft.mobile}
-                onChange={(e) => setCustDraft({ ...custDraft, mobile: sanitizePhoneInput(e.target.value) })}
-                className="w-full px-3 py-2 rounded-xl border border-slate-200 text-xs font-bold text-slate-900 outline-none focus:border-[#00875a]"
-              />
-            </div>
-            <div>
-              <label className="block text-[11px] font-bold text-slate-600 mb-1">Opening Amount Owed (₨)</label>
-              <input
-                type="text"
-                inputMode="numeric"
-                placeholder="25,000"
-                value={formatCurrencyInput(custDraft.balance)}
-                onChange={(e) => setCustDraft({ ...custDraft, balance: parseCurrencyInput(e.target.value) })}
-                className="w-full px-3 py-2 rounded-xl border border-slate-200 text-xs font-bold text-slate-900 outline-none focus:border-[#00875a]"
-              />
-            </div>
-            <div className="pt-2 flex justify-end gap-2">
-              <button
-                type="button"
-                onClick={() => setShowAddCustomerModal(false)}
-                className="px-4 py-2 rounded-xl text-xs font-bold text-slate-500 hover:bg-slate-100 cursor-pointer"
-              >
-                Cancel
-              </button>
-              <button
-                type="submit"
-                className="px-4 py-2 rounded-xl text-xs font-extrabold bg-[#00875a] text-white hover:bg-[#006b3f] cursor-pointer"
-              >
-                Save Customer
-              </button>
-            </div>
-          </form>
-        </div>
-      )}
-
-      {/* Quick Add Supplier Modal */}
-      {showAddSupplierModal && (
-        <div className="fixed inset-0 z-50 bg-black/50 backdrop-blur-xs flex items-center justify-center p-4">
-          <form
-            onSubmit={handleAddSupplier}
-            className="bg-white rounded-3xl p-6 max-w-sm w-full shadow-2xl border border-slate-100 space-y-4"
-          >
-            <h3 className="text-base font-extrabold text-slate-900">Add Supplier Khata</h3>
-            {suppModalError && (
-              <div className="p-2.5 rounded-xl bg-red-50 text-red-700 text-xs font-bold border border-red-200">
-                {suppModalError}
-              </div>
-            )}
-            <div>
-              <label className="block text-[11px] font-bold text-slate-600 mb-1">Supplier / Vendor Name *</label>
-              <input
-                type="text"
-                required
-                placeholder="e.g. Hafeez Center Wholesale"
-                value={suppDraft.name}
-                onChange={(e) => setSuppDraft({ ...suppDraft, name: e.target.value })}
-                className="w-full px-3 py-2 rounded-xl border border-slate-200 text-xs font-bold text-slate-900 outline-none focus:border-[#00875a]"
-              />
-            </div>
-            <div>
-              <label className="block text-[11px] font-bold text-slate-600 mb-1">Mobile / WhatsApp *</label>
-              <input
-                type="tel"
-                required
-                maxLength={15}
-                placeholder="03219876543"
-                value={suppDraft.mobile}
-                onChange={(e) => setSuppDraft({ ...suppDraft, mobile: sanitizePhoneInput(e.target.value) })}
-                className="w-full px-3 py-2 rounded-xl border border-slate-200 text-xs font-bold text-slate-900 outline-none focus:border-[#00875a]"
-              />
-            </div>
-            <div>
-              <label className="block text-[11px] font-bold text-slate-600 mb-1">Amount You Owe (₨)</label>
-              <input
-                type="text"
-                inputMode="numeric"
-                placeholder="150,000"
-                value={formatCurrencyInput(suppDraft.balance)}
-                onChange={(e) => setSuppDraft({ ...suppDraft, balance: parseCurrencyInput(e.target.value) })}
-                className="w-full px-3 py-2 rounded-xl border border-slate-200 text-xs font-bold text-slate-900 outline-none focus:border-[#00875a]"
-              />
-            </div>
-            <div className="pt-2 flex justify-end gap-2">
-              <button
-                type="button"
-                onClick={() => setShowAddSupplierModal(false)}
-                className="px-4 py-2 rounded-xl text-xs font-bold text-slate-500 hover:bg-slate-100 cursor-pointer"
-              >
-                Cancel
-              </button>
-              <button
-                type="submit"
-                className="px-4 py-2 rounded-xl text-xs font-extrabold bg-[#00875a] text-white hover:bg-[#006b3f] cursor-pointer"
-              >
-                Save Supplier
-              </button>
-            </div>
-          </form>
-        </div>
-      )}
-
-      {/* Manual Product Add Modal */}
-      {showProductModal && (
-        <div className="fixed inset-0 z-50 bg-black/50 backdrop-blur-xs flex items-center justify-center p-4">
-          <form
-            onSubmit={handleAddProduct}
-            className="bg-white rounded-3xl p-6 max-w-sm w-full shadow-2xl border border-slate-100 space-y-4"
-          >
-            <h3 className="text-base font-extrabold text-slate-900">Add Stock Item</h3>
-            {prodModalError && (
-              <div className="p-2.5 rounded-xl bg-red-50 text-red-700 text-xs font-bold border border-red-200">
-                {prodModalError}
-              </div>
-            )}
-            <div>
-              <label className="block text-[11px] font-bold text-slate-600 mb-1">Product Name *</label>
-              <input
-                type="text"
-                required
-                placeholder="e.g. Redmi Note 13 (8GB/256GB)"
-                value={prodDraft.name}
-                onChange={(e) => setProdDraft({ ...prodDraft, name: e.target.value })}
-                className="w-full px-3 py-2 rounded-xl border border-slate-200 text-xs font-bold text-slate-900 outline-none focus:border-[#00875a]"
-              />
-            </div>
-            <div className="grid grid-cols-2 gap-2">
-              <div>
-                <label className="block text-[11px] font-bold text-slate-600 mb-1">Cost Price (₨)</label>
-                <input
-                  type="text"
-                  inputMode="numeric"
-                  placeholder="45,000"
-                  value={formatCurrencyInput(prodDraft.costPrice)}
-                  onChange={(e) => setProdDraft({ ...prodDraft, costPrice: parseCurrencyInput(e.target.value) })}
-                  className="w-full px-3 py-2 rounded-xl border border-slate-200 text-xs font-bold text-slate-900 outline-none focus:border-[#00875a]"
-                />
-              </div>
-              <div>
-                <label className="block text-[11px] font-bold text-slate-600 mb-1">Selling Price (₨) *</label>
-                <input
-                  type="text"
-                  inputMode="numeric"
-                  required
-                  placeholder="52,000"
-                  value={formatCurrencyInput(prodDraft.sellingPrice)}
-                  onChange={(e) => setProdDraft({ ...prodDraft, sellingPrice: parseCurrencyInput(e.target.value) })}
-                  className="w-full px-3 py-2 rounded-xl border border-slate-200 text-xs font-bold text-slate-900 outline-none focus:border-[#00875a]"
-                />
-              </div>
-            </div>
-            <div className="grid grid-cols-2 gap-2">
-              <div>
-                <label className="block text-[11px] font-bold text-slate-600 mb-1">Initial Quantity</label>
-                <input
-                  type="number"
-                  min="0"
-                  value={prodDraft.stock}
-                  onChange={(e) => setProdDraft({ ...prodDraft, stock: e.target.value })}
-                  className="w-full px-3 py-2 rounded-xl border border-slate-200 text-xs font-bold text-slate-900 outline-none focus:border-[#00875a]"
-                />
-              </div>
-              <div>
-                <label className="block text-[11px] font-bold text-slate-600 mb-1">Barcode / IMEI</label>
-                <input
-                  type="text"
-                  placeholder="Optional barcode"
-                  value={prodDraft.barcode}
-                  onChange={(e) => setProdDraft({ ...prodDraft, barcode: e.target.value })}
-                  className="w-full px-3 py-2 rounded-xl border border-slate-200 text-xs font-bold text-slate-900 outline-none focus:border-[#00875a]"
-                />
-              </div>
-            </div>
-            <div className="pt-2 flex justify-end gap-2">
-              <button
-                type="button"
-                onClick={() => setShowProductModal(false)}
-                className="px-4 py-2 rounded-xl text-xs font-bold text-slate-500 hover:bg-slate-100 cursor-pointer"
-              >
-                Cancel
-              </button>
-              <button
-                type="submit"
-                className="px-4 py-2 rounded-xl text-xs font-extrabold bg-[#00875a] text-white hover:bg-[#006b3f] cursor-pointer"
-              >
-                Add Item
-              </button>
-            </div>
-          </form>
-        </div>
-      )}
-
-      {/* Completion Success Modal */}
-      {setupComplete && (
-        <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4">
-          <div className="bg-white rounded-3xl p-6 sm:p-8 max-w-md w-full shadow-2xl border border-slate-100 text-center space-y-4 animate-in zoom-in-95">
-            <div className="size-16 rounded-3xl bg-[#e6f4ed] text-[#00875a] mx-auto flex items-center justify-center text-3xl shadow-md shadow-[#00875a]/10">
-              🎉
-            </div>
-
-            <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-[11px] font-extrabold uppercase tracking-wider bg-emerald-100 text-emerald-800">
-              ✨ 30-Day Free Trial Activated
-            </span>
-
-            <h3 className="text-xl sm:text-2xl font-black text-slate-900 tracking-tight">
-              Financial Baseline Ready!
-            </h3>
-
-            <p className="text-xs sm:text-sm font-medium text-slate-600 leading-relaxed">
-              Your business is all set up. You can enjoy full access to all features during your <strong className="text-slate-900">30-day free trial</strong>.
-            </p>
-
-            <div className="pt-2">
-              <button
-                type="button"
-                onClick={handleActivateStripeTrial}
-                disabled={activatingStripe}
-                className="w-full py-4 px-6 rounded-2xl bg-gradient-to-r from-[#00875a] to-[#006644] hover:from-[#00744e] hover:to-[#005236] text-white text-sm font-extrabold shadow-lg shadow-[#00875a]/25 transition flex items-center justify-center gap-2 cursor-pointer disabled:opacity-60"
-              >
-                {activatingStripe ? (
-                  <span>Opening Stripe Gateway...</span>
-                ) : (
-                  <>
-                    <span>Activate via Stripe (30-Day Trial)</span>
-                    <span>💳 ➔</span>
-                  </>
+            <div className="rounded-[14px] border border-[var(--border)] bg-[var(--surface)] p-5">
+              <p className="mb-4 mt-0 text-[13.5px] font-medium">Your logo will appear on</p>
+              <ul className={ob.checks}>
+                {["Printed invoices & POS receipts", "Customer khata & ledger statements", "Automated WhatsApp invoices", "Exportable financial reports"].map(
+                  (item) => (
+                    <li key={item}>
+                      <span>
+                        <Icon name="check" size={12} strokeWidth={2.2} />
+                      </span>
+                      {item}
+                    </li>
+                  ),
                 )}
-              </button>
+              </ul>
             </div>
+          </div>
+        </>
+      )}
 
+      {/* Navigation */}
+      <div className={ob.nav}>
+        {currentStep > 1 ? (
+          <button type="button" onClick={() => setCurrentStep((prev) => Math.max(1, prev - 1))} className={`${ui.secondary} ${ob.navCta}`}>
+            <Icon name="left" size={15} />
+            Back
+          </button>
+        ) : (
+          <span className="hidden sm:block" />
+        )}
+
+        {currentStep < totalSteps ? (
+          <button type="button" onClick={handleNextStep} className={`${ui.primary} ${ob.navCta}`}>
+            Save & continue
+            <Icon name="arrowRight" size={15} />
+          </button>
+        ) : (
+          <button type="button" disabled={isSubmitting} onClick={handleFinalSubmit} className={`${ui.primary} ${ob.navCta}`}>
+            {isSubmitting ? (
+              <>
+                <span className="size-3.5 rounded-full border-2 border-current border-t-transparent [animation:almadelSpin_700ms_linear_infinite]" />
+                Completing setup…
+              </>
+            ) : (
+              <>
+                Finish & enter workspace
+                <Icon name="arrowRight" size={15} />
+              </>
+            )}
+          </button>
+        )}
+      </div>
+
+      {showAddCustomerModal && (
+        <QuickSheet title="Add customer khata" icon="users" onSubmit={handleAddCustomer} onClose={() => setShowAddCustomerModal(false)} error={custModalError} submitLabel="Save customer">
+          <>
+            <div className={ui.field}>
+              <label htmlFor="q-cust-name">Customer name *</label>
+              <input id="q-cust-name" type="text" required placeholder="e.g. Ali Raza" value={custDraft.name} onChange={(e) => setCustDraft({ ...custDraft, name: e.target.value })} className={ui.input} />
+            </div>
+            <div className={ui.field}>
+              <label htmlFor="q-cust-mobile">Mobile number *</label>
+              <input id="q-cust-mobile" type="tel" required maxLength={15} placeholder="03001234567" value={custDraft.mobile} onChange={(e) => setCustDraft({ ...custDraft, mobile: sanitizePhoneInput(e.target.value) })} className={ui.input} />
+            </div>
+            <div className={ui.field}>
+              <label htmlFor="q-cust-bal">Opening amount owed (Rs)</label>
+              <input id="q-cust-bal" type="text" inputMode="numeric" placeholder="25,000" value={formatCurrencyInput(custDraft.balance)} onChange={(e) => setCustDraft({ ...custDraft, balance: parseCurrencyInput(e.target.value) })} className={`${ui.input} font-mono`} />
+            </div>
+          </>
+        </QuickSheet>
+      )}
+
+      {showAddSupplierModal && (
+        <QuickSheet title="Add supplier khata" icon="truck" onSubmit={handleAddSupplier} onClose={() => setShowAddSupplierModal(false)} error={suppModalError} submitLabel="Save supplier">
+          <>
+            <div className={ui.field}>
+              <label htmlFor="q-supp-name">Supplier / vendor name *</label>
+              <input id="q-supp-name" type="text" required placeholder="e.g. Hafeez Center Wholesale" value={suppDraft.name} onChange={(e) => setSuppDraft({ ...suppDraft, name: e.target.value })} className={ui.input} />
+            </div>
+            <div className={ui.field}>
+              <label htmlFor="q-supp-mobile">Mobile / WhatsApp *</label>
+              <input id="q-supp-mobile" type="tel" required maxLength={15} placeholder="03219876543" value={suppDraft.mobile} onChange={(e) => setSuppDraft({ ...suppDraft, mobile: sanitizePhoneInput(e.target.value) })} className={ui.input} />
+            </div>
+            <div className={ui.field}>
+              <label htmlFor="q-supp-bal">Amount you owe (Rs)</label>
+              <input id="q-supp-bal" type="text" inputMode="numeric" placeholder="150,000" value={formatCurrencyInput(suppDraft.balance)} onChange={(e) => setSuppDraft({ ...suppDraft, balance: parseCurrencyInput(e.target.value) })} className={`${ui.input} font-mono`} />
+            </div>
+          </>
+        </QuickSheet>
+      )}
+
+      {showProductModal && (
+        <QuickSheet title="Add stock item" icon="box" onSubmit={handleAddProduct} onClose={() => setShowProductModal(false)} error={prodModalError} submitLabel="Add item">
+          <>
+            <div className={ui.field}>
+              <label htmlFor="q-prod-name">Product name *</label>
+              <input id="q-prod-name" type="text" required placeholder="e.g. Redmi Note 13 (8GB/256GB)" value={prodDraft.name} onChange={(e) => setProdDraft({ ...prodDraft, name: e.target.value })} className={ui.input} />
+            </div>
+            <div className={ob.grid2}>
+              <div className={ui.field}>
+                <label htmlFor="q-prod-cost">Cost price (Rs)</label>
+                <input id="q-prod-cost" type="text" inputMode="numeric" placeholder="45,000" value={formatCurrencyInput(prodDraft.costPrice)} onChange={(e) => setProdDraft({ ...prodDraft, costPrice: parseCurrencyInput(e.target.value) })} className={`${ui.input} font-mono`} />
+              </div>
+              <div className={ui.field}>
+                <label htmlFor="q-prod-sell">Selling price (Rs) *</label>
+                <input id="q-prod-sell" type="text" inputMode="numeric" required placeholder="52,000" value={formatCurrencyInput(prodDraft.sellingPrice)} onChange={(e) => setProdDraft({ ...prodDraft, sellingPrice: parseCurrencyInput(e.target.value) })} className={`${ui.input} font-mono`} />
+              </div>
+            </div>
+            <div className={ob.grid2}>
+              <div className={ui.field}>
+                <label htmlFor="q-prod-qty">Initial quantity</label>
+                <input id="q-prod-qty" type="number" min="0" value={prodDraft.stock} onChange={(e) => setProdDraft({ ...prodDraft, stock: e.target.value })} className={`${ui.input} font-mono`} />
+              </div>
+              <div className={ui.field}>
+                <label htmlFor="q-prod-barcode">Barcode / IMEI</label>
+                <input id="q-prod-barcode" type="text" placeholder="Optional" value={prodDraft.barcode} onChange={(e) => setProdDraft({ ...prodDraft, barcode: e.target.value })} className={`${ui.input} font-mono`} />
+              </div>
+            </div>
+          </>
+        </QuickSheet>
+      )}
+
+      {/* Completion */}
+      {setupComplete && (
+        <div className={ui.modal}>
+          <div className={`${ui.sheet} ${ob.center}`} style={{ width: "min(460px, 100%)" }} role="dialog" aria-modal="true" aria-label="Financial baseline ready">
+            <span className={ob.seal}>
+              <Icon name="check" size={26} strokeWidth={2} />
+            </span>
+            <span className={ob.badge}>
+              <Icon name="sparkle" size={13} />
+              30-day free trial
+            </span>
+            <h2 className="mb-1.5 mt-4 text-[22px] font-semibold tracking-[-0.03em]">Financial baseline ready</h2>
+            <p className="m-0 max-w-[44ch] text-[13.5px] leading-relaxed text-[var(--muted)]">
+              Your business is set up. Enjoy full access to every feature during your{" "}
+              <strong className="font-medium text-[var(--text)]">30-day free trial</strong>.
+            </p>
+            <button type="button" onClick={handleActivateStripeTrial} disabled={activatingStripe} className={`${ui.primary} ${ob.navCta} ${ob.wide} mt-6`}>
+              {activatingStripe ? (
+                <>
+                  <span className="size-3.5 rounded-full border-2 border-current border-t-transparent [animation:almadelSpin_700ms_linear_infinite]" />
+                  Opening secure checkout…
+                </>
+              ) : (
+                <>
+                  <Icon name="card" size={16} />
+                  Activate 30-day trial with Stripe
+                </>
+              )}
+            </button>
+            <span className={ob.secure}>
+              <Icon name="lock" size={13} />
+              Secure checkout powered by Stripe
+            </span>
           </div>
         </div>
       )}
+    </OnboardingFrame>
+  );
+}
 
-      {/* Footer */}
-      <footer className="text-center text-xs font-medium text-slate-400 py-4">
-        © {new Date().getFullYear()} Almadel Management Platform. All data is securely encrypted.
-      </footer>
+function QuickSheet({
+  title,
+  icon,
+  onSubmit,
+  onClose,
+  error,
+  submitLabel,
+  children,
+}: {
+  title: string;
+  icon: IconName;
+  onSubmit: (e: FormEvent) => void;
+  onClose: () => void;
+  error: string;
+  submitLabel: string;
+  children: React.ReactNode;
+}) {
+  return (
+    <div className={ui.modal} onMouseDown={(e) => e.target === e.currentTarget && onClose()}>
+      <form onSubmit={onSubmit} className={ui.sheet} style={{ width: "min(440px, 100%)" }} role="dialog" aria-modal="true" aria-label={title}>
+        <div className={ui.sheetHead}>
+          <div className="flex items-center gap-2.5">
+            <span className={ui.iconTile}>
+              <Icon name={icon} size={15} />
+            </span>
+            <h2>{title}</h2>
+          </div>
+          <button type="button" className={ui.iconButton} onClick={onClose} aria-label="Close">
+            <Icon name="x" size={15} />
+          </button>
+        </div>
+        {error && (
+          <div className="mb-4">
+            <div className={ui.error} role="alert">
+              <Icon name="alert" size={15} className="mt-px shrink-0" />
+              {error}
+            </div>
+          </div>
+        )}
+        <div className="flex flex-col gap-4">{children}</div>
+        <div className={ui.formActions}>
+          <button type="button" onClick={onClose} className={ui.secondary}>
+            Cancel
+          </button>
+          <button type="submit" className={ui.primary}>
+            {submitLabel}
+          </button>
+        </div>
+      </form>
     </div>
   );
 }
@@ -1718,11 +1312,7 @@ function FinancialSetupContent() {
 export default function FinancialSetupPage() {
   return (
     <Suspense
-      fallback={
-        <div className="min-h-screen bg-slate-50 flex items-center justify-center p-4">
-          <div className="animate-spin size-8 border-4 border-emerald-600 border-t-transparent rounded-full" />
-        </div>
-      }
+      fallback={<LoadingScreen label="Preparing financial setup…" />}
     >
       <FinancialSetupContent />
     </Suspense>
