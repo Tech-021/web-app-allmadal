@@ -1,4 +1,10 @@
-import { businessKey, getAuthItem, handleApiUnauthorizedStatus, tokenKey } from "@/app/lib/auth-session";
+import {
+  businessKey,
+  ensureValidSessionOrRedirect,
+  getAuthItem,
+  handleApiUnauthorizedStatus,
+  tokenKey,
+} from "@/app/lib/auth-session";
 
 const baseUrl = process.env.NEXT_PUBLIC_BACKEND_URL?.replace(/\/$/, "") ?? "";
 
@@ -31,8 +37,12 @@ export async function publicApi<T>(path: string, options: RequestInit = {}): Pro
 }
 
 export async function api<T>(path: string, options: RequestInit = {}): Promise<T> {
+  if (!baseUrl) throw new Error("Backend URL is not configured.");
+  if (!ensureValidSessionOrRedirect()) {
+    throw new Error("Your session has expired. Please sign in again.");
+  }
   const token = getAuthItem(tokenKey);
-  if (!baseUrl || !token) throw new Error("Your session is not available. Please sign in again.");
+  if (!token) throw new Error("Your session is not available. Please sign in again.");
   const activeBusinessId = getAuthItem(businessKey);
   const headers: Record<string, string> = {
     "Content-Type": "application/json",
@@ -55,9 +65,13 @@ export async function api<T>(path: string, options: RequestInit = {}): Promise<T
 }
 
 export async function uploadProductImage(file: File): Promise<{ url: string }> {
+  if (!baseUrl) throw new Error("Backend URL is not configured.");
+  if (!ensureValidSessionOrRedirect()) {
+    throw new Error("Your session has expired. Please sign in again.");
+  }
   const token = getAuthItem(tokenKey);
   const businessId = getAuthItem(businessKey);
-  if (!baseUrl || !token) throw new Error("Your session is not available. Please sign in again.");
+  if (!token) throw new Error("Your session is not available. Please sign in again.");
   const form = new FormData(); form.append("image", file);
   const response = await fetch(`${baseUrl}/products/images`, { method: "POST", body: form, headers: { Authorization: `Bearer ${token}`, ...(businessId ? { "x-business-id": businessId } : {}) } });
   const payload = await response.json().catch(() => ({}));

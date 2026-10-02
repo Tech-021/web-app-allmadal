@@ -5,7 +5,10 @@ import {
   SESSION_EXPIRED_EVENT,
   businessKey,
   clearAuthStorage,
+  ensureValidSessionOrRedirect,
   getAuthItem,
+  isAccessTokenExpired,
+  isIntentionalLogoutActive,
   markIntentionalLogout,
   persistAuthCredentials,
   redirectToLoginAfterAuthFailure,
@@ -39,8 +42,6 @@ type AuthContextValue = {
 
 const AuthContext = createContext<AuthContextValue | null>(null);
 const backendUrl = process.env.NEXT_PUBLIC_BACKEND_URL?.replace(/\/$/, "") ?? "";
-const TOKEN_EXPIRY_SKEW_SEC = 30;
-
 function endpoint(path: string) {
   if (!backendUrl) throw new Error("BACKEND_URL is not configured.");
   return `${backendUrl}${path}`;
@@ -52,25 +53,6 @@ function getToken() {
 
 function storeUser(user: AuthUser) {
   setAuthItem(userKey, JSON.stringify(user));
-}
-
-function decodeJwtPayload(token: string): { exp?: number } | null {
-  try {
-    const segment = token.split(".")[1];
-    if (!segment) return null;
-    const normalized = segment.replace(/-/g, "+").replace(/_/g, "/");
-    const padded = normalized.padEnd(normalized.length + ((4 - (normalized.length % 4)) % 4), "=");
-    return JSON.parse(atob(padded)) as { exp?: number };
-  } catch {
-    return null;
-  }
-}
-
-/** Client-side pre-check; server `/auth/me` remains authoritative. */
-function isAccessTokenExpired(token: string) {
-  const payload = decodeJwtPayload(token);
-  if (!payload?.exp) return false;
-  return Date.now() >= (payload.exp - TOKEN_EXPIRY_SKEW_SEC) * 1000;
 }
 
 async function parseResponse(response: Response) {
@@ -140,6 +122,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       setUser(nextUser);
     } catch {
       sessionInvalid();
+      if (!isIntentionalLogoutActive()) {
+        redirectToLoginAfterAuthFailure();
+      }
     } finally {
       setIsLoading(false);
     }
@@ -150,10 +135,44 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }, [refreshUser]);
 
   useEffect(() => {
-    const onSessionExpired = () => setUser(null);
+    const onSessionExpired = () => {
+      setUser(null);
+      redirectToLoginAfterAuthFailure();
+    };
     window.addEventListener(SESSION_EXPIRED_EVENT, onSessionExpired);
     return () => window.removeEventListener(SESSION_EXPIRED_EVENT, onSessionExpired);
   }, []);
+
+  useEffect(() => {
+    const tick = () => {
+      const token = getToken();
+      if (!token) return;
+      if (isAccessTokenExpired(token)) {
+        teardownSessionOnUnauthorized();
+        setUser(null);
+      }
+    };
+    const interval = window.setInterval(tick, 60_000);
+    const onVisible = () => {
+      if (document.visibilityState === "visible") tick();
+    };
+    document.addEventListener("visibilitychange", onVisible);
+    window.addEventListener("focus", tick);
+    return () => {
+      window.clearInterval(interval);
+      document.removeEventListener("visibilitychange", onVisible);
+      window.removeEventListener("focus", tick);
+    };
+  }, []);
+
+  useEffect(() => {
+    if (!user) return;
+    const onApiActivity = () => {
+      if (!ensureValidSessionOrRedirect()) setUser(null);
+    };
+    window.addEventListener("focus", onApiActivity);
+    return () => window.removeEventListener("focus", onApiActivity);
+  }, [user]);
 
   const applyAuthResponse = useCallback((data: AuthApiPayload, remember: boolean) => {
     const token = data.access_token || data.accessToken || data.token;

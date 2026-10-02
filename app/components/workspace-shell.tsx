@@ -7,6 +7,7 @@ import { useAuth } from "@/hooks/useAuth";
 import { useBusiness } from "@/app/components/business-context";
 import { TrialExpiredModal } from "@/app/components/trial-expired-modal";
 import styles from "./workspace-shell.module.css";
+import { redirectToLoginAfterAuthFailure } from "@/app/lib/auth-session";
 import { logActivity } from "@/app/lib/logger";
 import { resolveImageUrl } from "@/app/lib/api";
 import { useLanguage } from "./language-context";
@@ -101,8 +102,10 @@ export function WorkspaceShell({ children }: { children: React.ReactNode }) {
   }, [mobileDrawerLinks, pathname]);
 
   useEffect(() => {
-    if (!authLoading && !user) router.replace("/login");
-  }, [authLoading, user, router]);
+    if (!authLoading && !user) {
+      redirectToLoginAfterAuthFailure();
+    }
+  }, [authLoading, user]);
 
   // POS workspace: financial-only pages (e.g. /customers khata) are not available — use Sales for walk-in customers.
   useEffect(() => {
