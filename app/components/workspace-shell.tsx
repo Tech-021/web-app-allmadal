@@ -152,6 +152,7 @@ export function WorkspaceShell({ children }: { children: React.ReactNode }) {
         "/customers": "Customers / Khata",
         "/suppliers": "Suppliers",
         "/sales": "Sales POS",
+        "/refunds": "Refunds",
         "/expenses": "Expenses",
         "/products": "Products Catalog",
         "/categories": "Categories Manager",

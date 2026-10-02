@@ -12,6 +12,7 @@ export type NavLink = {
 export const posLinks: NavLink[] = [
   { href: "/dashboard", label: "Dashboard", key: "nav.dashboard", icon: "📊", allowedRoles: ["admin", "staff", "accountant"] },
   { href: "/sales", label: "Sales", key: "nav.sales", icon: "🛒", allowedRoles: ["admin", "staff"] },
+  { href: "/refunds", label: "Refunds", key: "nav.refunds", icon: "↩️", allowedRoles: ["admin", "staff"] },
   {
     href: "/products",
     label: "Products / Inventory",
@@ -33,6 +34,7 @@ export const posLinks: NavLink[] = [
 export const financialLinks: NavLink[] = [
   { href: "/dashboard", label: "Dashboard", key: "nav.dashboard", icon: "📊", allowedRoles: ["admin", "staff", "accountant"] },
   { href: "/sales", label: "Sales", key: "nav.sales", icon: "🛒", allowedRoles: ["admin", "staff"] },
+  { href: "/refunds", label: "Refunds", key: "nav.refunds", icon: "↩️", allowedRoles: ["admin", "staff"] },
   {
     href: "/products",
     label: "Products / Inventory",

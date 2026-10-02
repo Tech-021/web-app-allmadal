@@ -29,11 +29,14 @@ export function PaginationControls({
   const { language } = useLanguage();
   const isUrdu = language === "ur";
 
-  const totalPages = Math.max(1, Math.ceil(totalItems / pageSize));
-  const safePage = Math.min(Math.max(1, currentPage), totalPages);
+  const safeTotalItems = Number.isFinite(totalItems) ? Math.max(0, totalItems) : 0;
+  const safePageSize = Number.isFinite(pageSize) && pageSize > 0 ? pageSize : 25;
+  const safeCurrentPage = Number.isFinite(currentPage) ? currentPage : 1;
+  const totalPages = Math.max(1, Math.ceil(safeTotalItems / safePageSize));
+  const safePage = Math.min(Math.max(1, safeCurrentPage), totalPages);
 
-  const startItem = totalItems === 0 ? 0 : (safePage - 1) * pageSize + 1;
-  const endItem = Math.min(totalItems, safePage * pageSize);
+  const startItem = safeTotalItems === 0 ? 0 : (safePage - 1) * safePageSize + 1;
+  const endItem = Math.min(safeTotalItems, safePage * safePageSize);
 
   // Compact layout: tailor-made for dashboard widgets, sidebars, and cards
   if (compact) {
@@ -46,18 +49,18 @@ export function PaginationControls({
           <span className="text-[11.5px] text-slate-500 font-medium whitespace-nowrap">
             {isUrdu ? (
               <>
-                <strong>{totalItems}</strong> mein se <strong>{startItem}–{endItem}</strong>
+                <strong>{safeTotalItems}</strong> mein se <strong>{startItem}–{endItem}</strong>
               </>
             ) : (
               <>
-                <strong>{startItem}–{endItem}</strong> of <strong>{totalItems}</strong> {itemLabel}
+                <strong>{startItem}–{endItem}</strong> of <strong>{safeTotalItems}</strong> {itemLabel}
               </>
             )}
           </span>
 
           {onPageSizeChange && (
             <select
-              value={pageSize}
+              value={safePageSize}
               onChange={(e) => onPageSizeChange(Number(e.target.value))}
               aria-label="Items per page"
               className="py-0.5 px-1 text-[11px] font-bold bg-white border border-slate-200 rounded text-slate-600 outline-none focus:border-[#00875a] cursor-pointer"
@@ -138,11 +141,11 @@ export function PaginationControls({
         <span className="text-slate-500 font-medium whitespace-nowrap">
           {isUrdu ? (
             <>
-              Kul <strong>{totalItems}</strong> mein se <strong>{startItem}–{endItem}</strong> {itemLabel}
+              Kul <strong>{safeTotalItems}</strong> mein se <strong>{startItem}–{endItem}</strong> {itemLabel}
             </>
           ) : (
             <>
-              Showing <strong>{startItem}–{endItem}</strong> of <strong>{totalItems}</strong> {itemLabel}
+              Showing <strong>{startItem}–{endItem}</strong> of <strong>{safeTotalItems}</strong> {itemLabel}
             </>
           )}
         </span>
@@ -151,7 +154,7 @@ export function PaginationControls({
           <div className="flex items-center gap-1.5 ml-1">
             <span className="text-[11px] text-slate-400 font-semibold whitespace-nowrap">{isUrdu ? "Har safha:" : "Per page:"}</span>
             <select
-              value={pageSize}
+              value={safePageSize}
               onChange={(e) => onPageSizeChange(Number(e.target.value))}
               className="py-1 px-2 text-xs font-extrabold bg-slate-50 border border-slate-200 rounded-lg text-slate-700 outline-none focus:border-[#00875a] cursor-pointer"
             >
