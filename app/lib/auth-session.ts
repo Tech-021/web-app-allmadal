@@ -130,3 +130,41 @@ export function handleApiUnauthorizedStatus(status: number) {
   if (status !== 401 || typeof window === "undefined") return;
   teardownSessionOnUnauthorized();
 }
+
+/** Decode JWT `exp` (seconds). Returns null if missing or invalid. */
+export function getAccessTokenExpiryMs(token: string): number | null {
+  try {
+    const segment = token.split(".")[1];
+    if (!segment) return null;
+    const normalized = segment.replace(/-/g, "+").replace(/_/g, "/");
+    const padded = normalized.padEnd(normalized.length + ((4 - (normalized.length % 4)) % 4), "=");
+    const payload = JSON.parse(atob(padded)) as { exp?: number };
+    if (!payload.exp || !Number.isFinite(payload.exp)) return null;
+    return payload.exp * 1000;
+  } catch {
+    return null;
+  }
+}
+
+const TOKEN_EXPIRY_SKEW_MS = 30_000;
+
+export function isAccessTokenExpired(token: string, nowMs = Date.now()) {
+  const expMs = getAccessTokenExpiryMs(token);
+  if (expMs == null) return false;
+  return nowMs >= expMs - TOKEN_EXPIRY_SKEW_MS;
+}
+
+/** If there is no token or it is expired, clear session and send user to login. */
+export function ensureValidSessionOrRedirect() {
+  if (typeof window === "undefined") return false;
+  const token = getAuthItem(tokenKey);
+  if (!token || isAccessTokenExpired(token)) {
+    if (!isIntentionalLogoutActive()) {
+      teardownSessionOnUnauthorized();
+    } else {
+      clearAuthStorage();
+    }
+    return false;
+  }
+  return true;
+}

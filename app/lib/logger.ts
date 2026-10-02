@@ -1,4 +1,4 @@
-import { businessKey, getAuthItem, tokenKey } from "@/app/lib/auth-session";
+import { businessKey, getAuthItem, handleApiUnauthorizedStatus, tokenKey } from "@/app/lib/auth-session";
 import { devError, devLog, devWarn } from "@/app/lib/dev-console";
 
 export type ActivityAction =
@@ -156,6 +156,7 @@ export async function logActivity(
       const data = await res.json().catch(() => ({}));
       devLog("%c[Almadel Logger] ✅ Log successfully persisted to database:", "color: #16a34a; font-weight: bold", data);
     } else {
+      if (res) handleApiUnauthorizedStatus(res.status);
       const errorText = res ? await res.text() : "No response";
       devWarn(
         `%c[Almadel Logger] ⚠️ POST /logs returned status ${res?.status || "ERR"}: %c${errorText}`,
