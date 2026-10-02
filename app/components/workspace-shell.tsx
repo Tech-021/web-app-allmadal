@@ -461,24 +461,8 @@ export function WorkspaceShell({ children }: { children: React.ReactNode }) {
                   {t("shell.store_settings", "Store settings")}
                 </Link>
               )}
-              <Link href="/setup-business" className={styles.menuLink} role="menuitem">
-                <Icon name="plus" size={15} />
-                {t("shell.setup_business", "+ Set up your business").replace(/^\+\s*/, "")}
-              </Link>
             </div>
           )}
-        </div>
-
-        {/* Workspace mode indicator */}
-        <div className={styles.workspace} aria-label="Workspace mode">
-          <span className={workspaceMode === "pos" ? styles.wsOn : ""}>
-            <Icon name="cart" size={13} />
-            {t("shell.workspace_pos", "POS")}
-          </span>
-          <span className={workspaceMode === "financial" ? styles.wsOn : ""}>
-            <Icon name="wallet" size={13} />
-            {t("shell.workspace_financial", "Financial")}
-          </span>
         </div>
 
         <nav className={styles.nav}>
