@@ -6,20 +6,38 @@ import { FormEvent, useEffect, useState } from "react";
 import { isRememberAuthPreferred } from "@/app/lib/auth-session";
 import { Field } from "./auth-shell";
 import { useAuth } from "@/hooks/useAuth";
+import {
+  fetchPasskeyConfig,
+  passkeyUserMessage,
+  shouldOfferPasskeySignIn,
+} from "@/app/lib/passkey";
 import { useLanguage } from "./language-context";
 
 export function LoginForm() {
   const router = useRouter();
-  const { login } = useAuth();
+  const { login, loginWithPasskey } = useAuth();
   const { t, language } = useLanguage();
   const [show, setShow] = useState(false);
   const [busy, setBusy] = useState(false);
+  const [passkeyBusy, setPasskeyBusy] = useState(false);
+  const [passkeyOffered, setPasskeyOffered] = useState(false);
   const [error, setError] = useState("");
   const [rememberMe, setRememberMe] = useState(true);
 
   useEffect(() => {
     setRememberMe(isRememberAuthPreferred());
+    void fetchPasskeyConfig().then((config) => {
+      setPasskeyOffered(shouldOfferPasskeySignIn(config));
+    });
   }, []);
+
+  async function redirectAfterAuth(user: { role: string }) {
+    if (user.role === "pending") {
+      router.push("/setup-business");
+    } else {
+      router.push("/dashboard");
+    }
+  }
 
   async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -32,15 +50,27 @@ export function LoginForm() {
         password: String(form.get("password")),
         rememberMe,
       });
-      if (user.role === "pending") {
-        router.push("/setup-business");
-      } else {
-        router.push("/dashboard");
-      }
+      await redirectAfterAuth(user);
     } catch (e) {
       setError(e instanceof Error ? e.message : "Unable to sign in.");
     } finally {
       setBusy(false);
+    }
+  }
+
+  async function onPasskeySignIn(event: React.MouseEvent<HTMLButtonElement>) {
+    event.preventDefault();
+    setError("");
+    setPasskeyBusy(true);
+    const form = event.currentTarget.form;
+    const email = form ? String(new FormData(form).get("email") || "").trim() : "";
+    try {
+      const user = await loginWithPasskey(email || undefined, { rememberMe });
+      await redirectAfterAuth(user);
+    } catch (e) {
+      setError(passkeyUserMessage(e));
+    } finally {
+      setPasskeyBusy(false);
     }
   }
 
@@ -126,6 +156,23 @@ export function LoginForm() {
         >
           {t("auth.magic_link", "Email me a sign-in link")}
         </Link>
+
+        {passkeyOffered && (
+          <div className="flex flex-col gap-1.5">
+            <button
+              type="button"
+              disabled={busy || passkeyBusy}
+              onClick={onPasskeySignIn}
+              className="flex h-12.5 w-full items-center justify-center gap-2 rounded-full border-2 border-slate-200 bg-slate-50 font-extrabold text-slate-800 text-sm tracking-wide transition hover:bg-slate-100 disabled:opacity-60 cursor-pointer"
+            >
+              <span aria-hidden>🔐</span>
+              {passkeyBusy ? "Waiting for passkey…" : t("auth.passkey", "Sign in with passkey")}
+            </button>
+            <p className="text-center text-[11px] font-medium text-[#6b7280] leading-snug px-1">
+              Use the email for this account. Windows Hello only works after you add a PC passkey in Settings.
+            </p>
+          </div>
+        )}
       </form>
 
       <p className="mt-7 text-center text-xs font-medium text-[#6b7280]">
