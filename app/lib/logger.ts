@@ -1,4 +1,10 @@
-import { businessKey, getAuthItem, handleApiUnauthorizedStatus, tokenKey } from "@/app/lib/auth-session";
+import {
+  businessKey,
+  getAuthItem,
+  handleApiUnauthorizedStatus,
+  isAccessTokenExpired,
+  tokenKey,
+} from "@/app/lib/auth-session";
 import { devError, devLog, devWarn } from "@/app/lib/dev-console";
 
 export type ActivityAction =
@@ -118,6 +124,11 @@ export async function logActivity(
     return;
   }
 
+  if (isAccessTokenExpired(token)) {
+    devWarn("[Almadel Logger] Skipping log — session expired.");
+    return;
+  }
+
   const payload: ActivityLogPayload = {
     action,
     category,
@@ -148,7 +159,12 @@ export async function logActivity(
       headers,
       body: JSON.stringify(payload),
     }).catch((err) => {
-      devError("%c[Almadel Logger] ❌ Network Error on POST /logs:", "color: #dc2626; font-weight: bold", err);
+      // Telemetry only — do not use console.error (Next.js dev overlay treats it as an app crash).
+      devWarn(
+        "%c[Almadel Logger] POST /logs unreachable (API down, wrong URL, or request aborted):",
+        "color: #d97706; font-weight: bold",
+        err,
+      );
       return null;
     });
 
