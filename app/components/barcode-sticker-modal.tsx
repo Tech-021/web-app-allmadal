@@ -4,10 +4,12 @@ import React, { useState, useEffect, useRef } from "react";
 import { Icon } from "@/app/components/icons";
 import { EmptyState } from "@/app/components/page-layout";
 import ui from "@/app/components/workspace-ui.module.css";
+import { Overlay } from "@/app/components/overlay";
 import JsBarcode from "jsbarcode";
 import { Product } from "@/app/lib/api";
 import { useBusiness } from "@/app/components/business-context";
 import { useLanguage } from "@/app/components/language-context";
+import { Select, SelectContent, SelectGroup, SelectItem, SelectLabel, SelectSeparator, SelectTrigger, SelectValue } from "@/app/components/ui/select";
 
 export type LabelLayoutType =
   | "thermal_50x25"
@@ -193,8 +195,6 @@ export function BarcodeStickerModal({
     window.print();
   };
 
-  if (!isOpen) return null;
-
   const filteredProducts = products.filter((p) => {
     if (!search.trim()) return true;
     const q = search.toLowerCase();
@@ -206,11 +206,10 @@ export function BarcodeStickerModal({
   });
 
   return (
-    <div
+    <Overlay
+      open={isOpen}
+      onClose={onClose}
       className="al-overlay fixed inset-0 z-50 flex items-end justify-center bg-[var(--scrim)] backdrop-blur-[4px] sm:items-center sm:p-4"
-      onMouseDown={(e) => {
-        if (e.target === e.currentTarget) onClose();
-      }}
     >
       <div
         role="dialog"
@@ -254,26 +253,30 @@ export function BarcodeStickerModal({
               <label className="block text-[12.5px] font-medium text-[var(--text-2)]">
                 {language === "ur" ? "1. Label / Paper Ka Size Chunein" : "1. Select Sticker Paper Size"}
               </label>
-              <select
-                value={selectedLayout}
-                onChange={(e) => setSelectedLayout(e.target.value as LabelLayoutType)}
-                className={ui.select}
-              >
-                <optgroup label="Thermal Roll Printers (Xprinter / Zebra / Rongta)">
-                  {LAYOUTS.filter((l) => l.category === "thermal").map((l) => (
-                    <option key={l.id} value={l.id}>
-                      {l.name}
-                    </option>
-                  ))}
-                </optgroup>
-                <optgroup label="Standard A4 Sticker Sheets (Desktop Printers)">
-                  {LAYOUTS.filter((l) => l.category === "sheet").map((l) => (
-                    <option key={l.id} value={l.id}>
-                      {l.name}
-                    </option>
-                  ))}
-                </optgroup>
-              </select>
+              <Select value={selectedLayout} onValueChange={(v) => setSelectedLayout(v as LabelLayoutType)}>
+                <SelectTrigger aria-label="Sticker paper size">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectGroup>
+                    <SelectLabel>Thermal roll printers (Xprinter / Zebra / Rongta)</SelectLabel>
+                    {LAYOUTS.filter((l) => l.category === "thermal").map((l) => (
+                      <SelectItem key={l.id} value={l.id}>
+                        {l.name}
+                      </SelectItem>
+                    ))}
+                  </SelectGroup>
+                  <SelectSeparator />
+                  <SelectGroup>
+                    <SelectLabel>Standard A4 sticker sheets (desktop printers)</SelectLabel>
+                    {LAYOUTS.filter((l) => l.category === "sheet").map((l) => (
+                      <SelectItem key={l.id} value={l.id}>
+                        {l.name}
+                      </SelectItem>
+                    ))}
+                  </SelectGroup>
+                </SelectContent>
+              </Select>
               <p className="text-[11px] text-slate-500 font-medium">
                 {activeLayout.description}
               </p>
@@ -328,15 +331,16 @@ export function BarcodeStickerModal({
                   {showPrice && (
                     <div className="flex items-center gap-1.5 text-xs font-semibold">
                       <span className="text-slate-400">Currency:</span>
-                      <select
-                        value={currencyPrefix}
-                        onChange={(e) => setCurrencyPrefix(e.target.value)}
-                        className="px-2 py-1 bg-slate-100 border border-slate-300 rounded text-xs font-bold"
-                      >
-                        <option value="₨">₨ (PKR)</option>
-                        <option value="Rs.">Rs.</option>
-                        <option value="$">$ (USD)</option>
-                      </select>
+                      <Select value={currencyPrefix} onValueChange={setCurrencyPrefix}>
+                        <SelectTrigger size="sm" aria-label="Currency" className="w-auto gap-1.5 text-xs font-semibold">
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent className="min-w-[7rem]">
+                          <SelectItem value="₨">₨ (PKR)</SelectItem>
+                          <SelectItem value="Rs.">Rs.</SelectItem>
+                          <SelectItem value="$">$ (USD)</SelectItem>
+                        </SelectContent>
+                      </Select>
                     </div>
                   )}
                 </div>
@@ -575,7 +579,7 @@ export function BarcodeStickerModal({
           }
         }
       `}</style>
-    </div>
+    </Overlay>
   );
 }
 

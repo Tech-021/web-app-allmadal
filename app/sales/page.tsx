@@ -1,536 +1,434 @@
 "use client";
 
-import React, { useState, useEffect, useCallback, useMemo } from "react";
+import React, { useCallback, useEffect, useMemo, useState } from "react";
 import { WorkspaceShell } from "@/app/components/workspace-shell";
 import { useBusiness } from "@/app/components/business-context";
 import { useToast } from "@/app/components/toast-context";
+import { useLanguage } from "@/app/components/language-context";
 import { api } from "@/app/lib/api";
 import { useDebounce } from "@/hooks/useDebounce";
-import { PosTerminal } from "@/app/components/pos-terminal";
-import { AddSaleModal } from "@/app/components/add-sale-modal";
+import { useNavRole } from "@/hooks/useNavRole";
 import { PosReceiptModal, ReceiptSale } from "@/app/components/pos-receipt-modal";
 import { PaginationControls } from "@/app/components/pagination-controls";
+import { PageHeader, TableEmptyRow, TableSkeletonRows } from "@/app/components/page-layout";
+import { CompositionBar, Money, formatRs } from "@/app/components/figures";
+import { Icon } from "@/app/components/icons";
+import ui from "@/app/components/workspace-ui.module.css";
+import s from "./sales.module.css";
 
-interface SaleListItem {
+type Range = "today" | "yesterday" | "week" | "month" | "all";
+
+/** One row in the table, normalised from either /reports/sales or /sales */
+type Row = {
   id: number;
   invoiceNumber: string;
-  customerName?: string | null;
-  customerMobile?: string | null;
-  subtotal: number;
-  discountAmount: number;
-  discountType?: string | null;
-  discountValue?: number | null;
-  totalAmount: number;
-  paymentMethod: string;
   createdAt: string;
-  customer?: { name: string; mobile: string } | null;
-  user?: { fullName: string; email: string } | null;
-  itemCount: number;
-}
+  customer: string;
+  customerMobile?: string | null;
+  items: number;
+  paymentMethod: string;
+  staff: string;
+  total: number;
+  discount: number;
+};
+
+type ReportResponse = {
+  summary: { totalRevenue: number; totalOrders: number; totalItems: number; totalDiscounts: number; averageOrder: number; cashTotal: number; onlineTotal: number };
+  sales: Array<{ id: number; invoiceNumber: string; totalAmount: number | string; totalItems: number; discountAmount: number | string; paymentMethod: string; customerName: string; customerMobile?: string | null; cashier: string; createdAt: string }>;
+  pagination?: { total?: number };
+};
+
+type ListResponse = {
+  sales: Array<{
+    id: number;
+    invoiceNumber: string;
+    customerName?: string | null;
+    customerMobile?: string | null;
+    totalAmount: number | string;
+    discountAmount: number | string;
+    paymentMethod: string;
+    createdAt: string;
+    customer?: { name: string; mobile: string } | null;
+    user?: { fullName: string; email: string } | null;
+    itemCount: number;
+  }>;
+  total: number;
+};
+
+const ymd = (d: Date) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+const isCash = (m?: string) => String(m || "cash").toLowerCase() === "cash";
 
 export default function SalesPage() {
   const { activeBusiness } = useBusiness();
   const { showToast } = useToast();
+  const { t } = useLanguage();
+  const navRole = useNavRole();
+  const canReport = navRole === "admin" || navRole === "accountant";
+  const canSell = navRole === "admin" || navRole === "staff";
 
-  const [viewMode, setViewMode] = useState<"pos" | "history">("pos");
-  const [addSaleModalOpen, setAddSaleModalOpen] = useState(false);
-
-  // Sales History State
-  const [sales, setSales] = useState<SaleListItem[]>([]);
-  const [totalSalesCount, setTotalSalesCount] = useState(0);
-  const [currentPage, setCurrentPage] = useState(1);
+  const [chosenRange, setRange] = useState<Range | null>(null);
+  const range: Range = chosenRange ?? (canReport ? "today" : "all");
+  const [payment, setPayment] = useState<"all" | "cash" | "online">("all");
+  const [query, setQuery] = useState("");
+  const debounced = useDebounce(query, 250);
+  const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(25);
-  const [loadingHistory, setLoadingHistory] = useState(false);
-  const [searchQuery, setSearchQuery] = useState("");
-  const debouncedSearch = useDebounce(searchQuery, 350);
-  const [filterPayment, setFilterPayment] = useState<"ALL" | "CASH" | "ONLINE">("ALL");
 
-  // Receipt Modal State
-  const [selectedReceipt, setSelectedReceipt] = useState<ReceiptSale | null>(null);
-  const [receiptModalOpen, setReceiptModalOpen] = useState(false);
+  const [rows, setRows] = useState<Row[]>([]);
+  const [total, setTotal] = useState(0);
+  const [summary, setSummary] = useState<ReportResponse["summary"] | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [failed, setFailed] = useState(false);
+
+  const [receipt, setReceipt] = useState<ReceiptSale | null>(null);
   const [loadingReceiptId, setLoadingReceiptId] = useState<number | null>(null);
 
-  // Load Sales History
-  const loadSalesHistory = useCallback(async () => {
-    if (!activeBusiness) return;
-    setLoadingHistory(true);
-    try {
-      const data = await api<{
-        sales: SaleListItem[];
-        total: number;
-        page: number;
-        limit: number;
-      }>(`/sales?page=${currentPage}&limit=${pageSize}`);
+  // Staff can't open reports — they always see the full list
+  const effectiveRange: Range = canReport ? range : "all";
 
-      setSales(data.sales || []);
-      setTotalSalesCount(data.total || 0);
-    } catch (err: unknown) {
-      const msg = err instanceof Error ? err.message : "Failed to load sales history.";
-      showToast(msg, "error");
+  const load = useCallback(async () => {
+    if (!activeBusiness) return;
+    setLoading(true);
+    setFailed(false);
+    try {
+      if (effectiveRange === "all") {
+        const data = await api<ListResponse>(`/sales?page=${page}&limit=${pageSize}`);
+        setRows(
+          (data.sales || []).map((x) => ({
+            id: x.id,
+            invoiceNumber: x.invoiceNumber,
+            createdAt: x.createdAt,
+            customer: x.customer?.name || x.customerName || "Walk-in Customer",
+            customerMobile: x.customer?.mobile || x.customerMobile,
+            items: x.itemCount || 1,
+            paymentMethod: x.paymentMethod,
+            staff: x.user?.fullName || x.user?.email || "Staff",
+            total: Number(x.totalAmount || 0),
+            discount: Number(x.discountAmount || 0),
+          })),
+        );
+        setTotal(data.total || 0);
+        setSummary(null);
+      } else {
+        const today = new Date();
+        const yesterday = new Date();
+        yesterday.setDate(today.getDate() - 1);
+        const qs =
+          effectiveRange === "today"
+            ? `period=daily&date=${ymd(today)}`
+            : effectiveRange === "yesterday"
+            ? `period=daily&date=${ymd(yesterday)}`
+            : effectiveRange === "week"
+            ? "period=weekly"
+            : "period=monthly";
+        const data = await api<ReportResponse>(`/reports/sales?${qs}&page=${page}&limit=${pageSize}`);
+        setRows(
+          (data.sales || []).map((x) => ({
+            id: x.id,
+            invoiceNumber: x.invoiceNumber,
+            createdAt: x.createdAt,
+            customer: x.customerName || "Walk-in Customer",
+            customerMobile: x.customerMobile,
+            items: x.totalItems || 1,
+            paymentMethod: x.paymentMethod,
+            staff: x.cashier || "Staff",
+            total: Number(x.totalAmount || 0),
+            discount: Number(x.discountAmount || 0),
+          })),
+        );
+        setTotal(data.pagination?.total ?? data.summary.totalOrders ?? 0);
+        setSummary(data.summary);
+      }
+    } catch (err) {
+      setFailed(true);
+      showToast(err instanceof Error ? err.message : "Failed to load sales.", "error");
     } finally {
-      setLoadingHistory(false);
+      setLoading(false);
     }
-  }, [activeBusiness, currentPage, pageSize, showToast]);
+  }, [activeBusiness, effectiveRange, page, pageSize, showToast]);
 
   useEffect(() => {
-    loadSalesHistory();
-  }, [loadSalesHistory]);
+    void load();
+  }, [load]);
 
-  // Handle completed sale from POS or AddSaleModal
-  const handleSaleCompleted = (invoice?: ReceiptSale) => {
-    loadSalesHistory();
-    if (invoice) {
-      setSelectedReceipt(invoice);
-      setReceiptModalOpen(true);
-    }
-  };
+  // Sales completed from the New Sale drawer
+  useEffect(() => {
+    const onSale = () => void load();
+    window.addEventListener("almadel:sale-completed", onSale);
+    return () => window.removeEventListener("almadel:sale-completed", onSale);
+  }, [load]);
 
-  // Open receipt for existing invoice in history
-  const handleViewReceipt = async (sale: SaleListItem) => {
-    setLoadingReceiptId(sale.id);
+  const visible = useMemo(() => {
+    const q = debounced.trim().toLowerCase();
+    return rows.filter((r) => {
+      if (payment === "cash" && !isCash(r.paymentMethod)) return false;
+      if (payment === "online" && isCash(r.paymentMethod)) return false;
+      if (!q) return true;
+      return [r.invoiceNumber, r.customer, r.customerMobile || "", r.staff].some((v) => v.toLowerCase().includes(q));
+    });
+  }, [rows, debounced, payment]);
+
+  const openReceipt = async (row: Row) => {
+    setLoadingReceiptId(row.id);
     try {
-      const fullInvoice = await api<ReceiptSale>(`/sales/${sale.id}`);
-      setSelectedReceipt(fullInvoice);
-      setReceiptModalOpen(true);
+      setReceipt(await api<ReceiptSale>(`/sales/${row.id}`));
     } catch {
-      // Fallback with available summary data
-      setSelectedReceipt({
-        id: sale.id,
-        invoiceNumber: sale.invoiceNumber,
-        createdAt: sale.createdAt,
-        customerName: sale.customer?.name || sale.customerName || "Walk-in Customer",
-        customerMobile: sale.customer?.mobile || sale.customerMobile || "",
-        subtotal: sale.subtotal,
-        discountAmount: sale.discountAmount,
-        totalAmount: sale.totalAmount,
-        paymentMethod: sale.paymentMethod,
-        cashierName: sale.user?.fullName || sale.user?.email || "Staff",
+      setReceipt({
+        id: row.id,
+        invoiceNumber: row.invoiceNumber,
+        createdAt: row.createdAt,
+        customerName: row.customer,
+        customerMobile: row.customerMobile || "",
+        subtotal: row.total + row.discount,
+        discountAmount: row.discount,
+        totalAmount: row.total,
+        paymentMethod: row.paymentMethod,
+        cashierName: row.staff,
         items: [],
       });
-      setReceiptModalOpen(true);
     } finally {
       setLoadingReceiptId(null);
     }
   };
 
-  // KPI Calculations
-  const metrics = useMemo(() => {
-    const today = new Date().toISOString().split("T")[0];
-    const todaySales = sales.filter((s) => s.createdAt.startsWith(today));
-    const todayRevenue = todaySales.reduce((acc, s) => acc + (s.totalAmount || 0), 0);
-    const todayInvoices = todaySales.length;
-    const todayItems = todaySales.reduce((acc, s) => acc + (s.itemCount || 0), 0);
+  const exportCsv = () => {
+    const header = ["Invoice", "Date", "Customer", "Items", "Payment", "Staff", "Discount", "Amount"];
+    const lines = visible.map((r) =>
+      [r.invoiceNumber, new Date(r.createdAt).toLocaleString("en-PK"), r.customer, r.items, r.paymentMethod, r.staff, r.discount, r.total]
+        .map((v) => `"${String(v).replace(/"/g, '""')}"`)
+        .join(","),
+    );
+    const blob = new Blob([[header.join(","), ...lines].join("\n")], { type: "text/csv;charset=utf-8" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `almadel-sales-${effectiveRange}-${ymd(new Date())}.csv`;
+    a.click();
+    URL.revokeObjectURL(url);
+  };
 
-    return {
-      todayRevenue,
-      todayInvoices,
-      todayItems,
-      allTimeCount: totalSalesCount,
-    };
-  }, [sales, totalSalesCount]);
-
-  // Client-side filtered list for search & payment method
-  const filteredSales = useMemo(() => {
-    return sales.filter((sale) => {
-      const query = debouncedSearch.toLowerCase().trim();
-      const matchesSearch =
-        !query ||
-        sale.invoiceNumber.toLowerCase().includes(query) ||
-        (sale.customer?.name && sale.customer.name.toLowerCase().includes(query)) ||
-        (sale.customerName && sale.customerName.toLowerCase().includes(query)) ||
-        (sale.customerMobile && sale.customerMobile.includes(query));
-
-      const matchesPayment =
-        filterPayment === "ALL" ||
-        sale.paymentMethod?.toUpperCase() === filterPayment;
-
-      return matchesSearch && matchesPayment;
-    });
-  }, [sales, debouncedSearch, filterPayment]);
+  const multiDay = effectiveRange === "week" || effectiveRange === "month" || effectiveRange === "all";
+  const ranges: Array<[Range, string]> = [
+    ["today", t("sales.today", "Today")],
+    ["yesterday", t("sales.yesterday", "Yesterday")],
+    ["week", "7D"],
+    ["month", "30D"],
+    ["all", t("sales.all", "All")],
+  ];
 
   return (
     <WorkspaceShell>
-      <div className="flex flex-col gap-5 pb-6">
-        {/* Top Header & Action Controls */}
-        <div className="flex flex-col md:flex-row md:items-end justify-between gap-4">
-          <div>
-            <div className="flex items-center gap-2">
-              <span className="inline-flex items-center h-[22px] text-[11.5px] font-medium px-2 rounded-full bg-[var(--brand-soft)] text-[var(--brand-ink)]">
-                Point of Sale
-              </span>
-              <span className="text-[12.5px] text-[var(--muted)]">
-                {activeBusiness?.name || "Retail Counter"}
-              </span>
-            </div>
-            <h1 className="m-0 mt-2 text-[24px] md:text-[26px] font-semibold tracking-[-0.025em] text-[var(--text)]">
-              Sales & Billing Counter
-            </h1>
-            <p className="m-0 mt-1.5 text-[13.5px] text-[var(--muted)]">
-              Create instant retail bills, scan barcodes, print customer receipts, and track sales history.
-            </p>
-          </div>
-
-          <div className="flex items-center gap-3 flex-wrap">
-            {/* View Switcher Toggle */}
-            <div className="inline-flex rounded-[10px] border border-[var(--border)] bg-[var(--sunken)] p-[3px] gap-0.5 text-[12.5px] font-medium" role="tablist">
-              <button
-                type="button"
-                onClick={() => setViewMode("pos")}
-                className={`h-8 px-3 rounded-[7px] transition-colors flex items-center gap-1.5 ${
-                  viewMode === "pos"
-                    ? "bg-[var(--surface)] text-[var(--text)] shadow-[var(--shadow-xs),0_0_0_1px_var(--border)]"
-                    : "text-slate-600 hover:text-slate-900 "
-                }`}
-              >
-                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" aria-hidden><path d="M3 4h2l2.4 11.2a1 1 0 0 0 1 .8h9.7a1 1 0 0 0 1-.8L21 8H6.2M9 20.5h.01M18 20.5h.01" /></svg>
-                <span>POS Counter</span>
-              </button>
-              <button
-                type="button"
-                onClick={() => setViewMode("history")}
-                className={`h-8 px-3 rounded-[7px] transition-colors flex items-center gap-1.5 ${
-                  viewMode === "history"
-                    ? "bg-[var(--surface)] text-[var(--text)] shadow-[var(--shadow-xs),0_0_0_1px_var(--border)]"
-                    : "text-slate-600 hover:text-slate-900 "
-                }`}
-              >
-                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" aria-hidden><path d="M14 2.5H6.5v19h11V6zM14 2.5V6h3.5M9.5 11h5M9.5 15h5" /></svg>
-                <span>Sales History ({totalSalesCount})</span>
-              </button>
-            </div>
-
-            {/* Quick Add Sale Button */}
-            <button
-              type="button"
-              onClick={() => setAddSaleModalOpen(true)}
-              className="inline-flex items-center gap-2 h-9 px-3.5 rounded-[9px] border border-[var(--border)] bg-[var(--surface)] hover:border-[var(--border-strong)] text-[var(--text)] font-medium text-[13px] shadow-[var(--shadow-xs)] transition active:scale-[0.98] cursor-pointer"
-            >
-              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M12 4v16m8-8H4" />
-              </svg>
-              <span>Add Sale</span>
+      <PageHeader
+        title={t("nav.sales", "Sales")}
+        actions={
+          <>
+            <button type="button" className={ui.secondary} onClick={exportCsv} disabled={!visible.length}>
+              <Icon name="download" size={15} />
+              {t("sales.export", "Export")}
             </button>
+            {canSell && (
+              <button type="button" className={ui.primary} onClick={() => window.dispatchEvent(new CustomEvent("almadel:open-new-sale"))}>
+                <Icon name="plus" size={15} strokeWidth={2.2} />
+                {t("bar.new_sale", "New sale")}
+              </button>
+            )}
+          </>
+        }
+      />
+
+      <div className={s.filters}>
+        <label className={s.search}>
+          <Icon name="search" size={15} />
+          <input
+            value={query}
+            onChange={(e) => setQuery(e.target.value)}
+            placeholder={t("sales.search_placeholder", "Invoice, customer or staff")}
+            aria-label={t("sales.search", "Search sales")}
+          />
+        </label>
+        {canReport && (
+          <div className={ui.segmented} role="tablist" aria-label={t("sales.range", "Date range")}>
+            {ranges.map(([id, label]) => (
+              <button
+                key={id}
+                type="button"
+                role="tab"
+                aria-selected={range === id}
+                className={range === id ? ui.segmentedOn : ""}
+                onClick={() => {
+                  setRange(id);
+                  setPage(1);
+                }}
+              >
+                {label}
+              </button>
+            ))}
           </div>
+        )}
+        <div className={ui.segmented} role="tablist" aria-label={t("sales.payment", "Payment method")}>
+          {(
+            [
+              ["all", t("sales.all_methods", "All methods"), null],
+              ["cash", t("payment.cash", "Cash"), "var(--c-cash)"],
+              ["online", t("payment.online", "Online"), "var(--c-online)"],
+            ] as const
+          ).map(([id, label, color]) => (
+            <button key={id} type="button" role="tab" aria-selected={payment === id} className={payment === id ? ui.segmentedOn : ""} onClick={() => setPayment(id)}>
+              {color && <i className={s.dot} style={{ background: color }} />}
+              {label}
+            </button>
+          ))}
         </div>
-
-        {/* VIEW 1: POS COUNTER TERMINAL */}
-        {viewMode === "pos" && (
-          <div className="al-page-enter">
-            <PosTerminal onSaleCompleted={handleSaleCompleted} />
-          </div>
-        )}
-
-        {/* VIEW 2: SALES HISTORY & INVOICES */}
-        {viewMode === "history" && (
-          <div className="flex flex-col gap-5 al-page-enter">
-            {/* KPI Metric Cards */}
-            <div className="grid grid-cols-2 lg:grid-cols-4 rounded-[14px] border border-[var(--border)] bg-[var(--surface)] shadow-[var(--shadow-xs)] overflow-hidden [&>div]:border-[var(--border)] [&>div:nth-child(n+2)]:lg:border-l [&>div:nth-child(even)]:border-l [&>div:nth-child(n+3)]:max-lg:border-t">
-              <div className="p-4">
-                <div className="text-[12.5px] text-[var(--text-2)]">
-                  Today&apos;s Revenue
-                </div>
-                <div className="text-[24px] font-semibold tracking-[-0.03em] tabular-nums text-[var(--text)] mt-1.5">
-                  Rs {metrics.todayRevenue.toLocaleString()}
-                </div>
-                <div className="text-[12px] text-[var(--muted)] mt-1">Cash & Online collections today</div>
-              </div>
-
-              <div className="p-4">
-                <div className="text-[12.5px] text-[var(--text-2)]">
-                  Today&apos;s Invoices
-                </div>
-                <div className="text-[24px] font-semibold tracking-[-0.03em] tabular-nums text-[var(--text)] mt-1.5">
-                  {metrics.todayInvoices}
-                </div>
-                <div className="text-[12px] text-[var(--muted)] mt-1">Orders processed today</div>
-              </div>
-
-              <div className="p-4">
-                <div className="text-[12.5px] text-[var(--text-2)]">
-                  Items Sold Today
-                </div>
-                <div className="text-[24px] font-semibold tracking-[-0.03em] tabular-nums text-[var(--text)] mt-1.5">
-                  {metrics.todayItems}
-                </div>
-                <div className="text-[12px] text-[var(--muted)] mt-1">Total product units dispensed</div>
-              </div>
-
-              <div className="p-4">
-                <div className="text-[12.5px] text-[var(--text-2)]">
-                  Total Recorded Invoices
-                </div>
-                <div className="text-[24px] font-semibold tracking-[-0.03em] tabular-nums text-[var(--text)] mt-1.5">
-                  {metrics.allTimeCount}
-                </div>
-                <div className="text-[12px] text-[var(--muted)] mt-1">Across all dates</div>
-              </div>
-            </div>
-
-            {/* Filter and Search Bar */}
-            <div className="flex flex-col sm:flex-row items-center justify-between gap-3">
-              <div className="relative w-full sm:w-80">
-                <input
-                  type="text"
-                  placeholder="Search invoice # or customer..."
-                  value={searchQuery}
-                  onChange={(e) => setSearchQuery(e.target.value)}
-                  className="w-full h-9 pl-9 pr-3 text-[13.5px] rounded-[9px] border border-[var(--border)] bg-[var(--surface)] text-[var(--text)] shadow-[var(--shadow-xs)] outline-none focus:border-[var(--brand)] focus:shadow-[0_0_0_3px_var(--ring)]"
-                />
-                <svg
-                  className="w-4 h-4 absolute left-3 top-2.5 text-slate-400"
-                  fill="none"
-                  stroke="currentColor"
-                  viewBox="0 0 24 24"
-                >
-                  <path
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    strokeWidth={2}
-                    d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"
-                  />
-                </svg>
-              </div>
-
-              <div className="flex items-center gap-2 w-full sm:w-auto justify-end">
-                <div className="inline-flex rounded-lg border border-slate-200 p-0.5 text-xs bg-slate-50">
-                  <button
-                    type="button"
-                    onClick={() => setFilterPayment("ALL")}
-                    className={`h-7 px-2.5 rounded-md transition ${
-                      filterPayment === "ALL"
-                        ? "bg-[var(--surface)] text-[var(--text)] font-medium shadow-[var(--shadow-xs),0_0_0_1px_var(--border)]"
-                        : "text-slate-500 hover:text-slate-800 "
-                    }`}
-                  >
-                    All
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setFilterPayment("CASH")}
-                    className={`h-7 px-2.5 rounded-md transition ${
-                      filterPayment === "CASH"
-                        ? "bg-[var(--surface)] text-[var(--text)] font-medium shadow-[var(--shadow-xs),0_0_0_1px_var(--border)]"
-                        : "text-slate-500 hover:text-slate-800 "
-                    }`}
-                  >
-                    Cash
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setFilterPayment("ONLINE")}
-                    className={`h-7 px-2.5 rounded-md transition ${
-                      filterPayment === "ONLINE"
-                        ? "bg-[var(--surface)] text-[var(--text)] font-medium shadow-[var(--shadow-xs),0_0_0_1px_var(--border)]"
-                        : "text-slate-500 hover:text-slate-800 "
-                    }`}
-                  >
-                    Online
-                  </button>
-                </div>
-
-                <button
-                  type="button"
-                  onClick={() => loadSalesHistory()}
-                  disabled={loadingHistory}
-                  className="p-2 text-slate-500 hover:text-slate-900 rounded-lg border border-slate-200 hover:bg-slate-100 transition"
-                  title="Refresh Sales"
-                >
-                  <svg
-                    className={`w-4 h-4 ${loadingHistory ? "animate-spin" : ""}`}
-                    fill="none"
-                    stroke="currentColor"
-                    viewBox="0 0 24 24"
-                  >
-                    <path
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                      strokeWidth={2}
-                      d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"
-                    />
-                  </svg>
-                </button>
-              </div>
-            </div>
-
-            {/* Sales Table / Empty State */}
-            <div className="bg-[var(--surface)] rounded-[14px] border border-[var(--border)] shadow-[var(--shadow-xs)] overflow-hidden">
-              {loadingHistory && sales.length === 0 ? (
-                <div className="flex flex-col gap-3 p-4" aria-busy="true" aria-label="Loading sales history">
-                  {Array.from({ length: 5 }).map((_, i) => (
-                    <div key={i} className="flex items-center gap-4">
-                      <span className="al-skeleton block h-3.5 w-24" />
-                      <span className="al-skeleton block h-3.5 flex-1" />
-                      <span className="al-skeleton block h-3.5 w-16" />
-                    </div>
-                  ))}
-                </div>
-              ) : filteredSales.length === 0 ? (
-                <div className="py-16 text-center px-4">
-                  <div className="size-11 rounded-xl bg-[var(--surface-2)] text-[var(--muted)] shadow-[inset_0_0_0_1px_var(--border)] grid place-items-center mx-auto mb-3"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" aria-hidden><path d="M14 2.5H6.5v19h11V6zM14 2.5V6h3.5M9.5 11h5M9.5 15h5" /></svg></div>
-                  <h3 className="text-lg font-semibold text-slate-900">
-                    {searchQuery ? "No matching invoices found" : "No sales recorded yet"}
-                  </h3>
-                  <p className="text-sm text-slate-500 max-w-md mx-auto mt-1 mb-6">
-                    {searchQuery
-                      ? "Try searching with a different invoice number or customer name."
-                      : "Start processing retail orders at your counter to see invoices and print receipts."}
-                  </p>
-                  <div className="flex items-center justify-center gap-3">
-                    <button
-                      type="button"
-                      onClick={() => setViewMode("pos")}
-                      className="px-4 py-2 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white font-medium text-sm transition shadow-[var(--shadow-xs)] cursor-pointer"
-                    >
-                      Open POS Counter
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => setAddSaleModalOpen(true)}
-                      className="px-4 py-2 rounded-lg border border-slate-300 text-slate-700 hover:bg-slate-50 font-medium text-sm transition cursor-pointer"
-                    >
-                      + Quick Add Sale
-                    </button>
-                  </div>
-                </div>
-              ) : (
-                <div className="overflow-x-auto">
-                  <table className="w-full text-left border-collapse text-sm">
-                    <thead>
-                      <tr className="border-b border-[var(--border)] bg-[var(--surface-2)] text-[var(--muted)] text-[11.5px] font-medium">
-                        <th className="px-4 py-2.5">Invoice #</th>
-                        <th className="px-4 py-2.5">Date & Time</th>
-                        <th className="px-4 py-2.5">Customer</th>
-                        <th className="px-4 py-2.5 text-center">Items</th>
-                        <th className="px-4 py-2.5">Payment</th>
-                        <th className="px-4 py-2.5 text-right">Amount</th>
-                        <th className="px-4 py-2.5 text-right">Actions</th>
-                      </tr>
-                    </thead>
-                    <tbody className="divide-y divide-slate-100">
-                      {filteredSales.map((sale) => {
-                        const dateFormatted = new Date(sale.createdAt).toLocaleString("en-PK", {
-                          dateStyle: "medium",
-                          timeStyle: "short",
-                        });
-                        const customerDisplay =
-                          sale.customer?.name || sale.customerName || "Walk-in Customer";
-                        const customerMobile =
-                          sale.customer?.mobile || sale.customerMobile || "";
-
-                        return (
-                          <tr
-                            key={sale.id}
-                            className="hover:bg-[var(--hl)] transition-colors"
-                          >
-                            <td className="px-4 py-3 font-mono text-[12.5px] text-[var(--text)]">
-                              {sale.invoiceNumber}
-                            </td>
-                            <td className="px-4 py-3 text-slate-500 text-xs">
-                              {dateFormatted}
-                            </td>
-                            <td className="px-4 py-3">
-                              <div className="font-medium text-slate-800">
-                                {customerDisplay}
-                              </div>
-                              {customerMobile && (
-                                <div className="font-mono text-[11.5px] text-[var(--faint)]">
-                                  {customerMobile}
-                                </div>
-                              )}
-                            </td>
-                            <td className="px-4 py-3 text-center">
-                              <span className="font-mono text-[12.5px] text-[var(--text-2)]">{sale.itemCount || 1}</span>
-                            </td>
-                            <td className="px-4 py-3">
-                              <span
-                                className={`inline-flex h-[22px] items-center rounded-[6px] px-2 text-[11.5px] font-medium capitalize ${
-                                  sale.paymentMethod?.toUpperCase() === "CASH"
-                                    ? "bg-[var(--brand-soft)] text-[var(--pos)] shadow-[inset_0_0_0_1px_var(--brand-line)]"
-                                    : "bg-[var(--info-soft)] text-[var(--info)]"
-                                }`}
-                              >
-                                {sale.paymentMethod || "CASH"}
-                              </span>
-                            </td>
-                            <td className="px-4 py-3 text-right font-semibold tabular-nums text-[var(--text)]">
-                              Rs {sale.totalAmount.toLocaleString()}
-                              {sale.discountAmount > 0 && (
-                                <span className="block font-mono text-[11px] font-normal text-[var(--pos)]">
-                                  -Rs {sale.discountAmount.toLocaleString()} off
-                                </span>
-                              )}
-                            </td>
-                            <td className="px-4 py-3 text-right">
-                              <button
-                                type="button"
-                                onClick={() => handleViewReceipt(sale)}
-                                disabled={loadingReceiptId === sale.id}
-                                className="inline-flex h-[30px] items-center gap-1.5 rounded-[8px] border border-[var(--border)] bg-[var(--surface)] px-2.5 text-[12px] font-medium text-[var(--text)] transition hover:border-[var(--border-strong)] hover:bg-[var(--surface-2)] cursor-pointer"
-                              >
-                                {loadingReceiptId === sale.id ? (
-                                  <span className="size-3 rounded-full border-2 border-[var(--brand)] border-t-transparent [animation:almadelSpin_700ms_linear_infinite]" />
-                                ) : (
-                                  <svg
-                                    className="w-3.5 h-3.5"
-                                    fill="none"
-                                    stroke="currentColor"
-                                    viewBox="0 0 24 24"
-                                  >
-                                    <path
-                                      strokeLinecap="round"
-                                      strokeLinejoin="round"
-                                      strokeWidth={2}
-                                      d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z"
-                                    />
-                                  </svg>
-                                )}
-                                <span>Receipt</span>
-                              </button>
-                            </td>
-                          </tr>
-                        );
-                      })}
-                    </tbody>
-                  </table>
-                </div>
-              )}
-
-              {/* Pagination Footer */}
-              {totalSalesCount > 0 && (
-                <PaginationControls
-                  currentPage={currentPage}
-                  totalItems={totalSalesCount}
-                  pageSize={pageSize}
-                  onPageChange={setCurrentPage}
-                  onPageSizeChange={(newSize) => {
-                    setPageSize(newSize);
-                    setCurrentPage(1);
-                  }}
-                  pageSizeOptions={[10, 25, 50, 100]}
-                  itemLabel="sales"
-                />
-              )}
-            </div>
-          </div>
-        )}
+        <button type="button" className={`${ui.iconButton} ${s.refresh}`} onClick={() => void load()} disabled={loading} aria-label={t("action.refresh", "Refresh")}>
+          <Icon name="refresh" size={15} className={loading ? s.spinning : undefined} />
+        </button>
       </div>
 
-      {/* Quick Add Sale Modal */}
-      <AddSaleModal
-        isOpen={addSaleModalOpen}
-        onClose={() => setAddSaleModalOpen(false)}
-        onSaleCompleted={handleSaleCompleted}
-      />
+      {summary && (
+        <section className={s.strip} aria-label={t("sales.summary", "Summary")}>
+          <div className={s.stat}>
+            <span className={s.eyebrow}>{t("sales.net_sales", "Net sales")}</span>
+            <Money value={summary.totalRevenue} size="lg" />
+          </div>
+          <div className={s.stat}>
+            <small>{t("sales.bills", "Bills")}</small>
+            <b className={s.mono}>{summary.totalOrders}</b>
+          </div>
+          <div className={s.stat}>
+            <small>{t("sales.average_bill", "Average bill")}</small>
+            <b className={s.mono}>{formatRs(summary.averageOrder)}</b>
+          </div>
+          <div className={s.stat}>
+            <small>{t("sales.gross", "Gross")}</small>
+            <b className={s.mono}>{formatRs(summary.totalRevenue + summary.totalDiscounts)}</b>
+          </div>
+          <div className={s.stat}>
+            <small>{t("sales.discounts", "Discounts")}</small>
+            <b className={`${s.mono} ${summary.totalDiscounts ? s.neg : ""}`}>{summary.totalDiscounts ? `− ${formatRs(summary.totalDiscounts)}` : "0"}</b>
+          </div>
+          <div className={s.stat}>
+            <small>{t("sales.items_sold", "Items sold")}</small>
+            <b className={s.mono}>{summary.totalItems}</b>
+          </div>
+          <div className={s.comp}>
+            <CompositionBar
+              segments={[
+                { label: t("payment.cash", "Cash"), value: summary.cashTotal, color: "var(--c-cash)" },
+                { label: t("payment.online", "Online"), value: summary.onlineTotal, color: "var(--c-online)" },
+              ]}
+            />
+          </div>
+        </section>
+      )}
 
-      {/* POS Thermal & A4 Receipt Modal */}
-      <PosReceiptModal
-        isOpen={receiptModalOpen}
-        onClose={() => {
-          setReceiptModalOpen(false);
-          setSelectedReceipt(null);
-        }}
-        sale={selectedReceipt}
-      />
+      <section className={`${ui.panel} ${ui.panelFlush}`}>
+        <div className={ui.tableWrap}>
+          <table className={ui.table}>
+            <thead>
+              <tr>
+                <th style={{ width: 130 }}>{t("sales.invoice", "Invoice")}</th>
+                <th style={{ width: multiDay ? 150 : 100 }}>{multiDay ? t("sales.date", "Date") : t("sales.time", "Time")}</th>
+                <th>{t("sales.customer", "Customer")}</th>
+                <th style={{ width: 80 }}>{t("sales.items", "Items")}</th>
+                <th style={{ width: 120 }}>{t("sales.payment", "Payment")}</th>
+                <th style={{ width: 130 }}>{t("sales.staff", "Staff")}</th>
+                <th className="text-right" style={{ width: 140 }}>
+                  {t("sales.amount", "Amount")}
+                </th>
+                <th style={{ width: 56 }} aria-label={t("sales.receipt", "Receipt")} />
+              </tr>
+            </thead>
+            <tbody>
+              {loading && rows.length === 0 ? (
+                <TableSkeletonRows cols={8} rows={6} />
+              ) : failed ? (
+                <TableEmptyRow
+                  colSpan={8}
+                  icon="alert"
+                  title={t("sales.load_failed", "Sales couldn't be loaded")}
+                  body={t("sales.load_failed_body", "Check your connection and try again. Nothing was changed.")}
+                  action={
+                    <button type="button" className={ui.primary} onClick={() => void load()}>
+                      <Icon name="refresh" size={15} />
+                      {t("action.try_again", "Try again")}
+                    </button>
+                  }
+                />
+              ) : visible.length === 0 ? (
+                <TableEmptyRow
+                  colSpan={8}
+                  icon="invoice"
+                  title={query ? t("sales.no_match", "No sales match your search") : t("sales.none", "No sales recorded in this period.")}
+                  body={query ? t("sales.no_match_body", "Try an invoice number, customer name or staff member.") : t("sales.none_body", "Your next sale will appear here instantly.")}
+                  action={
+                    !query && canSell ? (
+                      <button type="button" className={ui.primary} onClick={() => window.dispatchEvent(new CustomEvent("almadel:open-new-sale"))}>
+                        <Icon name="plus" size={15} strokeWidth={2.2} />
+                        {t("sales.create", "Create new sale")}
+                      </button>
+                    ) : undefined
+                  }
+                />
+              ) : (
+                visible.map((r) => (
+                  <tr key={r.id}>
+                    <td className={`${s.mono} ${s.ink}`}>{r.invoiceNumber}</td>
+                    <td className={s.mono}>
+                      {multiDay
+                        ? new Date(r.createdAt).toLocaleString(undefined, { day: "numeric", month: "short", hour: "numeric", minute: "2-digit" })
+                        : new Date(r.createdAt).toLocaleTimeString(undefined, { hour: "numeric", minute: "2-digit" })}
+                    </td>
+                    <td>
+                      <span className={r.customer === "Walk-in Customer" ? undefined : s.ink}>{r.customer === "Walk-in Customer" ? t("sales.walk_in", "Walk-in") : r.customer}</span>
+                      {r.customerMobile ? <span className={s.subMono}>{r.customerMobile}</span> : null}
+                    </td>
+                    <td className={s.mono}>{r.items}</td>
+                    <td>
+                      <span className={ui.chip}>
+                        <i className={s.dot} style={{ background: isCash(r.paymentMethod) ? "var(--c-cash)" : "var(--c-online)" }} />
+                        {isCash(r.paymentMethod) ? t("payment.cash", "Cash") : t("payment.online", "Online")}
+                      </span>
+                    </td>
+                    <td>{r.staff}</td>
+                    <td className={s.amount}>
+                      {formatRs(r.total)}
+                      {r.discount > 0 && <span className={s.off}>−{formatRs(r.discount)}</span>}
+                    </td>
+                    <td>
+                      <button
+                        type="button"
+                        className={`${ui.iconButton} ${s.rowBtn}`}
+                        onClick={() => void openReceipt(r)}
+                        disabled={loadingReceiptId === r.id}
+                        aria-label={`${t("sales.receipt", "Receipt")} ${r.invoiceNumber}`}
+                        title={t("sales.receipt", "Receipt")}
+                      >
+                        {loadingReceiptId === r.id ? <span className={s.spin} /> : <Icon name="printer" size={15} />}
+                      </button>
+                    </td>
+                  </tr>
+                ))
+              )}
+            </tbody>
+          </table>
+        </div>
+        {total > 0 && (
+          <PaginationControls
+            currentPage={page}
+            totalItems={total}
+            pageSize={pageSize}
+            onPageChange={setPage}
+            onPageSizeChange={(n) => {
+              setPageSize(n);
+              setPage(1);
+            }}
+            pageSizeOptions={[10, 25, 50, 100]}
+            itemLabel="sales"
+          />
+        )}
+      </section>
+
+      <PosReceiptModal isOpen={Boolean(receipt)} onClose={() => setReceipt(null)} sale={receipt} />
     </WorkspaceShell>
   );
 }

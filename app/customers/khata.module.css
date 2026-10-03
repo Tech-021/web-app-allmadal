@@ -1,0 +1,459 @@
+.mono {
+  font-family: var(--font-mono);
+  font-variant-numeric: tabular-nums;
+  letter-spacing: -0.02em;
+}
+
+.num {
+  text-align: right;
+  font-family: var(--font-mono);
+  font-variant-numeric: tabular-nums;
+  letter-spacing: -0.02em;
+  color: var(--text) !important;
+}
+
+.pos { color: var(--pos) !important; }
+.neg { color: var(--neg) !important; }
+.warn { color: var(--warn) !important; }
+.faint { color: var(--faint) !important; }
+.ink { color: var(--text); }
+.cap { text-transform: capitalize; }
+
+.eyebrow {
+  font-size: 11px;
+  font-weight: 550;
+  letter-spacing: 0.09em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+
+.count {
+  margin-left: 4px;
+  font-family: var(--font-mono);
+  font-weight: 500;
+  opacity: 0.6;
+}
+
+/* ---------- summary band (no cards — hairline-separated figures) ---------- */
+.band {
+  display: grid;
+  grid-template-columns: 1.5fr 1fr 1fr 1fr;
+  padding-bottom: 20px;
+  border-bottom: 1px solid var(--border);
+}
+
+.bandMain {
+  padding-right: 28px;
+  min-width: 0;
+}
+
+.bandFig {
+  display: block;
+  margin-top: 6px;
+  font-size: 44px;
+}
+
+.aging {
+  display: flex;
+  gap: 2px;
+  height: 8px;
+  margin-top: 14px;
+}
+
+.aging i {
+  display: block;
+  height: 100%;
+  border-radius: 2px;
+}
+
+.agingLegend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 16px;
+  margin-top: 8px;
+  font-size: 12px;
+  color: var(--text-2);
+}
+
+.agingLegend b {
+  font-weight: 500;
+}
+
+.bandCell {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
+  padding: 0 24px;
+  border-left: 1px solid var(--border);
+}
+
+.bandCell:last-child {
+  padding-right: 0;
+}
+
+.bandCell small,
+.dBand small {
+  font-size: 12.5px;
+  color: var(--muted);
+}
+
+.bandNum {
+  font-size: 24px;
+  letter-spacing: -0.03em;
+  color: var(--text);
+}
+
+.spark {
+  margin: 4px 0;
+  max-width: 180px;
+}
+
+.cellList {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-top: 8px;
+  font-size: 12.5px;
+  color: var(--text-2);
+}
+
+.cellList b {
+  font-weight: 500;
+  color: var(--text);
+}
+
+/* ---------- list ---------- */
+.toolbar {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.search {
+  height: 36px;
+  width: 280px;
+  margin-left: auto;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 0 12px;
+  border: 1px solid var(--border-strong);
+  border-radius: 8px;
+  background: var(--surface);
+  color: var(--faint);
+}
+
+.search:focus-within {
+  border-color: var(--brand);
+  box-shadow: 0 0 0 3px var(--brand-soft);
+}
+
+.search input {
+  flex: 1;
+  min-width: 0;
+  border: 0;
+  outline: none;
+  background: transparent;
+  color: var(--text);
+  font: inherit;
+  font-size: 13.5px;
+}
+
+.table td {
+  height: 60px;
+}
+
+.row {
+  cursor: pointer;
+}
+
+.cust {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.av {
+  width: 32px;
+  height: 32px;
+  flex: none;
+  display: grid;
+  place-items: center;
+  border-radius: 50%;
+  background: var(--sunken);
+  color: var(--text-2);
+  font-size: 11px;
+  font-weight: 600;
+}
+
+.avOn {
+  background: var(--text);
+  color: var(--bg);
+}
+
+.avLg {
+  width: 52px;
+  height: 52px;
+  font-size: 16px;
+  background: var(--text);
+  color: var(--bg);
+}
+
+.name {
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: var(--text);
+  font: inherit;
+  font-weight: 550;
+  cursor: pointer;
+}
+
+.name:hover {
+  text-decoration: underline;
+  text-underline-offset: 3px;
+  text-decoration-color: var(--border-strong);
+}
+
+.mobile {
+  display: block;
+  font-family: var(--font-mono);
+  font-size: 12px;
+  color: var(--muted);
+}
+
+.dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: currentColor;
+}
+
+.balance {
+  text-align: right;
+  font-family: var(--font-mono);
+  font-variant-numeric: tabular-nums;
+  letter-spacing: -0.02em;
+  font-size: 15px;
+  color: var(--text);
+}
+
+.acts {
+  display: flex;
+  justify-content: flex-end;
+  gap: 6px;
+}
+
+.ghost {
+  border-color: transparent !important;
+}
+
+/* ---------- detail ---------- */
+.detail {
+  display: grid;
+  grid-template-columns: 300px minmax(0, 1fr);
+  gap: 32px;
+  align-items: start;
+}
+
+.listCol {
+  position: sticky;
+  top: 80px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  max-height: calc(100vh - 160px);
+  padding-right: 16px;
+  border-right: 1px solid var(--border);
+}
+
+.listCol .search {
+  width: 100%;
+  margin: 0;
+}
+
+.listHead {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding-bottom: 4px;
+}
+
+.listHead b {
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.listHead span {
+  margin-left: auto;
+  font-size: 12.5px;
+}
+
+.listItems {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  overflow-y: auto;
+  min-height: 0;
+}
+
+.listItem {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 12px;
+  border: 0;
+  border-radius: 10px;
+  background: transparent;
+  color: var(--text);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.listItem:hover {
+  background: var(--sunken);
+}
+
+.listItemOn,
+.listItemOn:hover {
+  background: var(--surface);
+  box-shadow: var(--shadow-xs), 0 0 0 1px var(--border);
+}
+
+.listText {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.listText b {
+  font-size: 13.5px;
+  font-weight: 550;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.listText small {
+  font-size: 12px;
+  color: var(--muted);
+}
+
+.detailMain {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 22px;
+}
+
+.dHead {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.dTitle {
+  flex: 1;
+  min-width: 200px;
+}
+
+.dTitle h2 {
+  margin: 0;
+  font-size: 24px;
+  font-weight: 600;
+  letter-spacing: -0.03em;
+}
+
+.dTitle p {
+  margin: 2px 0 0;
+  font-size: 13px;
+  color: var(--muted);
+}
+
+.dBand {
+  display: grid;
+  grid-template-columns: 1.2fr 1fr 1fr 1.4fr;
+  padding: 18px 0;
+  border-top: 1px solid var(--border);
+  border-bottom: 1px solid var(--border);
+}
+
+.dBand > div {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 0 24px;
+  border-left: 1px solid var(--border);
+  min-width: 0;
+}
+
+.dBand > div:first-child {
+  padding-left: 0;
+  border-left: 0;
+  align-items: flex-start;
+}
+
+.dFig {
+  font-size: 38px;
+}
+
+.dChart {
+  justify-content: flex-start;
+}
+
+.ledger td {
+  height: 46px;
+}
+
+.danger {
+  display: flex;
+  justify-content: flex-end;
+}
+
+.dangerBtn {
+  color: var(--neg) !important;
+}
+
+@media (max-width: 1180px) {
+  .band,
+  .dBand {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    row-gap: 18px;
+  }
+  .bandCell:nth-child(3),
+  .dBand > div:nth-child(3) {
+    border-left: 0;
+    padding-left: 0;
+  }
+  .detail {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .listCol {
+    display: none;
+  }
+}
+
+@media (max-width: 768px) {
+  .band,
+  .dBand {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .bandMain,
+  .bandCell,
+  .dBand > div {
+    padding: 0;
+    border-left: 0;
+  }
+  .search {
+    width: 100%;
+    margin-left: 0;
+  }
+  .bandFig {
+    font-size: 36px;
+  }
+}

@@ -8,6 +8,7 @@ import { api } from "@/app/lib/api";
 import { logActivity } from "@/app/lib/logger";
 import { Icon } from "@/app/components/icons";
 import ui from "@/app/components/workspace-ui.module.css";
+import { Overlay } from "@/app/components/overlay";
 
 interface TrialExpiredModalProps {
   business: Business;
@@ -62,7 +63,9 @@ export function TrialExpiredModal({ business }: TrialExpiredModalProps) {
   );
 
   return (
-    <div
+    <Overlay
+      open
+      dismissible={false}
       className="al-overlay fixed inset-0 z-[99999] flex items-end justify-center bg-[var(--scrim)] p-0 backdrop-blur-[4px] sm:items-center sm:p-4"
       role="alertdialog"
       aria-modal="true"
@@ -146,7 +149,7 @@ export function TrialExpiredModal({ business }: TrialExpiredModalProps) {
           </div>
         </div>
       </div>
-    </div>
+    </Overlay>
   );
 }
 

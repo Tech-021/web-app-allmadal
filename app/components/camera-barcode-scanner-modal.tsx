@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState, useCallback } from "react";
 import { Icon } from "@/app/components/icons";
 import ui from "@/app/components/workspace-ui.module.css";
+import { Overlay } from "@/app/components/overlay";
 import { Html5Qrcode, Html5QrcodeSupportedFormats, CameraDevice } from "html5-qrcode";
 import { useLanguage } from "./language-context";
 
@@ -420,17 +421,14 @@ export function CameraBarcodeScannerModal({
     setManualCode("");
   };
 
-  if (!isOpen) return null;
-
   const toolBtn =
     "inline-flex h-8 items-center gap-1.5 rounded-[8px] border border-[var(--border-strong)] bg-[var(--surface-2)] px-2.5 text-[12px] font-medium text-[var(--text-2)] transition hover:border-[var(--faint)] hover:text-[var(--text)] cursor-pointer max-sm:h-10";
 
   return (
-    <div
+    <Overlay
+      open={isOpen}
+      onClose={onClose}
       className="al-overlay fixed inset-0 z-50 flex items-end justify-center bg-[rgba(3,4,5,.82)] backdrop-blur-[4px] sm:items-center sm:p-4"
-      onMouseDown={(e) => {
-        if (e.target === e.currentTarget) onClose();
-      }}
     >
       <div
         data-theme="dark"
@@ -615,6 +613,6 @@ export function CameraBarcodeScannerModal({
           </button>
         </form>
       </div>
-    </div>
+    </Overlay>
   );
 }

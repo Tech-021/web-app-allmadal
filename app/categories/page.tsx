@@ -8,6 +8,7 @@ import { logActivity } from "@/app/lib/logger";
 import { PaginationControls } from "@/app/components/pagination-controls";
 import { useBusiness } from "@/app/components/business-context";
 import ui from "@/app/components/workspace-ui.module.css";
+import { Overlay } from "@/app/components/overlay";
 import { Icon } from "@/app/components/icons";
 import { Metric, MetricStrip, PageHeader, TableEmptyRow, TableSkeletonRows } from "@/app/components/page-layout";
 
@@ -346,54 +347,47 @@ export default function CategoriesPage() {
         )}
       </section>
 
-      {editing !== undefined && (
-        <div
-          className={ui.modal}
-          onMouseDown={(e) => {
-            if (e.target === e.currentTarget) setEditing(undefined);
-          }}
-        >
-          <form className={ui.sheet} style={{ width: "min(480px, 100%)" }} onSubmit={submit} role="dialog" aria-modal="true" aria-label={editing ? "Edit category" : "Add category"}>
-            <div className={ui.sheetHead}>
-              <div className="flex items-center gap-2.5">
-                <span className={ui.iconTile}>
-                  <Icon name={editing ? "edit" : "tag"} size={15} />
-                </span>
-                <h2>{editing ? "Edit category" : "Add category"}</h2>
-              </div>
-              <button type="button" className={ui.iconButton} onClick={() => setEditing(undefined)} aria-label="Close">
-                <Icon name="x" size={15} />
-              </button>
+      <Overlay open={editing !== undefined} onClose={() => setEditing(undefined)} variant="drawer" dismissible={!saving}>
+        <form className={ui.sheet} style={{ width: "min(480px, 100%)" }} onSubmit={submit} role="dialog" aria-modal="true" aria-label={editing ? "Edit category" : "Add category"}>
+          <div className={ui.sheetHead}>
+            <div className="flex items-center gap-2.5">
+              <span className={ui.iconTile}>
+                <Icon name={editing ? "edit" : "tag"} size={15} />
+              </span>
+              <h2>{editing ? "Edit category" : "Add category"}</h2>
             </div>
-            <div className="flex flex-col gap-4">
-              <div className={ui.field}>
-                <label htmlFor="cat-name">Category name *</label>
-                <input
-                  id="cat-name"
-                  className={ui.input}
-                  value={name}
-                  onChange={(e) => setName(e.target.value)}
-                  placeholder="e.g. Beverages, Clothing, Electronics"
-                  required
-                  autoFocus
-                />
-              </div>
-              <div className={ui.field}>
-                <label htmlFor="cat-desc">Description (optional)</label>
-                <input id="cat-desc" className={ui.input} value={description} onChange={(e) => setDescription(e.target.value)} placeholder="Short description for this category…" />
-              </div>
+            <button type="button" className={ui.iconButton} onClick={() => setEditing(undefined)} aria-label="Close">
+              <Icon name="x" size={15} />
+            </button>
+          </div>
+          <div className="flex flex-col gap-4">
+            <div className={ui.field}>
+              <label htmlFor="cat-name">Category name *</label>
+              <input
+                id="cat-name"
+                className={ui.input}
+                value={name}
+                onChange={(e) => setName(e.target.value)}
+                placeholder="e.g. Beverages, Clothing, Electronics"
+                required
+                autoFocus
+              />
             </div>
-            <div className={ui.formActions}>
-              <button type="button" className={ui.secondary} onClick={() => setEditing(undefined)}>
-                Cancel
-              </button>
-              <button className={ui.primary} disabled={saving}>
-                {saving ? "Saving…" : editing ? "Save changes" : "Add category"}
-              </button>
+            <div className={ui.field}>
+              <label htmlFor="cat-desc">Description (optional)</label>
+              <input id="cat-desc" className={ui.input} value={description} onChange={(e) => setDescription(e.target.value)} placeholder="Short description for this category…" />
             </div>
-          </form>
-        </div>
-      )}
+          </div>
+          <div className={ui.formActions}>
+            <button type="button" className={ui.secondary} onClick={() => setEditing(undefined)}>
+              Cancel
+            </button>
+            <button className={ui.primary} disabled={saving}>
+              {saving ? "Saving…" : editing ? "Save changes" : "Add category"}
+            </button>
+          </div>
+        </form>
+      </Overlay>
     </WorkspaceShell>
   );
 }

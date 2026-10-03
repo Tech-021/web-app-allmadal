@@ -8,6 +8,8 @@ import { RealtimeProvider } from "@/app/components/realtime-provider";
 
 import { LanguageProvider } from "@/app/components/language-context";
 import { ThemeProvider, themeInitScript } from "@/app/components/theme-context";
+import { MotionProvider } from "@/app/components/motion";
+import { NavigationProgress } from "@/app/components/navigation-progress";
 
 const geistSans = Geist({
   subsets: ["latin"],
@@ -56,15 +58,18 @@ export default function RootLayout({
       </head>
       <body suppressHydrationWarning className="min-h-full flex flex-col font-sans">
         <ThemeProvider>
+        <MotionProvider>
         <LanguageProvider>
           <AuthProvider>
             <RealtimeProvider>
               <ToastProvider>
                 <BusinessProvider>{children}</BusinessProvider>
+                <NavigationProgress />
               </ToastProvider>
             </RealtimeProvider>
           </AuthProvider>
         </LanguageProvider>
+        </MotionProvider>
         </ThemeProvider>
       </body>
     </html>

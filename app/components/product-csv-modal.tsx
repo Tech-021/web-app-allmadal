@@ -3,6 +3,7 @@
 import { ChangeEvent, DragEvent, useState } from "react";
 import { Icon } from "@/app/components/icons";
 import ui from "@/app/components/workspace-ui.module.css";
+import { Overlay } from "@/app/components/overlay";
 import { api } from "@/app/lib/api";
 import { useToast } from "@/app/components/toast-context";
 
@@ -38,8 +39,6 @@ export function ProductCsvModal({ isOpen, onClose, onSuccess }: ProductCsvModalP
     updated: number;
     failed: { index: number; name?: string; message: string }[];
   } | null>(null);
-
-  if (!isOpen) return null;
 
   // 1. Download Sample CSV Template
   const handleDownloadTemplate = () => {
@@ -289,7 +288,7 @@ export function ProductCsvModal({ isOpen, onClose, onSuccess }: ProductCsvModalP
     status === "Ready" ? ui.chipPos : status === "Auto-Barcode" ? ui.chipWarn : ui.chipNeg;
 
   return (
-    <div className={ui.modal} onMouseDown={(e) => e.target === e.currentTarget && onClose()}>
+    <Overlay open={isOpen} onClose={onClose} dismissible={!importing}>
       <div className={`${ui.sheet} ${ui.sheetFlush}`} style={{ width: "min(900px, 100%)" }} role="dialog" aria-modal="true" aria-label="Import products from CSV">
         <div className={`${ui.sheetHead} !mb-0 px-5 pt-5 sm:px-6`}>
           <div className="flex min-w-0 items-center gap-2.5">
@@ -492,6 +491,6 @@ export function ProductCsvModal({ isOpen, onClose, onSuccess }: ProductCsvModalP
           </div>
         )}
       </div>
-    </div>
+    </Overlay>
   );
 }

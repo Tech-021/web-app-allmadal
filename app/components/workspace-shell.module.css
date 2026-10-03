@@ -1,118 +1,101 @@
-/* Almadel workspace shell — inset-sheet layout.
-   Navigation sits on the porcelain/graphite ground; content floats on one raised sheet. */
+/* Almadel workspace shell.
+   Sidebar and topbar sit on the porcelain / graphite ground; pages place their own panels.
+   A full-width graphite bar anchors the bottom of every breakpoint. */
 
 .page {
-  --side-w: 248px;
+  --side-w: 236px;
+  --bar-h: 56px;
   min-height: 100vh;
   background: var(--bg);
   color: var(--text);
 }
 
-.page.isCollapsed {
-  --side-w: 72px;
-}
-
 /* ================= Sidebar ================= */
 .sidebar {
   position: fixed;
-  inset: 0 auto 0 0;
+  inset: 0 auto var(--bar-h) 0;
   width: var(--side-w);
-  padding: 14px 12px 12px;
+  padding: 16px 12px 14px;
   display: flex;
   flex-direction: column;
-  gap: 10px;
+  gap: 2px;
   z-index: 30;
-  overflow: visible;
-  scrollbar-width: none;
-  transition: width var(--dur-3) var(--ease), padding var(--dur-3) var(--ease);
-}
-
-.sidebar::-webkit-scrollbar {
-  display: none;
+  background: var(--bg);
+  border-right: 1px solid var(--border);
 }
 
 .brandRow {
+  position: relative;
   display: flex;
   align-items: center;
-  gap: 6px;
-  padding: 2px 4px 2px 6px;
-  min-height: 34px;
+  gap: 10px;
+  padding: 2px 6px 14px;
 }
 
 .brand {
   display: flex;
   align-items: center;
   gap: 10px;
-  color: inherit;
-  text-decoration: none;
   min-width: 0;
   flex: 1;
+  color: inherit;
+  text-decoration: none;
 }
 
 .brandText {
   display: flex;
   flex-direction: column;
   min-width: 0;
-  line-height: 1.15;
-  transition: opacity var(--dur-1) var(--ease);
+  line-height: 1.3;
 }
 
 .brandText strong {
-  font-size: 15px;
-  font-weight: 600;
-  letter-spacing: -0.015em;
+  font-size: 14.5px;
+  font-weight: 650;
+  letter-spacing: -0.02em;
 }
 
 .brandText small {
-  font-size: 11px;
+  font-size: 11.5px;
   color: var(--muted);
   white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
-.collapseBtn,
-.iconBtn {
-  width: 32px;
-  height: 32px;
+.iconBtn,
+.bizSwitch {
+  width: 36px;
+  height: 36px;
   flex: none;
   display: grid;
   place-items: center;
   border: 1px solid transparent;
   border-radius: 8px;
   background: transparent;
-  color: var(--muted);
-  transition: background-color var(--dur-1) var(--ease), color var(--dur-1) var(--ease), border-color var(--dur-1) var(--ease);
+  color: var(--text-2);
+  cursor: pointer;
+  transition: background-color var(--dur-1) var(--ease), color var(--dur-1) var(--ease);
 }
 
-.collapseBtn:hover,
-.iconBtn:hover {
-  background: var(--surface);
-  border-color: var(--border);
+.bizSwitch {
+  width: 26px;
+  height: 26px;
+  color: var(--muted);
+}
+
+.iconBtn:hover,
+.bizSwitch:hover {
+  background: var(--sunken);
   color: var(--text);
 }
 
-/* Business switcher */
-.bizWrap {
-  position: relative;
-}
-
-.bizButton {
-  width: 100%;
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  padding: 7px 9px;
-  border: 1px solid var(--border);
-  border-radius: 11px;
-  background: var(--surface);
-  box-shadow: var(--shadow-xs);
-  color: inherit;
-  text-align: left;
-  font: inherit;
-  transition: border-color var(--dur-1) var(--ease), box-shadow var(--dur-1) var(--ease);
-}
-
-.bizButton:hover {
-  border-color: var(--border-strong);
+.iconBtn:focus-visible,
+.bizSwitch:focus-visible,
+.navLink:focus-visible,
+.searchBtn:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 2px var(--bg), 0 0 0 4px var(--brand);
 }
 
 .bizAvatar {
@@ -123,11 +106,10 @@
   place-items: center;
   border-radius: 8px;
   overflow: hidden;
-  background: #1f2a26;
-  color: #9fe3c8;
+  background: var(--text);
+  color: var(--bg);
   font-size: 11.5px;
   font-weight: 600;
-  letter-spacing: 0.01em;
 }
 
 .bizAvatar img {
@@ -144,38 +126,10 @@
   border-radius: 7px;
 }
 
-.bizText {
-  display: flex;
-  flex-direction: column;
-  min-width: 0;
-  flex: 1;
-  line-height: 1.25;
-}
-
-.bizText strong {
-  font-size: 13px;
-  font-weight: 550;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-
-.bizText small {
-  font-size: 11.5px;
-  color: var(--muted);
-  text-transform: capitalize;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-
-.bizChevron {
-  color: var(--muted);
-}
-
 .noBiz {
+  margin: 0 0 10px;
   padding: 10px 12px;
-  border-radius: 11px;
+  border-radius: 10px;
   background: var(--warn-soft);
   color: var(--warn);
   font-size: 12.5px;
@@ -194,26 +148,26 @@
 
 .bizMenu {
   position: absolute;
-  top: calc(100% + 6px);
+  top: calc(100% - 6px);
   left: 0;
-  width: min(320px, calc(100vw - 24px));
+  width: min(300px, calc(100vw - 24px));
   max-height: calc(100vh - 96px);
   overflow-y: auto;
   z-index: 50;
   padding: 6px;
-  border-radius: 13px;
-  background: var(--surface);
+  border-radius: 12px;
+  background: var(--raised);
   border: 1px solid var(--border-strong);
-  box-shadow: var(--shadow-lg);
+  box-shadow: var(--shadow-pop);
 }
 
 .menuLabel {
   padding: 8px 10px 5px;
   font-size: 10.5px;
-  font-weight: 500;
-  letter-spacing: 0.08em;
+  font-weight: 550;
+  letter-spacing: 0.1em;
   text-transform: uppercase;
-  color: var(--muted);
+  color: var(--faint);
 }
 
 .menuItem {
@@ -221,26 +175,24 @@
   display: flex;
   align-items: center;
   gap: 10px;
-  padding: 7px 8px;
+  padding: 8px;
   border: 0;
-  border-radius: 9px;
+  border-radius: 8px;
   background: transparent;
   color: var(--text);
   text-align: left;
   font: inherit;
+  cursor: pointer;
   transition: background-color var(--dur-1) var(--ease);
 }
 
 .menuItem:hover {
-  background: var(--surface-2);
+  background: var(--sunken);
 }
 
-.menuItemOn {
-  background: var(--brand-soft);
-}
-
+.menuItemOn,
 .menuItemOn:hover {
-  background: var(--brand-soft);
+  background: var(--sunken);
 }
 
 .menuItemText {
@@ -248,12 +200,12 @@
   flex-direction: column;
   min-width: 0;
   flex: 1;
-  line-height: 1.25;
+  line-height: 1.3;
 }
 
 .menuItemText strong {
   font-size: 13px;
-  font-weight: 500;
+  font-weight: 550;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -272,15 +224,15 @@
 .menuSep {
   height: 1px;
   background: var(--border);
-  margin: 6px 4px;
+  margin: 4px 0;
 }
 
 .menuLink {
   display: flex;
   align-items: center;
   gap: 10px;
-  padding: 8px 10px;
-  border-radius: 9px;
+  padding: 8px;
+  border-radius: 8px;
   color: var(--text-2);
   text-decoration: none;
   font-size: 13px;
@@ -288,42 +240,8 @@
 }
 
 .menuLink:hover {
-  background: var(--surface-2);
-  color: var(--text);
-}
-
-/* Workspace indicator */
-.workspace {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  padding: 3px;
-  border-radius: 10px;
   background: var(--sunken);
-  border: 1px solid var(--border);
-}
-
-.workspace span {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 6px;
-  height: 26px;
-  border-radius: 7px;
-  font-size: 12.5px;
-  font-weight: 500;
-  color: var(--muted);
-  white-space: nowrap;
-  transition: background-color var(--dur-2) var(--ease), color var(--dur-2) var(--ease);
-}
-
-.workspace .wsOn {
-  background: var(--surface);
   color: var(--text);
-  box-shadow: var(--shadow-xs), 0 0 0 1px var(--border);
-}
-
-.workspace .wsOn svg {
-  color: var(--brand);
 }
 
 /* Navigation */
@@ -332,10 +250,13 @@
   flex-direction: column;
   gap: 2px;
   flex: 1;
-  margin-top: 2px;
+  margin-top: 4px;
   min-height: 0;
   overflow-y: auto;
   scrollbar-width: none;
+  /* room for the active accent bar that sits in the sidebar gutter */
+  margin-left: -12px;
+  padding-left: 12px;
 }
 
 .nav::-webkit-scrollbar {
@@ -345,22 +266,17 @@
 .navGroup {
   display: flex;
   flex-direction: column;
-  gap: 1px;
+  gap: 2px;
 }
 
 .navHeading {
-  padding: 12px 10px 5px;
+  padding: 16px 10px 6px;
   font-size: 10.5px;
-  font-weight: 500;
-  letter-spacing: 0.09em;
+  font-weight: 550;
+  letter-spacing: 0.1em;
   text-transform: uppercase;
-  color: var(--muted);
+  color: var(--faint);
   white-space: nowrap;
-  transition: opacity var(--dur-1) var(--ease);
-}
-
-.navGroup:first-child .navHeading {
-  padding-top: 6px;
 }
 
 .menuGroup {
@@ -373,21 +289,20 @@
   display: flex;
   align-items: center;
   gap: 10px;
-  min-height: 32px;
+  height: 34px;
   padding: 0 10px;
   border-radius: 8px;
-  border: 1px solid transparent;
   color: var(--text-2);
   text-decoration: none;
   font-size: 13.5px;
   font-weight: 450;
   white-space: nowrap;
-  transition: background-color var(--dur-1) var(--ease), color var(--dur-1) var(--ease), border-color var(--dur-1) var(--ease);
+  transition: background-color var(--dur-1) var(--ease), color var(--dur-1) var(--ease);
 }
 
 .navIcon {
-  color: var(--muted);
-  transition: color var(--dur-1) var(--ease);
+  color: var(--faint);
+  flex: none;
 }
 
 .navLabel {
@@ -395,13 +310,12 @@
   min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;
-  transition: opacity var(--dur-1) var(--ease);
 }
 
 .navCaret {
   color: var(--faint);
-  transition: transform var(--dur-2) var(--ease);
   transform: rotate(-90deg);
+  transition: transform var(--dur-2) var(--ease);
 }
 
 .navCaretOpen {
@@ -409,20 +323,26 @@
 }
 
 .navLink:hover {
-  background: color-mix(in oklab, var(--surface) 70%, transparent);
+  background: var(--sunken);
   color: var(--text);
-}
-
-.navLink:hover .navIcon {
-  color: var(--text-2);
 }
 
 .navLink.active {
   background: var(--surface);
-  border-color: var(--border);
-  box-shadow: var(--shadow-xs);
   color: var(--text);
-  font-weight: 500;
+  font-weight: 550;
+  box-shadow: var(--shadow-xs), 0 0 0 1px var(--border);
+}
+
+.navLink.active::before {
+  content: "";
+  position: absolute;
+  left: -12px;
+  top: 9px;
+  bottom: 9px;
+  width: 2px;
+  border-radius: 0 2px 2px 0;
+  background: var(--brand);
 }
 
 .navLink.active .navIcon {
@@ -432,32 +352,21 @@
 .subNav {
   display: flex;
   flex-direction: column;
-  margin: 2px 0 4px;
+  margin: 2px 0 2px;
   animation: almadelRise var(--dur-2) var(--ease) backwards;
 }
 
 .subLink {
-  position: relative;
   display: flex;
   align-items: center;
-  min-height: 29px;
-  padding: 0 10px 0 37px;
-  border-radius: 7px;
+  height: 30px;
+  padding: 0 10px 0 36px;
+  border-radius: 8px;
   color: var(--muted);
   text-decoration: none;
   font-size: 13px;
   white-space: nowrap;
-  transition: color var(--dur-1) var(--ease), background-color var(--dur-1) var(--ease);
-}
-
-.subLink::before {
-  content: "";
-  position: absolute;
-  left: 18px;
-  top: 0;
-  bottom: 0;
-  width: 1px;
-  background: var(--border-strong);
+  transition: color var(--dur-1) var(--ease);
 }
 
 .subLink:hover {
@@ -466,21 +375,16 @@
 
 .subLinkActive {
   color: var(--text);
-  font-weight: 500;
+  font-weight: 550;
 }
 
-.subLinkActive::before {
-  width: 1.5px;
-  background: var(--brand);
-}
-
-/* Plan */
+/* Trial plan (only while a trial is running) */
 .plan {
-  margin-top: 6px;
+  margin-top: 8px;
   padding: 10px 12px;
-  border-radius: 11px;
+  border-radius: 10px;
   border: 1px solid var(--border);
-  background: var(--surface-2);
+  background: var(--surface);
   display: flex;
   flex-direction: column;
   gap: 6px;
@@ -500,16 +404,10 @@
 
 .planName {
   display: inline-flex;
-  align-items: flex-start;
+  align-items: center;
   gap: 6px;
   font-size: 12.5px;
   font-weight: 550;
-  line-height: 1.3;
-  min-width: 0;
-}
-
-.planName svg {
-  margin-top: 1px;
 }
 
 .planName svg {
@@ -522,13 +420,13 @@
   padding: 0 9px;
   display: inline-flex;
   align-items: center;
-  border-radius: 7px;
+  border-radius: 6px;
   font-size: 11.5px;
-  font-weight: 500;
+  font-weight: 550;
   text-decoration: none;
   color: var(--text);
   background: var(--surface);
-  border: 1px solid var(--border);
+  border: 1px solid var(--border-strong);
 }
 
 .planLinkPrimary {
@@ -549,17 +447,60 @@
   height: 100%;
   border-radius: 3px;
   background: var(--brand);
-  transition: width var(--dur-3) var(--ease);
 }
 
-/* User */
+/* Footer: live status + user */
+.foot {
+  margin-top: 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.liveCard {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px;
+  border-radius: 10px;
+  border: 1px solid var(--border);
+  background: var(--surface);
+  font-size: 12px;
+  color: var(--text-2);
+}
+
+.liveCard > span:nth-child(2) {
+  flex: 1;
+  min-width: 0;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.liveClock {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  color: var(--faint);
+}
+
+.liveDot {
+  width: 7px;
+  height: 7px;
+  flex: none;
+  border-radius: 50%;
+  background: var(--faint);
+}
+
+.liveDotOn {
+  background: var(--brand);
+  animation: almadelPulse 2.4s var(--ease) infinite;
+}
+
 .user {
   display: flex;
   align-items: center;
   gap: 10px;
-  padding: 8px 4px 2px;
-  border-top: 1px solid var(--border);
-  margin-top: 4px;
+  padding: 4px 6px;
   min-width: 0;
 }
 
@@ -571,11 +512,10 @@
   display: grid;
   place-items: center;
   border-radius: 50%;
-  background: var(--surface);
-  color: var(--text-2);
-  font-size: 11px;
+  background: var(--text);
+  color: var(--bg);
+  font-size: 11.5px;
   font-weight: 600;
-  box-shadow: inset 0 0 0 1px var(--border);
 }
 
 .user > span,
@@ -584,13 +524,13 @@
   flex-direction: column;
   min-width: 0;
   flex: 1;
-  line-height: 1.25;
+  line-height: 1.3;
 }
 
 .user strong,
 .drawerUser strong {
   font-size: 13px;
-  font-weight: 500;
+  font-weight: 550;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -604,8 +544,8 @@
 }
 
 .user button {
-  width: 30px;
-  height: 30px;
+  width: 28px;
+  height: 28px;
   flex: none;
   display: grid;
   place-items: center;
@@ -613,6 +553,7 @@
   border-radius: 8px;
   background: transparent;
   color: var(--muted);
+  cursor: pointer;
   transition: background-color var(--dur-1) var(--ease), color var(--dur-1) var(--ease);
 }
 
@@ -621,144 +562,109 @@
   color: var(--neg);
 }
 
-/* Collapsed rail */
-.isCollapsed .sidebar {
-  padding-left: 14px;
-  padding-right: 14px;
-}
-
-.isCollapsed .brandRow {
-  flex-direction: column;
-  gap: 10px;
-  padding: 2px 0;
-}
-
-.isCollapsed .brand {
-  flex: none;
-}
-
-.isCollapsed .brandText,
-.isCollapsed .bizText,
-.isCollapsed .bizChevron,
-.isCollapsed .navLabel,
-.isCollapsed .navCaret,
-.isCollapsed .subNav,
-.isCollapsed .plan,
-.isCollapsed .user > span,
-.isCollapsed .workspace span:not(.wsOn) {
-  display: none;
-}
-
-.isCollapsed .navHeading {
-  height: 1px;
-  padding: 0;
-  margin: 8px 8px;
-  background: var(--border);
-  font-size: 0;
-}
-
-.isCollapsed .navGroup:first-child .navHeading {
-  display: none;
-}
-
-.isCollapsed .bizButton {
-  padding: 6px;
-  justify-content: center;
-}
-
-.isCollapsed .workspace {
-  grid-template-columns: 1fr;
-}
-
-.isCollapsed .workspace span {
-  font-size: 0;
-  gap: 0;
-}
-
-.isCollapsed .navLink {
-  justify-content: center;
-  padding: 0;
-  min-height: 40px;
-  border-radius: 11px;
-}
-
-.isCollapsed .user {
-  flex-direction: column;
-  border-top: 0;
-}
-
-.isCollapsed .bizMenu {
-  left: calc(100% + 8px);
-  top: 0;
-}
-
-/* ================= Main sheet ================= */
+/* ================= Main column ================= */
 .main {
   margin-left: var(--side-w);
   min-height: 100vh;
-  padding: 8px 8px 8px 0;
-  transition: margin-left var(--dur-3) var(--ease);
+  padding-bottom: var(--bar-h);
   min-width: 0;
+  display: flex;
+  flex-direction: column;
 }
 
 .topbar {
   position: sticky;
-  top: 8px;
+  top: 0;
   z-index: 25;
-  height: 56px;
+  height: 60px;
+  flex: none;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 0 28px;
+  background: var(--bg);
+  border-bottom: 1px solid var(--border);
+}
+
+.titleSlot {
+  flex: 1;
+  min-width: 0;
   display: flex;
   align-items: center;
   gap: 10px;
-  padding: 0 16px 0 22px;
-  background: var(--glass);
-  backdrop-filter: saturate(1.4) blur(14px);
-  -webkit-backdrop-filter: saturate(1.4) blur(14px);
-  border: 1px solid var(--border);
-  border-bottom-color: var(--border);
-  border-radius: 14px 14px 0 0;
-  box-shadow: 0 -9px 0 0 var(--bg);
 }
 
-.crumbs {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  min-width: 0;
-  font-size: 13px;
-  color: var(--muted);
+/* A page header portalled into the topbar replaces the fallback title */
+.titleSlot:has(> :nth-child(2)) > :first-child {
+  display: none;
+}
+
+.fallbackTitle {
+  margin: 0;
+  font-size: 20px;
+  font-weight: 600;
+  letter-spacing: -0.025em;
   white-space: nowrap;
-}
-
-.crumbs strong {
-  color: var(--text);
-  font-weight: 500;
   overflow: hidden;
   text-overflow: ellipsis;
 }
 
-.crumbWs {
-  color: var(--muted);
+.modeBadge {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 24px;
+  padding: 0 9px;
+  border-radius: 5px;
+  font-size: 11.5px;
+  font-weight: 550;
+  white-space: nowrap;
+  background: var(--sunken);
+  color: var(--text-2);
+  box-shadow: inset 0 0 0 1px var(--border);
 }
 
-.spacer {
-  flex: 1;
+.modeBadge::before {
+  content: "";
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: currentColor;
 }
 
-.searchBtn {
+.modeBadgeFin {
+  background: var(--brand-soft);
+  color: var(--brand);
+  box-shadow: none;
+}
+
+.actionSlot {
   display: flex;
   align-items: center;
   gap: 8px;
-  height: 34px;
-  width: clamp(180px, 22vw, 300px);
-  padding: 0 7px 0 11px;
+}
+
+.actionSlot:empty {
+  display: none;
+}
+
+.searchBtn {
+  height: 36px;
+  width: clamp(200px, 22vw, 300px);
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 0 8px 0 12px;
   border: 1px solid var(--border);
   border-radius: 9px;
-  background: var(--surface-2);
-  color: var(--muted);
+  background: var(--surface);
+  color: var(--faint);
   font: inherit;
   font-size: 13px;
   text-align: left;
-  transition: border-color var(--dur-1) var(--ease), background-color var(--dur-1) var(--ease);
+  cursor: pointer;
+  box-shadow: var(--shadow-xs);
+  transition: border-color var(--dur-1) var(--ease);
 }
 
 .searchBtn span {
@@ -770,88 +676,29 @@
 
 .searchBtn:hover {
   border-color: var(--border-strong);
-  background: var(--surface);
 }
 
 .searchBtn kbd,
 .paletteInput kbd {
   font-family: var(--font-mono);
   font-size: 10.5px;
-  line-height: 17px;
-  padding: 0 5px;
-  border-radius: 5px;
-  border: 1px solid var(--border);
-  border-bottom-width: 1.5px;
-  background: var(--surface);
-  color: var(--muted);
-}
-
-.live {
-  display: inline-flex;
-  align-items: center;
-  gap: 7px;
-  height: 26px;
-  padding: 0 10px;
-  border-radius: 999px;
-  border: 1px solid var(--border);
+  line-height: 1;
+  padding: 3px 5px;
+  border-radius: 4px;
+  border: 1px solid var(--border-strong);
+  border-bottom-width: 2px;
   background: var(--surface-2);
   color: var(--muted);
-  font-size: 12px;
-  white-space: nowrap;
 }
 
-.liveOn {
-  color: var(--text-2);
-}
-
-.liveDot {
-  width: 6px;
-  height: 6px;
-  flex: none;
-  border-radius: 50%;
-  background: var(--faint);
-}
-
-.liveOn .liveDot,
-.liveDotOn {
-  background: var(--brand);
-  animation: almadelPulse 2.4s var(--ease) infinite;
-}
-
-.primaryAction {
-  display: inline-flex;
-  align-items: center;
-  gap: 7px;
-  height: 34px;
-  padding: 0 13px;
-  border-radius: 9px;
-  background: var(--brand);
-  color: var(--on-brand);
-  font-size: 13px;
-  font-weight: 500;
-  text-decoration: none;
-  white-space: nowrap;
-  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.18), 0 1px 2px rgba(10, 94, 72, 0.3);
-  transition: background-color var(--dur-1) var(--ease), transform var(--dur-1) var(--ease);
-}
-
-.primaryAction:hover {
-  background: var(--brand-strong);
-}
-
-.primaryAction:active {
-  transform: scale(0.98);
+.spacer {
+  flex: 1;
 }
 
 .content {
-  min-height: calc(100vh - 72px);
-  background: var(--surface);
-  border: 1px solid var(--border);
-  border-top: 0;
-  border-radius: 0 0 14px 14px;
-  box-shadow: var(--shadow-xs);
-  padding: clamp(20px, 2.6vw, 32px) clamp(16px, 2.8vw, 36px) clamp(40px, 5vw, 64px);
+  flex: 1;
   min-width: 0;
+  padding: 20px 28px 28px;
 }
 
 .contentInner {
@@ -859,18 +706,176 @@
   margin: 0 auto;
   width: 100%;
   min-width: 0;
-  /* Shared vertical rhythm for every route, whether or not it uses PageStack */
   display: flex;
   flex-direction: column;
-  gap: clamp(16px, 2.2vw, 22px);
+  gap: 16px;
 }
 
 .contentInner > * {
   min-width: 0;
 }
 
-.mobile,
-.bottom {
+.mobile {
+  display: none;
+}
+
+/* ================= Bottom bar =================
+   Full-width graphite bar, part of the shell at every breakpoint.
+   The background runs edge to edge; the items stay centred. */
+.bar {
+  position: fixed;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 40;
+  padding-bottom: env(safe-area-inset-bottom, 0px);
+  background: #15171a;
+  border-top: 1px solid rgba(255, 255, 255, 0.06);
+  box-shadow: 0 -12px 32px -24px rgba(0, 0, 0, 0.5);
+  color: #e9eaec;
+  transition: transform 420ms var(--ease), opacity var(--dur-2) var(--ease);
+}
+
+:global([data-theme="dark"]) .bar {
+  background: #1d2024;
+}
+
+.barHidden {
+  transform: translateY(100%);
+  opacity: 0;
+  pointer-events: none;
+}
+
+.barInner {
+  height: var(--bar-h);
+  max-width: var(--page-max-width);
+  margin: 0 auto;
+  padding: 0 16px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 2px;
+}
+
+.barItem {
+  position: relative;
+  height: 40px;
+  min-width: 40px;
+  padding: 0 12px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  border: 0;
+  border-radius: 10px;
+  background: transparent;
+  color: #a9aeb5;
+  font: inherit;
+  font-size: 13px;
+  font-weight: 500;
+  text-decoration: none;
+  white-space: nowrap;
+  cursor: pointer;
+  transition: background-color var(--dur-1) var(--ease), color var(--dur-1) var(--ease), transform var(--dur-1) var(--ease);
+}
+
+.barItem:hover {
+  background: rgba(255, 255, 255, 0.07);
+  color: #fff;
+}
+
+.barItem:active {
+  transform: scale(0.96);
+}
+
+.barItemOn {
+  color: #fff;
+  background: rgba(255, 255, 255, 0.09);
+}
+
+.barItem:focus-visible,
+.barSale:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 2px #15171a, 0 0 0 4px #3ccb9a;
+}
+
+.barIcon {
+  padding: 0;
+}
+
+.barSale {
+  height: 40px;
+  margin: 0 4px;
+  padding: 0 12px 0 10px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  border: 0;
+  border-radius: 10px;
+  background: #3ccb9a;
+  color: #062219;
+  font: inherit;
+  font-size: 13px;
+  font-weight: 600;
+  white-space: nowrap;
+  cursor: pointer;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.35), 0 10px 24px -10px rgba(60, 203, 154, 0.7);
+  transition: background-color var(--dur-1) var(--ease), transform var(--dur-1) var(--ease);
+}
+
+.barSale:hover {
+  background: #5bd8ad;
+}
+
+.barSale:active {
+  transform: scale(0.97);
+}
+
+.barSale kbd {
+  font-family: var(--font-mono);
+  font-size: 10.5px;
+  line-height: 1;
+  padding: 3px 5px;
+  border-radius: 4px;
+  border: 1px solid rgba(6, 34, 25, 0.22);
+  border-bottom-width: 2px;
+  background: rgba(6, 34, 25, 0.12);
+  color: #062219;
+}
+
+.barSep {
+  width: 1px;
+  height: 22px;
+  margin: 0 4px;
+  flex: none;
+  background: rgba(255, 255, 255, 0.1);
+}
+
+.barTip {
+  position: absolute;
+  bottom: calc(100% + 10px);
+  left: 50%;
+  transform: translate(-50%, 4px);
+  padding: 5px 8px;
+  border-radius: 6px;
+  background: #15171a;
+  color: #fff;
+  font-size: 11.5px;
+  white-space: nowrap;
+  opacity: 0;
+  pointer-events: none;
+  box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.1);
+  transition: opacity var(--dur-1) var(--ease), transform var(--dur-1) var(--ease);
+}
+
+.barItem:hover .barTip,
+.barItem:focus-visible .barTip {
+  opacity: 1;
+  transform: translate(-50%, 0);
+}
+
+.barMobile {
   display: none;
 }
 
@@ -1018,7 +1023,7 @@
   color: var(--muted);
 }
 
-/* ================= Tablet: auto rail ================= */
+/* ================= Tablet: icon rail ================= */
 @media (max-width: 1180px) and (min-width: 769px) {
   .page {
     --side-w: 72px;
@@ -1026,32 +1031,29 @@
   .sidebar {
     padding-left: 14px;
     padding-right: 14px;
+    align-items: stretch;
   }
   .brandRow {
-    flex-direction: column;
-    gap: 10px;
-    padding: 2px 0;
+    justify-content: center;
+    padding: 2px 0 14px;
   }
   .brand {
     flex: none;
   }
-  .collapseBtn {
-    display: none;
-  }
+  .bizSwitch,
   .brandText,
-  .bizText,
-  .bizChevron,
   .navLabel,
   .navCaret,
   .subNav,
   .plan,
   .user > span,
-  .workspace span:not(.wsOn) {
+  .user button,
+  .liveCard > span:not(:first-child) {
     display: none;
   }
   .navHeading {
     height: 1px;
-    padding: 0 !important;
+    padding: 0;
     margin: 8px;
     background: var(--border);
     font-size: 0;
@@ -1059,36 +1061,31 @@
   .navGroup:first-child .navHeading {
     display: none;
   }
-  .bizButton {
-    padding: 6px;
-    justify-content: center;
-  }
-  .workspace {
-    grid-template-columns: 1fr;
-  }
-  .workspace span {
-    font-size: 0;
-    gap: 0;
-  }
   .navLink {
     justify-content: center;
     padding: 0;
-    min-height: 40px;
-    border-radius: 11px;
+    height: 40px;
+  }
+  .liveCard {
+    justify-content: center;
   }
   .user {
-    flex-direction: column;
-    border-top: 0;
+    justify-content: center;
   }
   .bizMenu {
     left: calc(100% + 8px);
     top: 0;
   }
+  .searchBtn {
+    width: auto;
+  }
   .searchBtn span {
     display: none;
   }
-  .searchBtn {
-    width: auto;
+  .topbar,
+  .content {
+    padding-left: 20px;
+    padding-right: 20px;
   }
 }
 
@@ -1166,81 +1163,67 @@
     border: 0;
     border-radius: 0;
     box-shadow: none;
-    padding: 18px 14px calc(108px + env(safe-area-inset-bottom, 0px));
+    padding: 18px 14px calc(var(--bar-h) + 24px + env(safe-area-inset-bottom, 0px));
   }
 
-  /* Floating tab bar */
-  .bottom {
-    position: fixed;
-    left: 10px;
-    right: 10px;
-    bottom: max(10px, env(safe-area-inset-bottom, 0px));
-    z-index: 40;
-    display: flex;
+  /* Bottom bar: Home · Sales · New sale · Khata · More */
+  .page {
+    --bar-h: 64px;
+  }
+
+  .barDesktop {
+    display: none !important;
+  }
+
+  .barMobile {
+    display: inline-flex;
+  }
+
+  .barInner {
     justify-content: space-around;
-    align-items: center;
-    height: 66px;
+    gap: 0;
     padding: 0 6px;
-    border-radius: 22px;
-    background: var(--glass);
-    backdrop-filter: saturate(1.5) blur(18px);
-    -webkit-backdrop-filter: saturate(1.5) blur(18px);
-    border: 1px solid var(--border);
-    box-shadow: var(--shadow-lg);
   }
 
-  .bottom a,
-  .bottom button {
-    position: relative;
+  .barInner > * {
+    order: var(--m-order, 9);
+  }
+
+  .barItem {
     flex: 1;
     max-width: 84px;
-    min-height: 54px;
-    display: flex;
+    height: 54px;
     flex-direction: column;
-    align-items: center;
-    justify-content: center;
     gap: 3px;
-    border: 0;
-    border-radius: 15px;
-    background: transparent;
-    color: var(--muted);
-    font: inherit;
+    padding: 0 4px;
+    border-radius: 12px;
     font-size: 10.5px;
-    font-weight: 500;
-    text-decoration: none;
-    white-space: nowrap;
-    transition: color var(--dur-1) var(--ease), background-color var(--dur-1) var(--ease), transform var(--dur-1) var(--ease);
   }
 
-  .bottom a span,
-  .bottom button span {
+  .barItem span {
     max-width: 100%;
     overflow: hidden;
     text-overflow: ellipsis;
   }
 
-  .bottom a:active,
-  .bottom button:active {
-    transform: scale(0.95);
+  .barItemOn {
+    background: transparent;
   }
 
-  .bottom .active {
-    color: var(--text);
+  .barItemOn svg {
+    color: #3ccb9a;
   }
 
-  .bottom .active svg {
-    color: var(--brand);
-  }
-
-  .bottom .active::after {
-    content: "";
-    position: absolute;
-    top: 4px;
-    width: 18px;
-    height: 2px;
-    border-radius: 2px;
-    background: var(--brand);
-    animation: almadelFadeIn var(--dur-2) var(--ease) backwards;
+  .barSale {
+    flex: none;
+    min-width: 64px;
+    height: 52px;
+    margin: 0 2px;
+    padding: 0 10px;
+    flex-direction: column;
+    gap: 2px;
+    border-radius: 14px;
+    font-size: 10.5px;
   }
 
   /* More sheet */
@@ -1428,4 +1411,29 @@
   .paletteBackdrop {
     padding-top: 8vh;
   }
+}
+
+/* ---------- Motion hand-off ---------- */
+
+/* framer-motion (overlay.tsx) runs the More sheet and the palette in and out */
+.drawerBackdrop[data-motion],
+.drawerBackdrop[data-motion] > .drawerSheet,
+.paletteBackdrop[data-motion],
+.paletteBackdrop[data-motion] > .palette {
+  animation: none;
+}
+
+.drawerSheet:focus,
+.palette:focus {
+  outline: none;
+}
+
+/* New Sale up: the page recedes behind the sheet (Main board stage: scale .985, lifted 6px) */
+.content {
+  transform-origin: 50% 0;
+  transition: transform 420ms var(--ease);
+}
+
+:global(html.al-sale-open) .content {
+  transform: scale(0.985) translateY(-6px);
 }

@@ -1,0 +1,274 @@
+/* Toast stack + confirm dialog (States board: "five kinds, one shape"). */
+
+.stack {
+  position: fixed;
+  right: 20px;
+  z-index: 100;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 8px;
+  pointer-events: none;
+  width: 372px;
+}
+
+.toast {
+  position: relative;
+  display: grid;
+  grid-template-columns: 28px 1fr auto;
+  gap: 10px;
+  align-items: start;
+  width: 100%;
+  padding: 12px 8px 12px 12px;
+  background: var(--surface);
+  border: 1px solid var(--border-strong);
+  border-radius: 12px;
+  box-shadow: var(--shadow-pop);
+  overflow: hidden;
+  pointer-events: auto;
+  /* Motion is framer-motion's (enter, exit, restack, swipe); no CSS transform transitions here */
+  touch-action: pan-y;
+  cursor: default;
+}
+.toast:active {
+  cursor: grabbing;
+}
+.toast:focus-visible {
+  outline: 2px solid var(--brand);
+  outline-offset: 2px;
+  border-radius: 12px;
+}
+:global([data-theme="dark"]) .toast {
+  background: var(--raised);
+}
+.error {
+  border-color: var(--neg);
+}
+
+.icon {
+  width: 28px;
+  height: 28px;
+  border-radius: 8px;
+  display: grid;
+  place-items: center;
+  /* loading → success: the tile recolours while its glyph springs in */
+  transition: background-color var(--dur-2) var(--ease), color var(--dur-2) var(--ease);
+}
+.iconGlyph {
+  display: grid;
+  place-items: center;
+}
+.icon_success { background: var(--brand-soft); color: var(--brand); }
+.icon_error { background: var(--neg-soft); color: var(--neg); }
+.icon_warning { background: var(--warn-soft); color: var(--warn); }
+.icon_info { background: var(--info-soft); color: var(--info); }
+.icon_loading { background: var(--sunken); color: var(--text-2); }
+
+.spin {
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  border: 2px solid currentColor;
+  border-right-color: transparent;
+  animation: almadelSpin 0.7s linear infinite;
+}
+
+.body {
+  min-width: 0;
+}
+.title {
+  margin: 3px 0 0;
+  font-size: 13.5px;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+  line-height: 1.35;
+  color: var(--text);
+  overflow-wrap: anywhere;
+}
+.desc {
+  margin: 2px 0 0;
+  font-size: 12.5px;
+  line-height: 1.45;
+  color: var(--muted);
+}
+.action {
+  margin-top: 10px;
+  height: 30px;
+  padding: 0 10px;
+  border-radius: 7px;
+  border: 1px solid var(--border-strong);
+  background: var(--surface);
+  color: var(--text);
+  font: 500 12.5px/1 var(--font-sans);
+  display: inline-flex;
+  align-items: center;
+  transition: background-color var(--dur-1) var(--ease), transform var(--dur-1) var(--ease);
+}
+.action:hover { background: var(--surface-2); }
+.action:active { transform: scale(0.97); }
+
+.close {
+  width: 28px;
+  height: 28px;
+  display: grid;
+  place-items: center;
+  border: 0;
+  border-radius: 7px;
+  background: transparent;
+  color: var(--muted);
+  transition: background-color var(--dur-1) var(--ease), color var(--dur-1) var(--ease);
+}
+.close:hover { background: var(--surface-2); color: var(--text); }
+
+.bar {
+  position: absolute;
+  left: 0;
+  bottom: 0;
+  height: 2px;
+  width: 100%;
+  opacity: 0.55;
+  transform-origin: left;
+  animation: toastBar linear forwards;
+}
+.paused .bar { animation-play-state: paused; }
+.bar_success { background: var(--brand); }
+.bar_warning { background: var(--warn); }
+.bar_info { background: var(--info); }
+
+.more {
+  align-self: flex-end;
+  font-size: 11.5px;
+  color: var(--muted);
+  padding: 2px 10px;
+  border-radius: 10px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  pointer-events: auto;
+}
+
+@keyframes toastBar {
+  from { transform: scaleX(1); }
+  to { transform: scaleX(0); }
+}
+
+@media (max-width: 640px) {
+  .stack {
+    left: 12px;
+    right: 12px;
+    width: auto;
+    align-items: stretch;
+  }
+  .toast {
+    touch-action: pan-x;
+  }
+}
+
+/* ---------- Confirm dialog: centred on desktop, bottom sheet on phones ---------- */
+.scrim {
+  position: fixed;
+  inset: 0;
+  z-index: 110;
+  display: grid;
+  place-items: center;
+  padding: 16px;
+  background: var(--scrim);
+  backdrop-filter: blur(3px);
+  animation: almadelFadeIn var(--dur-2) var(--ease) backwards;
+}
+.dialog {
+  width: 100%;
+  max-width: 440px;
+  overflow: hidden;
+  border-radius: 16px;
+  border: 1px solid var(--border-strong);
+  background: var(--surface);
+  box-shadow: var(--shadow-lg);
+  animation: almadelScaleUp var(--dur-3) var(--ease) backwards;
+}
+.dialogBody {
+  display: flex;
+  gap: 14px;
+  align-items: flex-start;
+  padding: 20px 20px 18px;
+}
+.dialogIcon {
+  width: 40px;
+  height: 40px;
+  border-radius: 12px;
+  flex: none;
+  display: grid;
+  place-items: center;
+  background: var(--brand-soft);
+  color: var(--brand);
+}
+.dialogIconDanger {
+  background: var(--neg-soft);
+  color: var(--neg);
+}
+.dialogTitle {
+  margin: 0;
+  font-size: 15px;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+  color: var(--text);
+}
+.dialogText {
+  margin: 4px 0 0;
+  font-size: 13px;
+  line-height: 1.5;
+  color: var(--muted);
+}
+.dialogFoot {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  padding: 12px 20px;
+  border-top: 1px solid var(--border);
+  background: var(--surface-2);
+}
+.btn {
+  height: 36px;
+  padding: 0 14px;
+  border-radius: 8px;
+  border: 1px solid var(--border-strong);
+  background: var(--surface);
+  color: var(--text);
+  font: 500 13px/1 var(--font-sans);
+  transition: background-color var(--dur-1) var(--ease), transform var(--dur-1) var(--ease);
+}
+.btn:hover { background: var(--surface-2); }
+.btn:active { transform: scale(0.98); }
+.btnPrimary {
+  background: var(--brand);
+  border-color: transparent;
+  color: var(--on-brand);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.16), 0 1px 2px rgba(10, 94, 72, 0.28);
+}
+.btnPrimary:hover { background: var(--brand-strong); }
+.btnDanger {
+  background: var(--neg);
+  border-color: transparent;
+  color: #fff;
+}
+.btnDanger:hover { background: var(--neg); filter: brightness(0.94); }
+:global([data-theme="dark"]) .btnDanger { color: #1a0906; }
+
+@media (max-width: 640px) {
+  .scrim {
+    place-items: end stretch;
+    padding: 0;
+  }
+  .dialog {
+    max-width: none;
+    border-radius: 18px 18px 0 0;
+    border-bottom: 0;
+    padding-bottom: env(safe-area-inset-bottom, 0px);
+    animation: almadelSheetUp var(--dur-3) var(--ease) backwards;
+  }
+  .dialogFoot {
+    flex-direction: column-reverse;
+  }
+  .btn {
+    height: 44px;
+  }
+}

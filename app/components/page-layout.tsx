@@ -1,6 +1,7 @@
 "use client";
 
-import type { ReactNode } from "react";
+import { useEffect, useState, type ReactNode } from "react";
+import { createPortal } from "react-dom";
 import { Icon, type IconName } from "@/app/components/icons";
 import ui from "@/app/components/workspace-ui.module.css";
 
@@ -9,19 +10,49 @@ type PageHeaderProps = {
   title: string;
   description?: ReactNode;
   actions?: ReactNode;
+  /** Second line under the title in the desktop topbar (e.g. today's date on the dashboard). */
+  subtitle?: ReactNode;
 };
 
-/** Consistent page title block used across workspace routes. */
-export function PageHeader({ eyebrow, title, description, actions }: PageHeaderProps) {
+/** Finds the desktop topbar slots rendered by WorkspaceShell (absent on auth pages and on first render). */
+function useTopbarSlots() {
+  const [slots, setSlots] = useState<{ title: HTMLElement | null; actions: HTMLElement | null }>({ title: null, actions: null });
+  useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    setSlots({
+      title: document.getElementById("al-topbar-title"),
+      actions: document.getElementById("al-topbar-actions"),
+    });
+  }, []);
+  return slots;
+}
+
+/**
+ * Page title + actions. On desktop they live in the shell's topbar (portal);
+ * on mobile, where the topbar is replaced by the compact header, they render inline.
+ */
+export function PageHeader({ eyebrow, title, description, actions, subtitle }: PageHeaderProps) {
+  const slots = useTopbarSlots();
   return (
-    <header className={ui.head}>
-      <div className={ui.headMain}>
-        {eyebrow ? <label>{eyebrow}</label> : null}
-        <h1>{title}</h1>
-        {description ? <p>{description}</p> : null}
-      </div>
-      {actions ? <div className={ui.headActions}>{actions}</div> : null}
-    </header>
+    <>
+      <header className={`${ui.head} ${slots.title ? ui.headInline : ""}`.trim()}>
+        <div className={ui.headMain}>
+          {eyebrow ? <label>{eyebrow}</label> : null}
+          <h1>{title}</h1>
+          {description ? <p>{description}</p> : null}
+        </div>
+        {actions ? <div className={ui.headActions}>{actions}</div> : null}
+      </header>
+      {slots.title &&
+        createPortal(
+          <div className={ui.topTitle}>
+            <h1>{title}</h1>
+            {subtitle ? <p>{subtitle}</p> : null}
+          </div>,
+          slots.title,
+        )}
+      {slots.actions && actions ? createPortal(<div className={ui.topActions}>{actions}</div>, slots.actions) : null}
+    </>
   );
 }
 

@@ -9,6 +9,7 @@ import { useToast } from "@/app/components/toast-context";
 import { ActivityCategory, ActivityLog, clearAllLogs } from "@/app/lib/logger";
 import { api } from "@/app/lib/api";
 import ui from "@/app/components/workspace-ui.module.css";
+import { Overlay } from "@/app/components/overlay";
 import { Icon } from "@/app/components/icons";
 import { PageHeader, TableEmptyRow, TableSkeletonRows } from "@/app/components/page-layout";
 import { PaginationControls } from "@/app/components/pagination-controls";
@@ -427,13 +428,8 @@ export default function LogsPage() {
       </section>
 
       {/* Log Detail Sheet */}
-      {selectedLog && (
-        <div
-          className={ui.modal}
-          onMouseDown={(e) => {
-            if (e.target === e.currentTarget) setSelectedLog(null);
-          }}
-        >
+      <Overlay open={selectedLog !== null} onClose={() => setSelectedLog(null)} variant="drawer">
+        {selectedLog && (
           <div className={ui.sheet} role="dialog" aria-modal="true" aria-label="Log record">
             <div className={ui.sheetHead}>
               <div className="flex min-w-0 items-center gap-2.5">
@@ -501,8 +497,8 @@ export default function LogsPage() {
               </button>
             </div>
           </div>
-        </div>
-      )}
+        )}
+      </Overlay>
     </WorkspaceShell>
   );
 }

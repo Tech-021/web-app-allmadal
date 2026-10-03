@@ -3,6 +3,7 @@
 import React, { useRef, useState } from "react";
 import { Icon } from "@/app/components/icons";
 import ui from "@/app/components/workspace-ui.module.css";
+import { Overlay } from "@/app/components/overlay";
 import { useBusiness } from "@/app/components/business-context";
 import { resolveImageUrl } from "@/app/lib/api";
 import { useLanguage } from "@/app/components/language-context";
@@ -52,14 +53,36 @@ export function PosReceiptModal({
   onClose,
   onNewSale,
 }: PosReceiptModalProps) {
+  const activeReceipt = receipt || sale;
+  return (
+    <Overlay
+      open={isOpen && Boolean(activeReceipt)}
+      onClose={onClose}
+      id="pos-print-wrapper"
+      className="al-overlay fixed inset-0 z-[99999] flex items-start justify-center p-3 sm:p-6 bg-[var(--scrim)] backdrop-blur-[3px] overflow-y-auto"
+      role="dialog"
+      aria-modal="true"
+    >
+      {activeReceipt && <ReceiptSheet activeReceipt={activeReceipt} onClose={onClose} onNewSale={onNewSale} />}
+    </Overlay>
+  );
+}
+
+function ReceiptSheet({
+  activeReceipt,
+  onClose,
+  onNewSale,
+}: {
+  activeReceipt: DetailedSaleReceipt;
+  onClose: () => void;
+  onNewSale?: () => void;
+}) {
   const { activeBusiness } = useBusiness();
   const { t, language } = useLanguage();
   const receiptRef = useRef<HTMLDivElement>(null);
   const [downloadingPdf, setDownloadingPdf] = useState(false);
 
-  const activeReceipt = receipt || sale;
   const resolvedLogo = resolveImageUrl(activeBusiness?.logoUrl);
-  if (!isOpen || !activeReceipt) return null;
 
   const handlePrint = () => {
     window.print();
@@ -140,7 +163,272 @@ export function PosReceiptModal({
 
   return (
     <>
-      {/* Print Specific CSS to prevent vertical centering, empty top space, and strip colors */}
+      <div
+        id="pos-receipt-card"
+        data-theme="light"
+        className="relative w-full max-w-sm sm:max-w-md bg-white rounded-3xl shadow-[var(--shadow-lg)] border border-slate-200 p-5 sm:p-6 my-auto font-sans text-slate-800 transition-all"
+      >
+        {/* Top Controls Toolbar (Hidden in Print) */}
+        <div className="no-print flex items-center justify-between pb-3 mb-3 border-b border-slate-100">
+          <div className="flex items-center gap-2">
+            <span className="text-xs font-bold text-slate-700">Official Invoice</span>
+            
+          </div>
+
+          <button
+            type="button"
+            onClick={onClose}
+            className="p-1 rounded-full text-slate-400 hover:text-slate-700 hover:bg-slate-100 transition cursor-pointer"
+            title="Close receipt"
+          >
+            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+            </svg>
+          </button>
+        </div>
+
+        {/* Printable Receipt Content */}
+        <div ref={receiptRef} className="space-y-4">
+          
+          {/* Header: Store Identity & Branding */}
+          <div className="text-center space-y-1">
+            {resolvedLogo ? (
+              <div className="relative mx-auto flex items-center justify-center pb-1">
+                <img
+                  src={resolvedLogo}
+                  alt={activeBusiness?.name || "Store Logo"}
+                  className="max-h-16 max-w-[170px] object-contain mx-auto rounded-xl border border-slate-100 shadow-[var(--shadow-xs)] p-1"
+                />
+              </div>
+            ) : (
+              <div className="size-12 rounded-2xl bg-[var(--brand)] text-white flex items-center justify-center text-xl font-black mx-auto shadow-[var(--shadow-md)]  border-2 border-emerald-700">
+                {activeBusiness?.name ? activeBusiness.name[0]?.toUpperCase() : "A"}
+              </div>
+            )}
+            <h2 className="text-xl font-black text-slate-900 tracking-tight mt-2 uppercase">
+              {activeBusiness?.name || "Almadel Retail Store"}
+            </h2>
+            {activeBusiness?.address && (
+              <p className="text-xs text-slate-600 font-medium leading-tight">
+                {activeBusiness.address}
+                {activeBusiness.city ? `, ${activeBusiness.city}` : ""}
+              </p>
+            )}
+            {activeBusiness?.mobileNumber && (
+              <p className="text-xs text-slate-600 font-medium">
+                Phone: {activeBusiness.mobileNumber}
+              </p>
+            )}
+            {activeBusiness?.taxRegistered === "yes" && activeBusiness?.ntn && (
+              <p className="text-[11px] text-slate-500 font-semibold">
+                NTN: {activeBusiness.ntn}
+              </p>
+            )}
+          </div>
+
+          {/* Prominent Paid Status Banner */}
+          <div className="flex items-center justify-between px-3 py-1.5 rounded-xl bg-emerald-50 border border-emerald-200 text-emerald-800">
+            <div className="flex items-center gap-1.5">
+              <span className="inline-flex items-center justify-center size-4 rounded-full bg-emerald-600 text-white text-[10px] font-black">
+                ✓
+              </span>
+              <span className="text-xs font-black tracking-wider uppercase">
+                {language === "ur" ? "Adaigi: ADA SHUDA" : "Payment Status: PAID"}
+              </span>
+            </div>
+            <span className="text-[11px] font-bold text-emerald-700 uppercase">
+              {paymentMethodDisplay}
+            </span>
+          </div>
+
+          {/* Invoice Meta Bar */}
+          <div className="border-y border-dashed border-slate-300 py-2.5 text-xs text-slate-600 space-y-1">
+            <div className="flex justify-between items-center font-extrabold text-slate-900">
+              <span>INVOICE #{activeReceipt.invoiceNumber}</span>
+              <span className="uppercase text-[10px] px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-800 font-bold border border-emerald-300">
+                PAID &bull; {paymentMethodDisplay}
+              </span>
+            </div>
+            <div className="flex justify-between text-[11px]">
+              <span>Date: {formattedDate}</span>
+              <span>Time: {formattedTime}</span>
+            </div>
+            <div className="flex justify-between text-[11px]">
+              <span>Customer:</span>
+              <strong className="text-slate-900">
+                {activeReceipt.customerName || "Walk-in Customer"}
+              </strong>
+            </div>
+            {activeReceipt.customerMobile && (
+              <div className="flex justify-between text-[11px]">
+                <span>Mobile:</span>
+                <span className="font-mono">{activeReceipt.customerMobile}</span>
+              </div>
+            )}
+          </div>
+
+          {/* Itemized Products Table */}
+          <div className="space-y-1.5 text-xs">
+            <div className="flex justify-between font-extrabold text-slate-500 text-[10px] border-b border-slate-200 pb-1 uppercase tracking-wider">
+              <span className="w-1/2">{t("nav.products", "Item")}</span>
+              <span className="w-1/6 text-center">{t("term.quantity", "Qty")}</span>
+              <span className="w-1/6 text-right">{t("term.price", "Rate")}</span>
+              <span className="w-1/6 text-right">{t("term.total", "Total")}</span>
+            </div>
+
+            <div className="space-y-1.5 max-h-56 overflow-y-auto print:max-h-none">
+              {(activeReceipt.items || []).map((item, idx) => (
+                <div
+                  key={idx}
+                  className="flex justify-between text-xs py-1 border-b border-slate-100 last:border-b-0"
+                >
+                  <span className="w-1/2 font-bold text-slate-900 truncate pr-1">
+                    <span>{item.name}</span>
+                    {item.discountAmount && item.discountAmount > 0 ? (
+                      <span className="block text-[10px] text-emerald-600 font-semibold">
+                        Disc: -₨{item.discountAmount.toLocaleString()}
+                      </span>
+                    ) : null}
+                  </span>
+                  <span className="w-1/6 text-center text-slate-600 font-medium">
+                    {item.quantity}
+                  </span>
+                  <span className="w-1/6 text-right text-slate-600">
+                    ₨{item.price.toLocaleString()}
+                  </span>
+                  <span className="w-1/6 text-right font-bold text-slate-900">
+                    ₨{item.total.toLocaleString()}
+                  </span>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          {/* Financial Totals */}
+          <div className="border-t border-dashed border-slate-300 pt-2.5 space-y-1.5 text-xs">
+            <div className="flex justify-between text-slate-600">
+              <span>Subtotal</span>
+              <span className="font-bold">₨ {activeReceipt.subtotal.toLocaleString()}</span>
+            </div>
+
+            {activeReceipt.discountAmount && activeReceipt.discountAmount > 0 ? (
+              <div className="flex justify-between text-emerald-700 font-medium">
+                <span>
+                  Discount ({activeReceipt.discountType === "percentage" ? "Percent" : "Fixed"})
+                </span>
+                <span>- ₨ {activeReceipt.discountAmount.toLocaleString()}</span>
+              </div>
+            ) : null}
+
+            <div className="flex justify-between text-base font-black text-slate-900 pt-1.5 border-t border-slate-200 items-baseline">
+              <span>Grand Total</span>
+              <div className="text-right">
+                <span className="text-[var(--brand)] text-lg font-black">
+                  ₨ {activeReceipt.totalAmount.toLocaleString()}
+                </span>
+                <span className="block text-[10px] font-bold text-emerald-700 uppercase tracking-wider">
+                  [ Fully Paid ]
+                </span>
+              </div>
+            </div>
+
+            {activeReceipt.paymentMethod?.toLowerCase() === "cash" &&
+              activeReceipt.cashTendered !== undefined &&
+              activeReceipt.cashTendered > 0 && (
+                <>
+                  <div className="flex justify-between text-[11px] text-slate-500 pt-1">
+                    <span>Cash Tendered</span>
+                    <span className="font-bold">
+                      ₨ {activeReceipt.cashTendered.toLocaleString()}
+                    </span>
+                  </div>
+                  <div className="flex justify-between text-[11px] text-emerald-800 font-bold">
+                    <span>Change Due (Wapsi)</span>
+                    <span>
+                      ₨ {Math.max(0, activeReceipt.changeDue || 0).toLocaleString()}
+                    </span>
+                  </div>
+                </>
+              )}
+          </div>
+
+          {/* OFFICIAL ALMADEL "PAID" STAMP */}
+          <div className="flex justify-center pt-2">
+            <div className="relative inline-flex flex-col items-center justify-center border-4 border-double border-emerald-600 text-emerald-700 px-5 py-2.5 rounded-2xl transform -rotate-3 select-none bg-emerald-50/60 shadow-[var(--shadow-xs)]">
+              <div className="flex items-center gap-1.5 text-[9px] font-black uppercase tracking-widest text-emerald-700">
+                <span>★</span>
+                <span>ALMADEL OFFICIAL STAMP</span>
+                <span>★</span>
+              </div>
+              <div className="text-2xl font-black tracking-widest text-emerald-700 my-0.5 flex items-center gap-1">
+                <svg
+                  className="w-5 h-5 text-emerald-600 stroke-[3]"
+                  fill="none"
+                  stroke="currentColor"
+                  viewBox="0 0 24 24"
+                >
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    d="M5 13l4 4L19 7"
+                  />
+                </svg>
+                <span>PAID</span>
+              </div>
+              <div className="text-[9px] font-bold uppercase tracking-wider text-emerald-600">
+                {paymentMethodDisplay} &bull; VERIFIED BILL
+              </div>
+              <div className="text-[8px] font-mono text-emerald-600/90 mt-0.5 font-bold">
+                {activeReceipt.invoiceNumber}
+              </div>
+            </div>
+          </div>
+
+          {/* Shukriya / Thank You Note */}
+          <div className="text-center pt-2 border-t border-dashed border-slate-300">
+            <p className="text-sm font-extrabold text-[var(--brand)]">Shukriya! (Thank You)</p>
+            <p className="text-[11px] font-semibold text-slate-500 mt-0.5">
+              Dobara Tashreef Layen
+            </p>
+            <p className="text-[9px] text-slate-400 mt-1.5 font-mono">
+              Powered by Almadel POS &bull; Store Management Portal
+            </p>
+          </div>
+        </div>
+
+        {/* Action Buttons (Hidden on Print) */}
+        <div className="no-print mt-4 flex flex-col gap-2">
+          <div className="grid grid-cols-2 gap-2">
+            <button type="button" onClick={handlePrint} className={`${ui.primary} ${ui.btnLg}`}>
+              <Icon name="printer" size={15} />
+              {t("action.print_receipt", "Print Receipt")}
+            </button>
+            <button type="button" onClick={() => void handleDownloadPdf()} disabled={downloadingPdf} className={`${ui.secondary} ${ui.btnLg}`}>
+              <Icon name="download" size={15} />
+              {downloadingPdf ? "Generating…" : "Download PDF"}
+            </button>
+          </div>
+          <div className="flex gap-2">
+            {onNewSale && (
+              <button
+                type="button"
+                onClick={() => {
+                  onClose();
+                  onNewSale();
+                }}
+                className={`${ui.secondary} flex-1`}
+              >
+                <Icon name="plus" size={14} />
+                {t("action.new_sale", "+ New Sale").replace(/^\+\s*/, "")}
+              </button>
+            )}
+            <button type="button" onClick={onClose} className={`${ui.secondary} flex-1`}>
+              {t("action.cancel", "Close")}
+            </button>
+          </div>
+        </div>
+      </div>
+      {/* Print-only CSS: after the card, so the card stays the overlay's animated first child */}
       <style>{`
         @media print {
           @page {
@@ -186,280 +474,6 @@ export function PosReceiptModal({
           }
         }
       `}</style>
-
-      {/* Screen Backdrop & Modal Shell */}
-      <div
-        id="pos-print-wrapper"
-        className="al-overlay fixed inset-0 z-[99999] flex items-start justify-center p-3 sm:p-6 bg-[var(--scrim)] backdrop-blur-[3px] overflow-y-auto"
-        role="dialog"
-        aria-modal="true"
-      >
-        <div
-          id="pos-receipt-card"
-          data-theme="light"
-          className="relative w-full max-w-sm sm:max-w-md bg-white rounded-3xl shadow-[var(--shadow-lg)] border border-slate-200 p-5 sm:p-6 my-auto font-sans text-slate-800 transition-all"
-        >
-          {/* Top Controls Toolbar (Hidden in Print) */}
-          <div className="no-print flex items-center justify-between pb-3 mb-3 border-b border-slate-100">
-            <div className="flex items-center gap-2">
-              <span className="text-xs font-bold text-slate-700">Official Invoice</span>
-              
-            </div>
-
-            <button
-              type="button"
-              onClick={onClose}
-              className="p-1 rounded-full text-slate-400 hover:text-slate-700 hover:bg-slate-100 transition cursor-pointer"
-              title="Close receipt"
-            >
-              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-              </svg>
-            </button>
-          </div>
-
-          {/* Printable Receipt Content */}
-          <div ref={receiptRef} className="space-y-4">
-            
-            {/* Header: Store Identity & Branding */}
-            <div className="text-center space-y-1">
-              {resolvedLogo ? (
-                <div className="relative mx-auto flex items-center justify-center pb-1">
-                  <img
-                    src={resolvedLogo}
-                    alt={activeBusiness?.name || "Store Logo"}
-                    className="max-h-16 max-w-[170px] object-contain mx-auto rounded-xl border border-slate-100 shadow-[var(--shadow-xs)] p-1"
-                  />
-                </div>
-              ) : (
-                <div className="size-12 rounded-2xl bg-[var(--brand)] text-white flex items-center justify-center text-xl font-black mx-auto shadow-[var(--shadow-md)]  border-2 border-emerald-700">
-                  {activeBusiness?.name ? activeBusiness.name[0]?.toUpperCase() : "A"}
-                </div>
-              )}
-              <h2 className="text-xl font-black text-slate-900 tracking-tight mt-2 uppercase">
-                {activeBusiness?.name || "Almadel Retail Store"}
-              </h2>
-              {activeBusiness?.address && (
-                <p className="text-xs text-slate-600 font-medium leading-tight">
-                  {activeBusiness.address}
-                  {activeBusiness.city ? `, ${activeBusiness.city}` : ""}
-                </p>
-              )}
-              {activeBusiness?.mobileNumber && (
-                <p className="text-xs text-slate-600 font-medium">
-                  Phone: {activeBusiness.mobileNumber}
-                </p>
-              )}
-              {activeBusiness?.taxRegistered === "yes" && activeBusiness?.ntn && (
-                <p className="text-[11px] text-slate-500 font-semibold">
-                  NTN: {activeBusiness.ntn}
-                </p>
-              )}
-            </div>
-
-            {/* Prominent Paid Status Banner */}
-            <div className="flex items-center justify-between px-3 py-1.5 rounded-xl bg-emerald-50 border border-emerald-200 text-emerald-800">
-              <div className="flex items-center gap-1.5">
-                <span className="inline-flex items-center justify-center size-4 rounded-full bg-emerald-600 text-white text-[10px] font-black">
-                  ✓
-                </span>
-                <span className="text-xs font-black tracking-wider uppercase">
-                  {language === "ur" ? "Adaigi: ADA SHUDA" : "Payment Status: PAID"}
-                </span>
-              </div>
-              <span className="text-[11px] font-bold text-emerald-700 uppercase">
-                {paymentMethodDisplay}
-              </span>
-            </div>
-
-            {/* Invoice Meta Bar */}
-            <div className="border-y border-dashed border-slate-300 py-2.5 text-xs text-slate-600 space-y-1">
-              <div className="flex justify-between items-center font-extrabold text-slate-900">
-                <span>INVOICE #{activeReceipt.invoiceNumber}</span>
-                <span className="uppercase text-[10px] px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-800 font-bold border border-emerald-300">
-                  PAID &bull; {paymentMethodDisplay}
-                </span>
-              </div>
-              <div className="flex justify-between text-[11px]">
-                <span>Date: {formattedDate}</span>
-                <span>Time: {formattedTime}</span>
-              </div>
-              <div className="flex justify-between text-[11px]">
-                <span>Customer:</span>
-                <strong className="text-slate-900">
-                  {activeReceipt.customerName || "Walk-in Customer"}
-                </strong>
-              </div>
-              {activeReceipt.customerMobile && (
-                <div className="flex justify-between text-[11px]">
-                  <span>Mobile:</span>
-                  <span className="font-mono">{activeReceipt.customerMobile}</span>
-                </div>
-              )}
-            </div>
-
-            {/* Itemized Products Table */}
-            <div className="space-y-1.5 text-xs">
-              <div className="flex justify-between font-extrabold text-slate-500 text-[10px] border-b border-slate-200 pb-1 uppercase tracking-wider">
-                <span className="w-1/2">{t("nav.products", "Item")}</span>
-                <span className="w-1/6 text-center">{t("term.quantity", "Qty")}</span>
-                <span className="w-1/6 text-right">{t("term.price", "Rate")}</span>
-                <span className="w-1/6 text-right">{t("term.total", "Total")}</span>
-              </div>
-
-              <div className="space-y-1.5 max-h-56 overflow-y-auto print:max-h-none">
-                {(activeReceipt.items || []).map((item, idx) => (
-                  <div
-                    key={idx}
-                    className="flex justify-between text-xs py-1 border-b border-slate-100 last:border-b-0"
-                  >
-                    <span className="w-1/2 font-bold text-slate-900 truncate pr-1">
-                      <span>{item.name}</span>
-                      {item.discountAmount && item.discountAmount > 0 ? (
-                        <span className="block text-[10px] text-emerald-600 font-semibold">
-                          Disc: -₨{item.discountAmount.toLocaleString()}
-                        </span>
-                      ) : null}
-                    </span>
-                    <span className="w-1/6 text-center text-slate-600 font-medium">
-                      {item.quantity}
-                    </span>
-                    <span className="w-1/6 text-right text-slate-600">
-                      ₨{item.price.toLocaleString()}
-                    </span>
-                    <span className="w-1/6 text-right font-bold text-slate-900">
-                      ₨{item.total.toLocaleString()}
-                    </span>
-                  </div>
-                ))}
-              </div>
-            </div>
-
-            {/* Financial Totals */}
-            <div className="border-t border-dashed border-slate-300 pt-2.5 space-y-1.5 text-xs">
-              <div className="flex justify-between text-slate-600">
-                <span>Subtotal</span>
-                <span className="font-bold">₨ {activeReceipt.subtotal.toLocaleString()}</span>
-              </div>
-
-              {activeReceipt.discountAmount && activeReceipt.discountAmount > 0 ? (
-                <div className="flex justify-between text-emerald-700 font-medium">
-                  <span>
-                    Discount ({activeReceipt.discountType === "percentage" ? "Percent" : "Fixed"})
-                  </span>
-                  <span>- ₨ {activeReceipt.discountAmount.toLocaleString()}</span>
-                </div>
-              ) : null}
-
-              <div className="flex justify-between text-base font-black text-slate-900 pt-1.5 border-t border-slate-200 items-baseline">
-                <span>Grand Total</span>
-                <div className="text-right">
-                  <span className="text-[var(--brand)] text-lg font-black">
-                    ₨ {activeReceipt.totalAmount.toLocaleString()}
-                  </span>
-                  <span className="block text-[10px] font-bold text-emerald-700 uppercase tracking-wider">
-                    [ Fully Paid ]
-                  </span>
-                </div>
-              </div>
-
-              {activeReceipt.paymentMethod?.toLowerCase() === "cash" &&
-                activeReceipt.cashTendered !== undefined &&
-                activeReceipt.cashTendered > 0 && (
-                  <>
-                    <div className="flex justify-between text-[11px] text-slate-500 pt-1">
-                      <span>Cash Tendered</span>
-                      <span className="font-bold">
-                        ₨ {activeReceipt.cashTendered.toLocaleString()}
-                      </span>
-                    </div>
-                    <div className="flex justify-between text-[11px] text-emerald-800 font-bold">
-                      <span>Change Due (Wapsi)</span>
-                      <span>
-                        ₨ {Math.max(0, activeReceipt.changeDue || 0).toLocaleString()}
-                      </span>
-                    </div>
-                  </>
-                )}
-            </div>
-
-            {/* OFFICIAL ALMADEL "PAID" STAMP */}
-            <div className="flex justify-center pt-2">
-              <div className="relative inline-flex flex-col items-center justify-center border-4 border-double border-emerald-600 text-emerald-700 px-5 py-2.5 rounded-2xl transform -rotate-3 select-none bg-emerald-50/60 shadow-[var(--shadow-xs)]">
-                <div className="flex items-center gap-1.5 text-[9px] font-black uppercase tracking-widest text-emerald-700">
-                  <span>★</span>
-                  <span>ALMADEL OFFICIAL STAMP</span>
-                  <span>★</span>
-                </div>
-                <div className="text-2xl font-black tracking-widest text-emerald-700 my-0.5 flex items-center gap-1">
-                  <svg
-                    className="w-5 h-5 text-emerald-600 stroke-[3]"
-                    fill="none"
-                    stroke="currentColor"
-                    viewBox="0 0 24 24"
-                  >
-                    <path
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                      d="M5 13l4 4L19 7"
-                    />
-                  </svg>
-                  <span>PAID</span>
-                </div>
-                <div className="text-[9px] font-bold uppercase tracking-wider text-emerald-600">
-                  {paymentMethodDisplay} &bull; VERIFIED BILL
-                </div>
-                <div className="text-[8px] font-mono text-emerald-600/90 mt-0.5 font-bold">
-                  {activeReceipt.invoiceNumber}
-                </div>
-              </div>
-            </div>
-
-            {/* Shukriya / Thank You Note */}
-            <div className="text-center pt-2 border-t border-dashed border-slate-300">
-              <p className="text-sm font-extrabold text-[var(--brand)]">Shukriya! (Thank You)</p>
-              <p className="text-[11px] font-semibold text-slate-500 mt-0.5">
-                Dobara Tashreef Layen
-              </p>
-              <p className="text-[9px] text-slate-400 mt-1.5 font-mono">
-                Powered by Almadel POS &bull; Store Management Portal
-              </p>
-            </div>
-          </div>
-
-          {/* Action Buttons (Hidden on Print) */}
-          <div className="no-print mt-4 flex flex-col gap-2">
-            <div className="grid grid-cols-2 gap-2">
-              <button type="button" onClick={handlePrint} className={`${ui.primary} ${ui.btnLg}`}>
-                <Icon name="printer" size={15} />
-                {t("action.print_receipt", "Print Receipt")}
-              </button>
-              <button type="button" onClick={() => void handleDownloadPdf()} disabled={downloadingPdf} className={`${ui.secondary} ${ui.btnLg}`}>
-                <Icon name="download" size={15} />
-                {downloadingPdf ? "Generating…" : "Download PDF"}
-              </button>
-            </div>
-            <div className="flex gap-2">
-              {onNewSale && (
-                <button
-                  type="button"
-                  onClick={() => {
-                    onClose();
-                    onNewSale();
-                  }}
-                  className={`${ui.secondary} flex-1`}
-                >
-                  <Icon name="plus" size={14} />
-                  {t("action.new_sale", "+ New Sale").replace(/^\+\s*/, "")}
-                </button>
-              )}
-              <button type="button" onClick={onClose} className={`${ui.secondary} flex-1`}>
-                {t("action.cancel", "Close")}
-              </button>
-            </div>
-          </div>
-        </div>
-      </div>
     </>
   );
 }

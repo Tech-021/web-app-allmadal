@@ -1,0 +1,181 @@
+.sheet {
+  width: min(480px, 100%);
+}
+
+.mono {
+  font-family: var(--font-mono);
+  font-variant-numeric: tabular-nums;
+  letter-spacing: -0.02em;
+}
+
+.headMain {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.headIc {
+  width: 32px;
+  height: 32px;
+  display: grid;
+  place-items: center;
+  border-radius: 9px;
+  background: var(--info-soft);
+  color: var(--info);
+}
+
+.who {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px;
+  border-radius: 12px;
+  border: 1px solid var(--border);
+  background: var(--surface-2);
+}
+
+.av {
+  width: 36px;
+  height: 36px;
+  flex: none;
+  display: grid;
+  place-items: center;
+  border-radius: 50%;
+  background: var(--text);
+  color: var(--bg);
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.whoText {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.whoText b {
+  font-size: 14px;
+  font-weight: 550;
+}
+
+.whoText small {
+  font-size: 12px;
+  color: var(--muted);
+}
+
+.owes {
+  font-size: 12px;
+  color: var(--muted);
+  text-align: right;
+}
+
+.owes b {
+  display: block;
+  font-size: 14px;
+  font-weight: 550;
+  color: var(--warn);
+}
+
+.amountBlock {
+  margin: 18px 0 16px;
+}
+
+.lbl {
+  display: block;
+  margin-bottom: 6px;
+  font-size: 12.5px;
+  font-weight: 550;
+  color: var(--text-2);
+}
+
+.amount {
+  height: 56px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 0 14px;
+  border: 1px solid var(--border-strong);
+  border-radius: 10px;
+  background: var(--surface);
+  transition: border-color var(--dur-1) var(--ease), box-shadow var(--dur-2) var(--ease);
+}
+
+.amount:focus-within {
+  border-color: var(--brand);
+  box-shadow: 0 0 0 3px var(--brand-soft);
+}
+
+.amountErr,
+.amountErr:focus-within {
+  border-color: var(--neg);
+  box-shadow: 0 0 0 3px var(--neg-soft);
+}
+
+.amount > span {
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--muted);
+}
+
+.amount input {
+  flex: 1;
+  min-width: 0;
+  height: 100%;
+  border: 0;
+  outline: none;
+  background: transparent;
+  color: var(--text);
+  font-size: 26px;
+  font-weight: 500;
+}
+
+.quick {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 10px;
+}
+
+.quick button {
+  font-family: var(--font-mono);
+  font-size: 12px;
+}
+
+.after {
+  margin: 10px 0 0;
+  font-size: 12.5px;
+  color: var(--muted);
+}
+
+.after b {
+  font-weight: 500;
+  color: var(--text);
+}
+
+.error {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  margin-top: 14px;
+  padding: 10px 12px;
+  border-radius: 10px;
+  background: var(--neg-soft);
+  color: var(--text);
+  font-size: 12.5px;
+}
+
+.error > svg {
+  flex: none;
+  color: var(--neg);
+  margin-top: 1px;
+}
+
+.spin {
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  border: 2px solid currentColor;
+  border-right-color: transparent;
+  animation: almadelSpin 0.7s linear infinite;
+}

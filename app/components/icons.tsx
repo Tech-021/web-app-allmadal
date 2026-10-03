@@ -1,4 +1,4 @@
-import type { SVGProps } from "react";
+import { useId, type SVGProps } from "react";
 
 /** Almadel stroke icon set (24px grid, 1.6 stroke). Presentation only. */
 const PATHS = {
@@ -130,15 +130,18 @@ export function routeIcon(href: string): IconName {
 
 /** Almadel brand mark: an arch "A" on a jade tile. */
 export function BrandMark({ size = 28 }: { size?: number }) {
+  // One id per mark: with a shared id, every mark paints from the first one in the document,
+  // and when that one sits in a hidden (display: none) block the visible mark loses its fill.
+  const gradientId = `almadel-mark-${useId().replace(/[^a-zA-Z0-9_-]/g, "")}`;
   return (
     <svg width={size} height={size} viewBox="0 0 32 32" aria-hidden="true" style={{ flex: "none" }}>
       <defs>
-        <linearGradient id="almadel-mark" x1="0" y1="0" x2="0" y2="1">
+        <linearGradient id={gradientId} x1="0" y1="0" x2="0" y2="1">
           <stop offset="0" stopColor="#16A07A" />
           <stop offset="1" stopColor="#0A5E48" />
         </linearGradient>
       </defs>
-      <rect x="0.5" y="0.5" width="31" height="31" rx="9" fill="url(#almadel-mark)" />
+      <rect x="0.5" y="0.5" width="31" height="31" rx="9" fill={`url(#${gradientId})`} />
       <rect x="0.5" y="0.5" width="31" height="31" rx="9" fill="none" stroke="rgba(255,255,255,.18)" />
       <path d="M9.5 23V14.5a6.5 6.5 0 0 1 13 0V23" fill="none" stroke="#fff" strokeWidth="2.4" strokeLinecap="round" />
       <path d="M12.6 18.4h6.8" stroke="#fff" strokeWidth="2.4" strokeLinecap="round" />

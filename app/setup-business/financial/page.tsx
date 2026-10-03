@@ -12,6 +12,7 @@ import { Icon, type IconName } from "@/app/components/icons";
 import { FieldError, LoadingScreen, OnboardingFrame, StepHead, YesNo } from "@/app/components/onboarding-frame";
 import ob from "@/app/components/onboarding.module.css";
 import ui from "@/app/components/workspace-ui.module.css";
+import { Overlay } from "@/app/components/overlay";
 
 const FPS_STEPS = [
   { title: "Starting point", hint: "Start date, cash & banks" },
@@ -1147,116 +1148,109 @@ function FinancialSetupContent() {
         )}
       </div>
 
-      {showAddCustomerModal && (
-        <QuickSheet title="Add customer khata" icon="users" onSubmit={handleAddCustomer} onClose={() => setShowAddCustomerModal(false)} error={custModalError} submitLabel="Save customer">
-          <>
-            <div className={ui.field}>
-              <label htmlFor="q-cust-name">Customer name *</label>
-              <input id="q-cust-name" type="text" required placeholder="e.g. Ali Raza" value={custDraft.name} onChange={(e) => setCustDraft({ ...custDraft, name: e.target.value })} className={ui.input} />
-            </div>
-            <div className={ui.field}>
-              <label htmlFor="q-cust-mobile">Mobile number *</label>
-              <input id="q-cust-mobile" type="tel" required maxLength={15} placeholder="03001234567" value={custDraft.mobile} onChange={(e) => setCustDraft({ ...custDraft, mobile: sanitizePhoneInput(e.target.value) })} className={ui.input} />
-            </div>
-            <div className={ui.field}>
-              <label htmlFor="q-cust-bal">Opening amount owed (Rs)</label>
-              <input id="q-cust-bal" type="text" inputMode="numeric" placeholder="25,000" value={formatCurrencyInput(custDraft.balance)} onChange={(e) => setCustDraft({ ...custDraft, balance: parseCurrencyInput(e.target.value) })} className={`${ui.input} font-mono`} />
-            </div>
-          </>
-        </QuickSheet>
-      )}
+      <QuickSheet open={showAddCustomerModal} title="Add customer khata" icon="users" onSubmit={handleAddCustomer} onClose={() => setShowAddCustomerModal(false)} error={custModalError} submitLabel="Save customer">
+        <>
+          <div className={ui.field}>
+            <label htmlFor="q-cust-name">Customer name *</label>
+            <input id="q-cust-name" type="text" required placeholder="e.g. Ali Raza" value={custDraft.name} onChange={(e) => setCustDraft({ ...custDraft, name: e.target.value })} className={ui.input} />
+          </div>
+          <div className={ui.field}>
+            <label htmlFor="q-cust-mobile">Mobile number *</label>
+            <input id="q-cust-mobile" type="tel" required maxLength={15} placeholder="03001234567" value={custDraft.mobile} onChange={(e) => setCustDraft({ ...custDraft, mobile: sanitizePhoneInput(e.target.value) })} className={ui.input} />
+          </div>
+          <div className={ui.field}>
+            <label htmlFor="q-cust-bal">Opening amount owed (Rs)</label>
+            <input id="q-cust-bal" type="text" inputMode="numeric" placeholder="25,000" value={formatCurrencyInput(custDraft.balance)} onChange={(e) => setCustDraft({ ...custDraft, balance: parseCurrencyInput(e.target.value) })} className={`${ui.input} font-mono`} />
+          </div>
+        </>
+      </QuickSheet>
 
-      {showAddSupplierModal && (
-        <QuickSheet title="Add supplier khata" icon="truck" onSubmit={handleAddSupplier} onClose={() => setShowAddSupplierModal(false)} error={suppModalError} submitLabel="Save supplier">
-          <>
-            <div className={ui.field}>
-              <label htmlFor="q-supp-name">Supplier / vendor name *</label>
-              <input id="q-supp-name" type="text" required placeholder="e.g. Hafeez Center Wholesale" value={suppDraft.name} onChange={(e) => setSuppDraft({ ...suppDraft, name: e.target.value })} className={ui.input} />
-            </div>
-            <div className={ui.field}>
-              <label htmlFor="q-supp-mobile">Mobile / WhatsApp *</label>
-              <input id="q-supp-mobile" type="tel" required maxLength={15} placeholder="03219876543" value={suppDraft.mobile} onChange={(e) => setSuppDraft({ ...suppDraft, mobile: sanitizePhoneInput(e.target.value) })} className={ui.input} />
-            </div>
-            <div className={ui.field}>
-              <label htmlFor="q-supp-bal">Amount you owe (Rs)</label>
-              <input id="q-supp-bal" type="text" inputMode="numeric" placeholder="150,000" value={formatCurrencyInput(suppDraft.balance)} onChange={(e) => setSuppDraft({ ...suppDraft, balance: parseCurrencyInput(e.target.value) })} className={`${ui.input} font-mono`} />
-            </div>
-          </>
-        </QuickSheet>
-      )}
+      <QuickSheet open={showAddSupplierModal} title="Add supplier khata" icon="truck" onSubmit={handleAddSupplier} onClose={() => setShowAddSupplierModal(false)} error={suppModalError} submitLabel="Save supplier">
+        <>
+          <div className={ui.field}>
+            <label htmlFor="q-supp-name">Supplier / vendor name *</label>
+            <input id="q-supp-name" type="text" required placeholder="e.g. Hafeez Center Wholesale" value={suppDraft.name} onChange={(e) => setSuppDraft({ ...suppDraft, name: e.target.value })} className={ui.input} />
+          </div>
+          <div className={ui.field}>
+            <label htmlFor="q-supp-mobile">Mobile / WhatsApp *</label>
+            <input id="q-supp-mobile" type="tel" required maxLength={15} placeholder="03219876543" value={suppDraft.mobile} onChange={(e) => setSuppDraft({ ...suppDraft, mobile: sanitizePhoneInput(e.target.value) })} className={ui.input} />
+          </div>
+          <div className={ui.field}>
+            <label htmlFor="q-supp-bal">Amount you owe (Rs)</label>
+            <input id="q-supp-bal" type="text" inputMode="numeric" placeholder="150,000" value={formatCurrencyInput(suppDraft.balance)} onChange={(e) => setSuppDraft({ ...suppDraft, balance: parseCurrencyInput(e.target.value) })} className={`${ui.input} font-mono`} />
+          </div>
+        </>
+      </QuickSheet>
 
-      {showProductModal && (
-        <QuickSheet title="Add stock item" icon="box" onSubmit={handleAddProduct} onClose={() => setShowProductModal(false)} error={prodModalError} submitLabel="Add item">
-          <>
+      <QuickSheet open={showProductModal} title="Add stock item" icon="box" onSubmit={handleAddProduct} onClose={() => setShowProductModal(false)} error={prodModalError} submitLabel="Add item">
+        <>
+          <div className={ui.field}>
+            <label htmlFor="q-prod-name">Product name *</label>
+            <input id="q-prod-name" type="text" required placeholder="e.g. Redmi Note 13 (8GB/256GB)" value={prodDraft.name} onChange={(e) => setProdDraft({ ...prodDraft, name: e.target.value })} className={ui.input} />
+          </div>
+          <div className={ob.grid2}>
             <div className={ui.field}>
-              <label htmlFor="q-prod-name">Product name *</label>
-              <input id="q-prod-name" type="text" required placeholder="e.g. Redmi Note 13 (8GB/256GB)" value={prodDraft.name} onChange={(e) => setProdDraft({ ...prodDraft, name: e.target.value })} className={ui.input} />
+              <label htmlFor="q-prod-cost">Cost price (Rs)</label>
+              <input id="q-prod-cost" type="text" inputMode="numeric" placeholder="45,000" value={formatCurrencyInput(prodDraft.costPrice)} onChange={(e) => setProdDraft({ ...prodDraft, costPrice: parseCurrencyInput(e.target.value) })} className={`${ui.input} font-mono`} />
             </div>
-            <div className={ob.grid2}>
-              <div className={ui.field}>
-                <label htmlFor="q-prod-cost">Cost price (Rs)</label>
-                <input id="q-prod-cost" type="text" inputMode="numeric" placeholder="45,000" value={formatCurrencyInput(prodDraft.costPrice)} onChange={(e) => setProdDraft({ ...prodDraft, costPrice: parseCurrencyInput(e.target.value) })} className={`${ui.input} font-mono`} />
-              </div>
-              <div className={ui.field}>
-                <label htmlFor="q-prod-sell">Selling price (Rs) *</label>
-                <input id="q-prod-sell" type="text" inputMode="numeric" required placeholder="52,000" value={formatCurrencyInput(prodDraft.sellingPrice)} onChange={(e) => setProdDraft({ ...prodDraft, sellingPrice: parseCurrencyInput(e.target.value) })} className={`${ui.input} font-mono`} />
-              </div>
+            <div className={ui.field}>
+              <label htmlFor="q-prod-sell">Selling price (Rs) *</label>
+              <input id="q-prod-sell" type="text" inputMode="numeric" required placeholder="52,000" value={formatCurrencyInput(prodDraft.sellingPrice)} onChange={(e) => setProdDraft({ ...prodDraft, sellingPrice: parseCurrencyInput(e.target.value) })} className={`${ui.input} font-mono`} />
             </div>
-            <div className={ob.grid2}>
-              <div className={ui.field}>
-                <label htmlFor="q-prod-qty">Initial quantity</label>
-                <input id="q-prod-qty" type="number" min="0" value={prodDraft.stock} onChange={(e) => setProdDraft({ ...prodDraft, stock: e.target.value })} className={`${ui.input} font-mono`} />
-              </div>
-              <div className={ui.field}>
-                <label htmlFor="q-prod-barcode">Barcode / IMEI</label>
-                <input id="q-prod-barcode" type="text" placeholder="Optional" value={prodDraft.barcode} onChange={(e) => setProdDraft({ ...prodDraft, barcode: e.target.value })} className={`${ui.input} font-mono`} />
-              </div>
+          </div>
+          <div className={ob.grid2}>
+            <div className={ui.field}>
+              <label htmlFor="q-prod-qty">Initial quantity</label>
+              <input id="q-prod-qty" type="number" min="0" value={prodDraft.stock} onChange={(e) => setProdDraft({ ...prodDraft, stock: e.target.value })} className={`${ui.input} font-mono`} />
             </div>
-          </>
-        </QuickSheet>
-      )}
+            <div className={ui.field}>
+              <label htmlFor="q-prod-barcode">Barcode / IMEI</label>
+              <input id="q-prod-barcode" type="text" placeholder="Optional" value={prodDraft.barcode} onChange={(e) => setProdDraft({ ...prodDraft, barcode: e.target.value })} className={`${ui.input} font-mono`} />
+            </div>
+          </div>
+        </>
+      </QuickSheet>
 
       {/* Completion */}
-      {setupComplete && (
-        <div className={ui.modal}>
-          <div className={`${ui.sheet} ${ob.center}`} style={{ width: "min(460px, 100%)" }} role="dialog" aria-modal="true" aria-label="Financial baseline ready">
-            <span className={ob.seal}>
-              <Icon name="check" size={26} strokeWidth={2} />
-            </span>
-            <span className={ob.badge}>
-              <Icon name="sparkle" size={13} />
-              30-day free trial
-            </span>
-            <h2 className="mb-1.5 mt-4 text-[22px] font-semibold tracking-[-0.03em]">Financial baseline ready</h2>
-            <p className="m-0 max-w-[44ch] text-[13.5px] leading-relaxed text-[var(--muted)]">
-              Your business is set up. Enjoy full access to every feature during your{" "}
-              <strong className="font-medium text-[var(--text)]">30-day free trial</strong>.
-            </p>
-            <button type="button" onClick={handleActivateStripeTrial} disabled={activatingStripe} className={`${ui.primary} ${ob.navCta} ${ob.wide} mt-6`}>
-              {activatingStripe ? (
-                <>
-                  <span className="size-3.5 rounded-full border-2 border-current border-t-transparent [animation:almadelSpin_700ms_linear_infinite]" />
-                  Opening secure checkout…
-                </>
-              ) : (
-                <>
-                  <Icon name="card" size={16} />
-                  Activate 30-day trial with Stripe
-                </>
-              )}
-            </button>
-            <span className={ob.secure}>
-              <Icon name="lock" size={13} />
-              Secure checkout powered by Stripe
-            </span>
-          </div>
+      <Overlay open={setupComplete} dismissible={false}>
+        <div className={`${ui.sheet} ${ob.center}`} style={{ width: "min(460px, 100%)" }} role="dialog" aria-modal="true" aria-label="Financial baseline ready">
+          <span className={ob.seal}>
+            <Icon name="check" size={26} strokeWidth={2} />
+          </span>
+          <span className={ob.badge}>
+            <Icon name="sparkle" size={13} />
+            30-day free trial
+          </span>
+          <h2 className="mb-1.5 mt-4 text-[22px] font-semibold tracking-[-0.03em]">Financial baseline ready</h2>
+          <p className="m-0 max-w-[44ch] text-[13.5px] leading-relaxed text-[var(--muted)]">
+            Your business is set up. Enjoy full access to every feature during your{" "}
+            <strong className="font-medium text-[var(--text)]">30-day free trial</strong>.
+          </p>
+          <button type="button" onClick={handleActivateStripeTrial} disabled={activatingStripe} className={`${ui.primary} ${ob.navCta} ${ob.wide} mt-6`}>
+            {activatingStripe ? (
+              <>
+                <span className="size-3.5 rounded-full border-2 border-current border-t-transparent [animation:almadelSpin_700ms_linear_infinite]" />
+                Opening secure checkout…
+              </>
+            ) : (
+              <>
+                <Icon name="card" size={16} />
+                Activate 30-day trial with Stripe
+              </>
+            )}
+          </button>
+          <span className={ob.secure}>
+            <Icon name="lock" size={13} />
+            Secure checkout powered by Stripe
+          </span>
         </div>
-      )}
+      </Overlay>
     </OnboardingFrame>
   );
 }
 
 function QuickSheet({
+  open,
   title,
   icon,
   onSubmit,
@@ -1265,6 +1259,7 @@ function QuickSheet({
   submitLabel,
   children,
 }: {
+  open: boolean;
   title: string;
   icon: IconName;
   onSubmit: (e: FormEvent) => void;
@@ -1274,7 +1269,7 @@ function QuickSheet({
   children: React.ReactNode;
 }) {
   return (
-    <div className={ui.modal} onMouseDown={(e) => e.target === e.currentTarget && onClose()}>
+    <Overlay open={open} onClose={onClose}>
       <form onSubmit={onSubmit} className={ui.sheet} style={{ width: "min(440px, 100%)" }} role="dialog" aria-modal="true" aria-label={title}>
         <div className={ui.sheetHead}>
           <div className="flex items-center gap-2.5">
@@ -1305,7 +1300,7 @@ function QuickSheet({
           </button>
         </div>
       </form>
-    </div>
+    </Overlay>
   );
 }
 

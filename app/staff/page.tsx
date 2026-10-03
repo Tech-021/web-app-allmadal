@@ -10,6 +10,7 @@ import { useToast } from "@/app/components/toast-context";
 import { logActivity } from "@/app/lib/logger";
 import { PaginationControls } from "@/app/components/pagination-controls";
 import ui from "@/app/components/workspace-ui.module.css";
+import { Overlay } from "@/app/components/overlay";
 import ob from "@/app/components/onboarding.module.css";
 import { Icon } from "@/app/components/icons";
 import { Metric, MetricStrip, PageHeader, TableEmptyRow, TableSkeletonRows } from "@/app/components/page-layout";
@@ -369,13 +370,8 @@ export default function StaffPage() {
         )}
       </section>
 
-      {modal && (
-        <div
-          className={ui.modal}
-          onMouseDown={(e) => {
-            if (e.target === e.currentTarget) setModal(null);
-          }}
-        >
+      <Overlay open={modal !== null} onClose={() => setModal(null)} variant="drawer" dismissible={!saving}>
+        {modal && (
           <form className={ui.sheet} onSubmit={submit} role="dialog" aria-modal="true" aria-label={modal.item ? "Edit team member" : "Add team member"}>
             <div className={ui.sheetHead}>
               <div className="flex items-center gap-2.5">
@@ -449,8 +445,8 @@ export default function StaffPage() {
               </button>
             </div>
           </form>
-        </div>
-      )}
+        )}
+      </Overlay>
     </WorkspaceShell>
   );
 }

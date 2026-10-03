@@ -12,6 +12,7 @@ import { CameraBarcodeScannerModal } from "@/app/components/camera-barcode-scann
 import { PaginationControls } from "@/app/components/pagination-controls";
 import { Icon } from "@/app/components/icons";
 import { AnimatedNumber, Skeleton } from "@/app/components/motion";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/app/components/ui/select";
 
 interface PosCartItem {
   product: Product;
@@ -818,15 +819,16 @@ export function PosTerminal({ onSaleCompleted }: PosTerminalProps) {
                       <div className="mt-2 p-2 rounded-[10px] bg-[var(--brand-soft)] border border-[var(--brand-line)] flex items-center justify-between gap-2 text-xs al-pop">
                         <span className="text-[12px] font-medium text-[var(--brand-ink)]">Item Disc:</span>
                         <div className="flex items-center gap-1.5">
-                          <select
-                            value={item.discountType || "none"}
-                            onChange={(e) => updateItemDiscount(item.product.id, e.target.value as any, item.discountValue || 0)}
-                            className="h-8 min-h-8 text-[12px] px-1.5 rounded-lg bg-[var(--surface)] border border-[var(--border)] text-[var(--text)] outline-none"
-                          >
-                            <option value="none">No Disc</option>
-                            <option value="fixed">Fixed (₨ Off)</option>
-                            <option value="percentage">Percent (% Off)</option>
-                          </select>
+                          <Select value={item.discountType || "none"} onValueChange={(v) => updateItemDiscount(item.product.id, v as "none" | "fixed" | "percentage", item.discountValue || 0)}>
+                            <SelectTrigger size="sm" aria-label="Item discount type" className="w-auto gap-1.5 max-sm:min-h-8">
+                              <SelectValue />
+                            </SelectTrigger>
+                            <SelectContent className="min-w-[9rem]">
+                              <SelectItem value="none">No Disc</SelectItem>
+                              <SelectItem value="fixed">Fixed (₨ Off)</SelectItem>
+                              <SelectItem value="percentage">Percent (% Off)</SelectItem>
+                            </SelectContent>
+                          </Select>
                           {item.discountType !== "none" && (
                             <input
                               type="number"
@@ -894,14 +896,18 @@ export function PosTerminal({ onSaleCompleted }: PosTerminalProps) {
                   />
                 </div>
               ) : (
-                <select value={selectedCustomerId} onChange={(e) => setSelectedCustomerId(e.target.value)} className={fieldCls}>
-                  <option value="">-- Choose Existing Customer --</option>
-                  {customers.map((c) => (
-                    <option key={c.id} value={c.id}>
-                      {c.name} ({c.mobile})
-                    </option>
-                  ))}
-                </select>
+                <Select value={selectedCustomerId} onValueChange={setSelectedCustomerId}>
+                  <SelectTrigger aria-label="Existing customer" className="h-10 rounded-[9px]">
+                    <SelectValue placeholder="Choose an existing customer" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {customers.map((c) => (
+                      <SelectItem key={c.id} value={String(c.id)}>
+                        {c.name} ({c.mobile})
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
               )}
             </div>
 
@@ -916,11 +922,16 @@ export function PosTerminal({ onSaleCompleted }: PosTerminalProps) {
               </div>
             ) : (
               <div className="grid grid-cols-2 gap-2">
-                <select value={discountType} onChange={(e) => setDiscountType(e.target.value as any)} className={fieldCls} aria-label="Bill discount type">
-                  <option value="none">No Discount</option>
-                  <option value="fixed">Fixed (₨ Off)</option>
-                  <option value="percentage">Percent (% Off)</option>
-                </select>
+                <Select value={discountType} onValueChange={(v) => setDiscountType(v as typeof discountType)}>
+                  <SelectTrigger aria-label="Bill discount type" className="h-10 rounded-[9px]">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="none">No Discount</SelectItem>
+                    <SelectItem value="fixed">Fixed (₨ Off)</SelectItem>
+                    <SelectItem value="percentage">Percent (% Off)</SelectItem>
+                  </SelectContent>
+                </Select>
                 {discountType !== "none" && (
                   <input
                     type="text"

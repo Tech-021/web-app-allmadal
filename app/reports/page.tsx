@@ -13,6 +13,8 @@ import ui from "@/app/components/workspace-ui.module.css";
 import { Icon } from "@/app/components/icons";
 import { Skeleton } from "@/app/components/motion";
 import { Metric, MetricStrip, PageHeader, TableEmptyRow, TableSkeletonRows } from "@/app/components/page-layout";
+import { CompositionBar, Money, formatRs, shortRs } from "@/app/components/figures";
+import { BarChart } from "@/app/components/charts";
 import rp from "./reports.module.css";
 
 // --- TYPES ---
@@ -140,7 +142,7 @@ interface StockReportData {
   }>;
 }
 
-const money = (v: number = 0) => `₨ ${Math.round(v).toLocaleString()}`;
+const money = (v: number = 0) => `Rs ${formatRs(v)}`;
 
 export default function ReportsPage() {
   const { showToast } = useToast();
@@ -203,6 +205,107 @@ export default function ReportsPage() {
     const start = (stockPage - 1) * stockPageSize;
     return currentStockList.slice(start, start + stockPageSize);
   }, [currentStockList, stockPage, stockPageSize]);
+
+  // ---- Derived overview figures (all computed from the report payload) ----
+  const summary = salesData?.summary;
+  const periodLabel = salesPeriod === "daily" ? "Today's live sales" : salesPeriod === "weekly" ? "Past 7 calendar days" : "Past 30 calendar days";
+  const periodShort = salesPeriod === "daily" ? "today" : salesPeriod === "weekly" ? "7 days" : "30 days";
+
+  const chart = useMemo(() => {
+    if (salesPeriod === "daily") {
+      const sales = salesData?.sales || [];
+      const hours = sales.map((x) => new Date(x.createdAt).getHours());
+      const nowHour = new Date().getHours();
+      const from = Math.min(9, ...hours);
+      const to = Math.max(Math.min(nowHour, 23), from + 1, ...hours);
+      const values = Array.from({ length: to - from + 1 }, () => 0);
+      sales.forEach((x) => {
+        values[new Date(x.createdAt).getHours() - from] += Number(x.totalAmount || 0);
+      });
+      const fmtHour = (h: number) => `${h % 12 === 0 ? 12 : h % 12}${h < 12 ? "a" : "p"}`;
+      const labels = values.map((_, i) => (i % 3 === 0 ? fmtHour(from + i) : ""));
+      const whens = values.map((_, i) => `${fmtHour(from + i)}–${fmtHour(from + i + 1)} today`);
+      const avg = values.reduce((a, b) => a + b, 0) / Math.max(values.length, 1);
+      return { values, labels, whens, avg };
+    }
+    const rows = salesData?.breakdown || [];
+    const values = rows.map((b) => Number(b.totalAmount || 0));
+    const step = rows.length > 10 ? 7 : 1;
+    const labels = rows.map((b, i) => (i % step === 0 || i === rows.length - 1 ? b.displayDate : ""));
+    const whens = rows.map((b) => `${b.dayName}, ${b.displayDate}`);
+    const avg = values.reduce((a, b) => a + b, 0) / Math.max(values.length, 1);
+    return { values, labels, whens, avg };
+  }, [salesData, salesPeriod]);
+
+  const payMix = useMemo(() => {
+    const sales = salesData?.sales || [];
+    if (salesPeriod === "daily" || !sales.length || !salesData?.startDate) return [];
+    const start = new Date(salesData.startDate);
+    start.setHours(0, 0, 0, 0);
+    const bucketDays = salesPeriod === "weekly" ? 1 : 7;
+    const count = salesPeriod === "weekly" ? 7 : 5;
+    const rows = Array.from({ length: count }, (_, i) => {
+      const d = new Date(start);
+      d.setDate(d.getDate() + i * bucketDays);
+      return { label: salesPeriod === "weekly" ? d.toLocaleDateString(undefined, { weekday: "short" }) : `W${i + 1}`, cash: 0, online: 0 };
+    });
+    sales.forEach((x) => {
+      const days = Math.floor((new Date(x.createdAt).getTime() - start.getTime()) / 86400000);
+      const idx = Math.min(count - 1, Math.max(0, Math.floor(days / bucketDays)));
+      if ((x.paymentMethod || "cash").toLowerCase() === "cash") rows[idx].cash += Number(x.totalAmount || 0);
+      else rows[idx].online += Number(x.totalAmount || 0);
+    });
+    return rows;
+  }, [salesData, salesPeriod]);
+
+  const topDays = useMemo(() => {
+    if (salesPeriod === "daily") {
+      return [...(salesData?.sales || [])]
+        .sort((a, b) => b.totalAmount - a.totalAmount)
+        .slice(0, 6)
+        .map((x) => ({ label: x.invoiceNumber, value: Number(x.totalAmount || 0) }));
+    }
+    return [...(salesData?.breakdown || [])]
+      .filter((b) => b.totalAmount > 0)
+      .sort((a, b) => b.totalAmount - a.totalAmount)
+      .slice(0, 6)
+      .map((b) => ({ label: `${b.dayName.slice(0, 3)} ${b.displayDate}`, value: Number(b.totalAmount || 0) }));
+  }, [salesData, salesPeriod]);
+
+  const byCashier = useMemo(() => {
+    const totals = new Map<string, number>();
+    (salesData?.sales || []).forEach((x) => totals.set(x.cashier || "—", (totals.get(x.cashier || "—") || 0) + Number(x.totalAmount || 0)));
+    return [...totals.entries()]
+      .sort((a, b) => b[1] - a[1])
+      .slice(0, 6)
+      .map(([label, value]) => ({ label, value }));
+  }, [salesData]);
+
+  const categoryRevenue = useMemo(() => {
+    const seen = new Set<number>();
+    const totals = new Map<string, number>();
+    [...(productData?.bestSelling || []), ...(productData?.leastSelling || [])].forEach((p) => {
+      if (seen.has(p.id)) return;
+      seen.add(p.id);
+      const key = p.category || "Uncategorised";
+      totals.set(key, (totals.get(key) || 0) + Number(p.totalRevenue || 0));
+    });
+    return [...totals.entries()]
+      .filter(([, v]) => v > 0)
+      .sort((a, b) => b[1] - a[1])
+      .slice(0, 6)
+      .map(([label, value]) => ({ label, value }));
+  }, [productData]);
+
+  const categoryStockValue = useMemo(() => {
+    const totals = new Map<string, number>();
+    (stockData?.inventory || []).forEach((p) => totals.set(p.category || "Uncategorised", (totals.get(p.category || "Uncategorised") || 0) + Number(p.totalRetailValue || 0)));
+    return [...totals.entries()]
+      .filter(([, v]) => v > 0)
+      .sort((a, b) => b[1] - a[1])
+      .slice(0, 6)
+      .map(([label, value]) => ({ label, value }));
+  }, [stockData]);
 
   // Active receipt modal preview
   const [activeReceipt, setActiveReceipt] = useState<ReceiptSale | null>(null);
@@ -318,8 +421,7 @@ export default function ReportsPage() {
       `}</style>
 
       <PageHeader
-        eyebrow="Analytics"
-        title={t("reports.title", "Reports & Analytics")}
+        title="Reports"
         description={
           <>
             {t("reports.subtitle", "Sales summaries, product performance, and inventory health for")}{" "}
@@ -334,7 +436,7 @@ export default function ReportsPage() {
             </button>
             <button onClick={() => window.print()} className={ui.secondary} title="Print current report">
               <Icon name="printer" size={14} />
-              {t("reports.print", "Print Report")}
+              {language === "ur" ? "PDF banayein" : "Export PDF"}
             </button>
           </div>
         }
@@ -343,9 +445,9 @@ export default function ReportsPage() {
       <div className={`${ui.tabBar} no-print`} role="tablist" aria-label="Report type">
         {(
           [
-            { id: "sales", icon: "cart", label: t("reports.sales_report", "Sales Report") },
-            { id: "products", icon: "box", label: t("reports.product_report", "Product Report") },
-            { id: "stock", icon: "layers", label: t("reports.stock_report", "Stock Report") },
+            { id: "sales", icon: "cart", label: language === "ur" ? "Bikri" : "Sales" },
+            { id: "products", icon: "box", label: "Products" },
+            { id: "stock", icon: "layers", label: "Stock" },
           ] as const
         ).map((tab) => (
           <button
@@ -368,9 +470,9 @@ export default function ReportsPage() {
             <div className={ui.segmented} role="tablist" aria-label="Period">
               {(
                 [
-                  { id: "daily", label: t("reports.daily", "Daily (Today)") },
-                  { id: "weekly", label: t("reports.weekly", "Weekly (7 Days)") },
-                  { id: "monthly", label: t("reports.monthly", "Monthly (30 Days)") },
+                  { id: "daily", label: t("reports.daily", "Today") },
+                  { id: "weekly", label: t("reports.weekly", "7 days") },
+                  { id: "monthly", label: t("reports.monthly", "30 days") },
                 ] as const
               ).map((p) => (
                 <button key={p.id} role="tab" aria-selected={salesPeriod === p.id} onClick={() => setSalesPeriod(p.id)} className={salesPeriod === p.id ? ui.segmentedOn : ""}>
@@ -380,133 +482,167 @@ export default function ReportsPage() {
             </div>
             <span className={rp.caption}>
               <Icon name="calendar" size={13} />
-              {salesPeriod === "daily" ? "Today's live sales" : salesPeriod === "weekly" ? "Past 7 calendar days" : "Past 30 calendar days"}
+              {periodLabel}
             </span>
           </div>
 
-          <MetricStrip>
-            <Metric
-              label="Total revenue"
-              icon="pkr"
-              tone="pos"
-              value={loading ? <Skeleton className="h-6 w-24" /> : money(salesData?.summary.totalRevenue)}
-              hint={`Cash ${money(salesData?.summary.cashTotal)} · Online ${money(salesData?.summary.onlineTotal)}`}
-            />
-            <Metric
-              label="Orders / invoices"
-              icon="invoice"
-              value={loading ? <Skeleton className="h-6 w-16" /> : (salesData?.summary.totalOrders || 0).toLocaleString()}
-              hint={`Average order ${money(salesData?.summary.averageOrder)}`}
-            />
-            <Metric
-              label="Items sold"
-              icon="box"
-              value={loading ? <Skeleton className="h-6 w-16" /> : (salesData?.summary.totalItems || 0).toLocaleString()}
-              hint="Units sold through POS"
-            />
-            <Metric
-              label="Discounts given"
-              icon="tag"
-              value={loading ? <Skeleton className="h-6 w-20" /> : money(salesData?.summary.totalDiscounts)}
-              hint="Customer bill discounts"
-            />
-          </MetricStrip>
+          <div className={rp.topGrid}>
+            <section className={rp.card} aria-label="Sales summary">
+              <div className={rp.cardHead}>
+                <h2 className={rp.cardTitle}>Sales summary · {periodShort}</h2>
+                <span className={rp.cardSub}>{(summary?.totalOrders || 0).toLocaleString("en-IN")} bills</span>
+              </div>
+              {loading && !salesData ? (
+                <div className="mt-4 flex flex-col gap-3" aria-hidden>
+                  {[0, 1, 2, 3].map((i) => (
+                    <Skeleton key={i} className="h-4" style={{ width: `${90 - i * 12}%` }} />
+                  ))}
+                  <Skeleton className="mt-2 h-7 w-40" />
+                </div>
+              ) : (
+                <>
+                  <div className="mt-2.5">
+                    <div className={rp.pl}>
+                      <span>Gross sales</span>
+                      <span>{formatRs((summary?.totalRevenue || 0) + (summary?.totalDiscounts || 0))}</span>
+                    </div>
+                    <div className={`${rp.pl} ${rp.plNeg}`}>
+                      <span>Discounts given</span>
+                      <span>{summary?.totalDiscounts ? `− ${formatRs(summary.totalDiscounts)}` : "0"}</span>
+                    </div>
+                    <div className={`${rp.pl} ${rp.plStrong}`}>
+                      <span>Cash received</span>
+                      <span>{formatRs(summary?.cashTotal || 0)}</span>
+                    </div>
+                    <div className={rp.pl}>
+                      <span>Online received</span>
+                      <span>{formatRs(summary?.onlineTotal || 0)}</span>
+                    </div>
+                    <div className={`${rp.pl} ${rp.plTotal}`}>
+                      <span>Net revenue</span>
+                      <Money value={summary?.totalRevenue || 0} size="md" animate />
+                    </div>
+                  </div>
+                  <div className={rp.badges}>
+                    <span className={`${ui.chip} ${ui.chipPos}`}>Avg bill Rs {formatRs(summary?.averageOrder || 0)}</span>
+                    <span className={rp.cardSub}>{(summary?.totalItems || 0).toLocaleString("en-IN")} items sold</span>
+                  </div>
+                </>
+              )}
+            </section>
+
+            <section className={rp.card} aria-label="Revenue chart">
+              <div className={rp.cardHead}>
+                <div>
+                  <h2 className={rp.cardTitle}>{salesPeriod === "daily" ? "Revenue by hour" : "Daily revenue"}</h2>
+                  <p className={rp.cardSub}>{chart.values.some((v) => v > 0) ? "Dashed line is the average · hover a bar for detail" : "No revenue recorded in this period yet"}</p>
+                </div>
+                {chart.values.some((v) => v > 0) && <span className={rp.monoMuted}>avg Rs {formatRs(chart.avg)}</span>}
+              </div>
+              <div className="mt-4">
+                {loading && !salesData ? (
+                  <Skeleton className="h-[200px] w-full" />
+                ) : (
+                  <BarChart
+                    key={`${salesPeriod}-${chart.values.length}`}
+                    values={chart.values}
+                    labels={chart.labels}
+                    whens={chart.whens}
+                    ariaLabel={`${salesPeriod === "daily" ? "Hourly" : "Daily"} revenue, ${chart.values.length} bars`}
+                  />
+                )}
+              </div>
+            </section>
+          </div>
+
+          <div className={rp.triGrid}>
+            <section className={rp.card}>
+              <h2 className={rp.cardTitle}>How customers paid</h2>
+              <div className="mt-4">
+                <CompositionBar
+                  segments={[
+                    { label: t("payment.cash", "Cash"), value: summary?.cashTotal || 0, color: "var(--c-cash)" },
+                    { label: t("payment.online", "Online"), value: summary?.onlineTotal || 0, color: "var(--c-online)" },
+                  ]}
+                />
+              </div>
+              {payMix.length > 1 && (
+                <div className={rp.mixRows}>
+                  {payMix.map((row, i) => (
+                    <div key={row.label} className={rp.mixRow}>
+                      <span>{row.label}</span>
+                      <div className={rp.mixBar} role="img" aria-label={`${row.label}: cash Rs ${formatRs(row.cash)}, online Rs ${formatRs(row.online)}`}>
+                        {row.cash + row.online === 0 ? (
+                          <i style={{ flex: 1, background: "var(--sunken)" }} />
+                        ) : (
+                          <>
+                            {row.cash > 0 && <i style={{ flex: row.cash, background: "var(--c-cash)", animationDelay: `${i * 40}ms` }} />}
+                            {row.online > 0 && <i style={{ flex: row.online, background: "var(--c-online)", animationDelay: `${i * 40}ms` }} />}
+                          </>
+                        )}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </section>
+
+            <section className={rp.card}>
+              <h2 className={rp.cardTitle}>{salesPeriod === "daily" ? "Largest bills today" : "Busiest days"}</h2>
+              <RankList
+                rows={topDays}
+                color="var(--brand)"
+                empty="Your best days will rank here once sales come in."
+              />
+            </section>
+
+            <section className={rp.card}>
+              <h2 className={rp.cardTitle}>Sales by cashier</h2>
+              <RankList rows={byCashier} color="var(--text-2)" empty="Each staff member's sales will appear here." />
+            </section>
+          </div>
 
           {(salesPeriod === "weekly" || salesPeriod === "monthly") && (
-            <>
-              <section className={`${ui.panel} ${ui.panelFlush}`}>
-                <div className={ui.panelHead}>
-                  <div>
-                    <h2>Revenue trend</h2>
-                    <p>{salesPeriod === "weekly" ? "Last 7 days" : "Last 30 days"} · hover a bar for detail</p>
-                  </div>
-                  <span className={ui.chip}>
-                    Peak <span className="font-mono">{money(Math.max(...(salesData?.breakdown.map((b) => b.totalAmount) || [0]), 0))}</span>
-                  </span>
+            <section className={`${ui.panel} ${ui.panelFlush}`}>
+              <div className={ui.panelHead}>
+                <div>
+                  <h2>Day-by-day breakdown</h2>
+                  <p>Orders, units and revenue per day</p>
                 </div>
-                <div className={ui.panelBody}>
-                  {(() => {
-                    const rows = salesData?.breakdown || [];
-                    const maxVal = Math.max(...rows.map((x) => x.totalAmount), 1);
-                    return (
-                      <div className={rp.chart} data-dense={rows.length > 14 ? "" : undefined}>
-                        <div className={rp.gridLines} aria-hidden>
-                          <span />
-                          <span />
-                          <span />
-                          <span />
-                        </div>
-                        <div className={rp.bars}>
-                          {rows.map((b, i) => {
-                            const heightPct = b.totalAmount > 0 ? Math.max(4, Math.round((b.totalAmount / maxVal) * 100)) : 0;
-                            return (
-                              <div key={b.date} className={rp.barCol} tabIndex={0} aria-label={`${b.displayDate}: ${money(b.totalAmount)}, ${b.orders} orders`}>
-                                <div className={rp.tip}>
-                                  <strong>{money(b.totalAmount)}</strong>
-                                  <span>
-                                    {b.displayDate} · {b.orders} orders
-                                  </span>
-                                </div>
-                                <div
-                                  className={`${rp.bar} ${b.totalAmount > 0 ? "" : rp.barEmpty}`}
-                                  style={{ height: heightPct ? `${heightPct}%` : undefined, animationDelay: `${Math.min(i * 18, 400)}ms` }}
-                                />
-                              </div>
-                            );
-                          })}
-                        </div>
-                      </div>
-                    );
-                  })()}
-                  <div className={rp.axis}>
-                    <span>{salesData?.breakdown[0]?.displayDate}</span>
-                    <span>{salesData?.breakdown[Math.floor((salesData?.breakdown.length || 0) / 2)]?.displayDate}</span>
-                    <span>{salesData?.breakdown[(salesData?.breakdown.length || 1) - 1]?.displayDate}</span>
-                  </div>
-                </div>
-              </section>
-
-              <section className={`${ui.panel} ${ui.panelFlush}`}>
-                <div className={ui.panelHead}>
-                  <div>
-                    <h2>Day-by-day breakdown</h2>
-                    <p>Orders, units and revenue per day</p>
-                  </div>
-                </div>
-                <div className={`${ui.tableWrap} ${ui.tableBare}`}>
-                  <table className={ui.table}>
-                    <thead>
-                      <tr>
-                        <th>Date</th>
-                        <th>Day</th>
-                        <th className="text-right">Orders</th>
-                        <th className="text-right">Units sold</th>
-                        <th className="text-right">Discounts</th>
-                        <th className="text-right">Revenue</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {loading ? (
-                        <TableSkeletonRows cols={6} />
-                      ) : (salesData?.breakdown || []).length === 0 ? (
-                        <TableEmptyRow colSpan={6} icon="chart" title="No sales in this period" body="Completed sales will appear here day by day." />
-                      ) : (
-                        (salesData?.breakdown || []).map((b) => (
-                          <tr key={b.date}>
-                            <td className="font-medium">{b.displayDate}</td>
-                            <td className="text-[var(--muted)]">{b.dayName}</td>
-                            <td className="text-right font-mono">{b.orders}</td>
-                            <td className="text-right font-mono">{b.totalItems}</td>
-                            <td className="text-right font-mono text-[var(--muted)]">{b.discounts > 0 ? money(b.discounts) : "—"}</td>
-                            <td className="text-right font-mono font-medium">{money(b.totalAmount)}</td>
-                          </tr>
-                        ))
-                      )}
-                    </tbody>
-                  </table>
-                </div>
-              </section>
-            </>
+              </div>
+              <div className={`${ui.tableWrap} ${ui.tableBare}`}>
+                <table className={ui.table}>
+                  <thead>
+                    <tr>
+                      <th>Date</th>
+                      <th>Day</th>
+                      <th className="text-right">Orders</th>
+                      <th className="text-right">Units sold</th>
+                      <th className="text-right">Discounts</th>
+                      <th className="text-right">Revenue</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {loading && !salesData ? (
+                      <TableSkeletonRows cols={6} />
+                    ) : (salesData?.breakdown || []).length === 0 ? (
+                      <TableEmptyRow colSpan={6} icon="chart" title="No sales in this period" body="Completed sales appear here day by day. Try a longer range." />
+                    ) : (
+                      (salesData?.breakdown || []).map((b) => (
+                        <tr key={b.date}>
+                          <td className="font-mono text-[12.5px]">{b.displayDate}</td>
+                          <td className="text-[var(--muted)]">{b.dayName}</td>
+                          <td className="text-right font-mono">{b.orders}</td>
+                          <td className="text-right font-mono">{b.totalItems}</td>
+                          <td className="text-right font-mono text-[var(--neg)]">{b.discounts > 0 ? `− ${formatRs(b.discounts)}` : <span className="text-[var(--faint)]">—</span>}</td>
+                          <td className="text-right font-mono font-medium">{formatRs(b.totalAmount)}</td>
+                        </tr>
+                      ))
+                    )}
+                  </tbody>
+                </table>
+              </div>
+            </section>
           )}
 
           {salesPeriod === "daily" && (
@@ -524,7 +660,7 @@ export default function ReportsPage() {
                 <table className={ui.table}>
                   <thead>
                     <tr>
-                      <th>Invoice #</th>
+                      <th>Invoice</th>
                       <th>Time</th>
                       <th>Customer</th>
                       <th>Cashier</th>
@@ -535,45 +671,60 @@ export default function ReportsPage() {
                     </tr>
                   </thead>
                   <tbody>
-                    {loading ? (
+                    {loading && !salesData ? (
                       <TableSkeletonRows cols={8} />
                     ) : (salesData?.sales || []).length === 0 ? (
-                      <TableEmptyRow colSpan={8} icon="receipt" title="No sales recorded today" body="Completed POS sales show up here in real time." />
+                      <TableEmptyRow
+                        colSpan={8}
+                        icon="receipt"
+                        title="No sales recorded today"
+                        body="Your first sale will show up here and on the dashboard instantly."
+                        action={
+                          <button type="button" className={ui.primary} onClick={() => window.dispatchEvent(new CustomEvent("almadel:open-new-sale"))}>
+                            <Icon name="plus" size={15} strokeWidth={2.2} />
+                            Create new sale
+                          </button>
+                        }
+                      />
                     ) : (
-                      paginatedSales.map((s) => (
-                        <tr
-                          key={s.id}
-                          onClick={() =>
-                            setActiveReceipt({
-                              id: String(s.id),
-                              total: Number(s.totalAmount || 0),
-                              itemsCount: Number(s.totalItems || 1),
-                              createdByName: s.cashier,
-                              createdAt: s.createdAt,
-                            })
-                          }
-                          className="cursor-pointer"
-                          title="View printable receipt"
-                        >
-                          <td className="font-mono text-[12.5px] text-[var(--brand-ink)]">{s.invoiceNumber}</td>
-                          <td className="font-mono text-[12.5px] text-[var(--muted)]">
-                            {new Date(s.createdAt).toLocaleTimeString("en-PK", { hour: "2-digit", minute: "2-digit" })}
-                          </td>
-                          <td>
-                            <span className="font-medium">{s.customerName}</span>
-                            {s.customerMobile && <small className="block font-mono text-[11.5px] text-[var(--faint)]">{s.customerMobile}</small>}
-                          </td>
-                          <td className="text-[var(--text-2)]">{s.cashier}</td>
-                          <td className="text-right font-mono">{s.totalItems}</td>
-                          <td>
-                            <span className={`${ui.chip} ${(s.paymentMethod || "").toLowerCase() === "cash" ? ui.chipPos : ui.chipInfo}`}>
-                              {s.paymentMethod || "Cash"}
-                            </span>
-                          </td>
-                          <td className="text-right font-mono text-[var(--muted)]">{s.discountAmount > 0 ? money(s.discountAmount) : "—"}</td>
-                          <td className="text-right font-mono font-medium">{money(s.totalAmount)}</td>
-                        </tr>
-                      ))
+                      paginatedSales.map((s) => {
+                        const cash = (s.paymentMethod || "cash").toLowerCase() === "cash";
+                        return (
+                          <tr
+                            key={s.id}
+                            onClick={() =>
+                              setActiveReceipt({
+                                id: String(s.id),
+                                total: Number(s.totalAmount || 0),
+                                itemsCount: Number(s.totalItems || 1),
+                                createdByName: s.cashier,
+                                createdAt: s.createdAt,
+                              })
+                            }
+                            className="cursor-pointer"
+                            title="View printable receipt"
+                          >
+                            <td className="font-mono text-[12.5px] text-[var(--text)]">{s.invoiceNumber}</td>
+                            <td className="font-mono text-[12.5px] text-[var(--muted)]">
+                              {new Date(s.createdAt).toLocaleTimeString(undefined, { hour: "numeric", minute: "2-digit" })}
+                            </td>
+                            <td>
+                              <span className="font-medium text-[var(--text)]">{s.customerName}</span>
+                              {s.customerMobile && <small className="block font-mono text-[11.5px] text-[var(--faint)]">{s.customerMobile}</small>}
+                            </td>
+                            <td className="text-[var(--text-2)]">{s.cashier}</td>
+                            <td className="text-right font-mono">{s.totalItems}</td>
+                            <td>
+                              <span className={ui.chip}>
+                                <i className="inline-block size-1.5 rounded-full" style={{ background: cash ? "var(--c-cash)" : "var(--c-online)" }} />
+                                {s.paymentMethod || "Cash"}
+                              </span>
+                            </td>
+                            <td className="text-right font-mono text-[var(--neg)]">{s.discountAmount > 0 ? `− ${formatRs(s.discountAmount)}` : <span className="text-[var(--faint)]">—</span>}</td>
+                            <td className="text-right font-mono font-medium">{formatRs(s.totalAmount)}</td>
+                          </tr>
+                        );
+                      })
                     )}
                   </tbody>
                 </table>
@@ -632,6 +783,29 @@ export default function ReportsPage() {
               hint={`${money(productData?.summary.totalSalesRevenue)} gross`}
             />
           </MetricStrip>
+
+          <div className={rp.triGrid}>
+            <section className={rp.card}>
+              <h2 className={rp.cardTitle}>Revenue by product</h2>
+              <RankList
+                rows={[...(productData?.bestSelling || [])].sort((a, b) => b.totalRevenue - a.totalRevenue).slice(0, 6).map((p) => ({ label: p.name, value: p.totalRevenue }))}
+                color="var(--brand)"
+                empty="Products rank here once they start selling."
+              />
+            </section>
+            <section className={rp.card}>
+              <h2 className={rp.cardTitle}>Revenue by category</h2>
+              <RankList rows={categoryRevenue} color="var(--text-2)" empty="Assign categories to products to compare them here." />
+            </section>
+            <section className={rp.card}>
+              <h2 className={rp.cardTitle}>Capital tied in slow stock</h2>
+              <RankList
+                rows={[...(productData?.leastSelling || [])].filter((p) => p.tiedUpCapital > 0).sort((a, b) => b.tiedUpCapital - a.tiedUpCapital).slice(0, 6).map((p) => ({ label: p.name, value: p.tiedUpCapital }))}
+                color="var(--c-udhaar)"
+                empty="No money is sitting in slow-moving stock."
+              />
+            </section>
+          </div>
 
           <section className={`${ui.panel} ${ui.panelFlush}`}>
             <div className={ui.panelHead}>
@@ -772,6 +946,39 @@ export default function ReportsPage() {
             })()}
           </MetricStrip>
 
+          <div className={rp.triGrid}>
+            <section className={rp.card}>
+              <h2 className={rp.cardTitle}>Stock value by category</h2>
+              <RankList rows={categoryStockValue} color="var(--brand)" empty="Add stock to see where your money sits." />
+            </section>
+            <section className={rp.card}>
+              <h2 className={rp.cardTitle}>Furthest below reorder level</h2>
+              <RankList
+                rows={[...(stockData?.lowStock || [])].sort((a, b) => b.deficit - a.deficit).slice(0, 6).map((p) => ({ label: p.name, value: p.deficit }))}
+                color="var(--warn)"
+                empty="Nothing is below its reorder level."
+              />
+            </section>
+            <section className={rp.card}>
+              <h2 className={rp.cardTitle}>Inventory health</h2>
+              <div className="mt-4">
+                <CompositionBar
+                  segments={[
+                    { label: "Healthy", value: stockData?.summary.healthyCount || 0, color: "var(--brand)" },
+                    { label: "Low", value: stockData?.summary.lowStockCount || 0, color: "var(--c-udhaar)" },
+                    { label: "Out", value: stockData?.summary.outOfStockCount || 0, color: "var(--neg)" },
+                  ]}
+                  showLegend={false}
+                />
+              </div>
+              <div className={rp.legend}>
+                <span><i style={{ background: "var(--brand)" }} />Healthy <b className="font-mono font-medium">{stockData?.summary.healthyCount || 0}</b></span>
+                <span><i style={{ background: "var(--c-udhaar)" }} />Low <b className="font-mono font-medium">{stockData?.summary.lowStockCount || 0}</b></span>
+                <span><i style={{ background: "var(--neg)" }} />Out <b className="font-mono font-medium">{stockData?.summary.outOfStockCount || 0}</b></span>
+              </div>
+            </section>
+          </div>
+
           <section className={`${ui.panel} ${ui.panelFlush}`}>
             <div className={ui.panelHead}>
               <div>
@@ -870,5 +1077,22 @@ export default function ReportsPage() {
       {/* Receipt Preview Modal */}
       <ReceiptModal sale={activeReceipt} onClose={() => setActiveReceipt(null)} />
     </WorkspaceShell>
+  );
+}
+
+/** Horizontal ranking bars (Reports board: "Revenue by category", "Where expenses went"). */
+function RankList({ rows, color, empty }: { rows: Array<{ label: string; value: number }>; color: string; empty: string }) {
+  if (!rows.length) return <p className={rp.cardNote}>{empty}</p>;
+  const max = Math.max(...rows.map((r) => r.value), 1);
+  return (
+    <div className={rp.rankList}>
+      {rows.map((r, i) => (
+        <div key={`${r.label}-${i}`} className={rp.rankRow}>
+          <span title={r.label}>{r.label}</span>
+          <i style={{ width: `${Math.max(2, (r.value / max) * 100)}%`, background: color, animationDelay: `${i * 40}ms` }} />
+          <span>{r.value >= 100000 ? shortRs(r.value) : formatRs(r.value)}</span>
+        </div>
+      ))}
+    </div>
   );
 }

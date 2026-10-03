@@ -1,0 +1,303 @@
+/* Settings board: section sub-nav, workspace cards, floating save bar. */
+
+.layout {
+  display: grid;
+  grid-template-columns: 200px minmax(0, 1fr);
+  gap: 32px;
+  align-items: start;
+}
+
+.subnav {
+  position: sticky;
+  top: 84px;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.subnav a {
+  height: 34px;
+  display: flex;
+  align-items: center;
+  padding: 0 12px;
+  border-radius: 8px;
+  font-size: 13.5px;
+  color: var(--text-2);
+  text-decoration: none;
+  transition: background-color var(--dur-1) var(--ease), color var(--dur-1) var(--ease);
+}
+
+.subnav a:hover {
+  background: var(--surface-2);
+  color: var(--text);
+}
+
+.subnav .subnavOn,
+.subnav .subnavOn:hover {
+  background: var(--sunken);
+  color: var(--text);
+  font-weight: 550;
+}
+
+.form {
+  max-width: 900px;
+  margin-bottom: 72px;
+}
+
+.form section {
+  scroll-margin-top: 84px;
+}
+
+.stack {
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+}
+
+.modes {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+}
+
+.mode {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 16px;
+  border-radius: 12px;
+  border: 1px solid var(--border-strong);
+  background: var(--surface);
+  text-align: left;
+  color: var(--text);
+  transition: border-color var(--dur-2) var(--ease), box-shadow var(--dur-2) var(--ease), transform var(--dur-1) var(--ease);
+}
+
+.mode:hover {
+  border-color: var(--faint);
+}
+
+.mode:active {
+  transform: scale(0.99);
+}
+
+.modeOn,
+.modeOn:hover {
+  border-color: var(--brand);
+  box-shadow: 0 0 0 3px var(--brand-soft);
+}
+
+.modeHead {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.modeHead b {
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.modeBody {
+  font-size: 12.5px;
+  line-height: 1.45;
+  color: var(--muted);
+}
+
+.radio {
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  border: 1.5px solid var(--border-strong);
+  display: grid;
+  place-items: center;
+  transition: border-color var(--dur-2) var(--ease);
+}
+
+.radio::after {
+  content: "";
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--brand);
+  transform: scale(0);
+  transition: transform var(--dur-2) var(--ease-spring);
+}
+
+.modeOn .radio {
+  border-color: var(--brand);
+}
+
+.modeOn .radio::after {
+  transform: scale(1);
+}
+
+.prefRow {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  flex-wrap: wrap;
+  padding-top: 16px;
+  border-top: 1px solid var(--border);
+}
+
+.prefRow:first-child {
+  padding-top: 0;
+  border-top: 0;
+}
+
+.prefRow > div:first-child {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.prefRow b {
+  font-size: 13.5px;
+  font-weight: 550;
+  color: var(--text);
+}
+
+.prefRow span {
+  font-size: 12.5px;
+  color: var(--muted);
+}
+
+/* ---------- Floating save bar (graphite in both themes) ---------- */
+.saveBar {
+  position: fixed;
+  left: 50%;
+  bottom: calc(var(--al-bar-h, 0px) + 16px + env(safe-area-inset-bottom, 0px));
+  z-index: 40;
+  width: min(860px, calc(100% - 32px));
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 10px 10px 18px;
+  border-radius: 14px;
+  background: #15171a;
+  color: #ecedee;
+  box-shadow: 0 24px 50px -18px rgba(0, 0, 0, 0.55), inset 0 0 0 1px rgba(255, 255, 255, 0.07);
+  opacity: 0;
+  pointer-events: none;
+  transform: translate(-50%, 16px);
+  transition: opacity var(--dur-2) var(--ease), transform var(--dur-3) var(--ease);
+}
+
+:global([data-theme="dark"]) .saveBar {
+  background: #1d2024;
+}
+
+.saveBarOn {
+  opacity: 1;
+  pointer-events: auto;
+  transform: translate(-50%, 0);
+}
+
+.saveDot {
+  width: 7px;
+  height: 7px;
+  flex: none;
+  border-radius: 50%;
+  background: #e5a85a;
+}
+
+.saveText {
+  flex: 1;
+  min-width: 0;
+  font-size: 13.5px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.discard,
+.save {
+  height: 36px;
+  padding: 0 14px;
+  border-radius: 8px;
+  font: 500 13px var(--font-sans);
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  white-space: nowrap;
+  transition: background-color var(--dur-1) var(--ease), transform var(--dur-1) var(--ease);
+}
+
+.discard {
+  border: 0;
+  background: transparent;
+  color: #b9bcc1;
+}
+
+.discard:hover {
+  background: rgba(255, 255, 255, 0.08);
+  color: #fff;
+}
+
+.save {
+  border: 0;
+  background: #3ccb9a;
+  color: #062219;
+  font-weight: 600;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.35);
+}
+
+.save:hover:not(:disabled) {
+  background: #62d9b0;
+}
+
+.discard:active,
+.save:active {
+  transform: scale(0.97);
+}
+
+.save:focus-visible,
+.discard:focus-visible {
+  outline: 2px solid #3ccb9a;
+  outline-offset: 2px;
+}
+
+.spin {
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  border: 2px solid currentColor;
+  border-right-color: transparent;
+  animation: almadelSpin 0.7s linear infinite;
+}
+
+@media (max-width: 1024px) {
+  .layout {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 12px;
+  }
+  .subnav {
+    position: static;
+    flex-direction: row;
+    overflow-x: auto;
+    scrollbar-width: none;
+    border-bottom: 1px solid var(--border);
+    padding-bottom: 8px;
+  }
+  .subnav::-webkit-scrollbar {
+    display: none;
+  }
+  .subnav a {
+    flex: none;
+  }
+}
+
+@media (max-width: 640px) {
+  .modes {
+    grid-template-columns: 1fr;
+  }
+  .saveText {
+    font-size: 12.5px;
+  }
+  .saveBar {
+    padding-left: 14px;
+  }
+}

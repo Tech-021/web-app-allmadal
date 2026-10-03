@@ -37,42 +37,44 @@
   --bg: #f5f4f0;
   --surface: #ffffff;
   --surface-2: #faf9f6;
-  --sunken: #f0eee9;
+  --sunken: #efede7;
   --border: #e6e3dc;
-  --border-strong: #d5d1c7;
+  --border-strong: #d6d2c8;
   --text: #14161a;
-  --text-2: #464b52;
-  --muted: #6a6f76;
-  --faint: #9a9ea3;
+  --text-2: #41464d;
+  --muted: #666b72;
+  --faint: #8e9399;
 
   --brand: #0e7c5f;
   --brand-strong: #0a5e48;
   --brand-ink: #0a5e48;
-  --brand-soft: #e4f1eb;
+  --brand-soft: #e3f0ea;
   --brand-line: #bcdacd;
   --on-brand: #ffffff;
 
   --pos: #0e7c5f;
   --neg: #b42318;
-  --neg-soft: #fbedea;
-  --warn: #9a4f08;
-  --warn-soft: #fcf0df;
-  --info: #2f5fc4;
-  --info-soft: #eaf0fc;
+  --neg-soft: #fbece9;
+  --warn: #94560a;
+  --warn-soft: #fbf0de;
+  --info: #3f4bc4;
+  --info-soft: #eceefc;
 
   --c1: #0e7c5f;
-  --c2: #3b6fd8;
+  --c2: #4f5bd5;
   --c3: #c9822b;
-  --grid: #eeece6;
+  --grid: #eceae4;
 
   --shadow-xs: 0 1px 0 rgba(20, 22, 26, 0.03), 0 1px 2px rgba(20, 22, 26, 0.06);
   --shadow-md: 0 1px 0 rgba(20, 22, 26, 0.03), 0 8px 24px -12px rgba(20, 22, 26, 0.16);
   --shadow-lg: 0 1px 0 rgba(20, 22, 26, 0.03), 0 24px 56px -24px rgba(20, 22, 26, 0.28);
   --glass: rgba(255, 255, 255, 0.78);
   --ring: rgba(14, 124, 95, 0.22);
-  --scrim: rgba(20, 22, 26, 0.36);
+  --scrim: rgba(17, 19, 22, 0.38);
   --hl: rgba(14, 124, 95, 0.055);
-  --edge-light: rgba(255, 255, 255, 0.6);
+  --edge-light: rgba(255, 255, 255, 0.8);
+  --shadow-pop: 0 1px 0 rgba(20, 22, 26, 0.03), 0 14px 34px -16px rgba(20, 22, 26, 0.24);
+  --raised: #ffffff;
 
   /* Tailwind palette, re-tuned to porcelain neutrals + jade */
   --color-white: #ffffff;
@@ -205,45 +207,47 @@
 
 [data-theme="dark"] {
   color-scheme: dark;
-  --bg: #090b0c;
-  --surface: #101315;
-  --surface-2: #14181b;
-  --sunken: #0c0f10;
-  --border: #1f2428;
-  --border-strong: #2b3136;
-  --text: #eceeef;
-  --text-2: #a9b0b6;
-  --muted: #80888f;
-  --faint: #5f676e;
+  --bg: #0b0c0e;
+  --surface: #131518;
+  --surface-2: #181a1e;
+  --sunken: #0f1012;
+  --border: rgba(255, 255, 255, 0.07);
+  --border-strong: rgba(255, 255, 255, 0.12);
+  --text: #ecedee;
+  --text-2: #b6bac0;
+  --muted: #8a8f96;
+  --faint: #5e636a;
 
   --brand: #3ccb9a;
-  --brand-strong: #6fddb5;
+  --brand-strong: #62d9b0;
   --brand-ink: #86e3c2;
-  --brand-soft: rgba(60, 203, 154, 0.1);
-  --brand-line: rgba(60, 203, 154, 0.3);
-  --on-brand: #04170f;
+  --brand-soft: rgba(60, 203, 154, 0.12);
+  --brand-line: rgba(60, 203, 154, 0.32);
+  --on-brand: #062219;
 
   --pos: #3ccb9a;
-  --neg: #f27d70;
-  --neg-soft: rgba(242, 125, 112, 0.1);
-  --warn: #e9a84f;
-  --warn-soft: rgba(233, 168, 79, 0.1);
-  --info: #82a8f7;
-  --info-soft: rgba(130, 168, 247, 0.1);
+  --neg: #f07a6a;
+  --neg-soft: rgba(240, 122, 106, 0.13);
+  --warn: #e5a85a;
+  --warn-soft: rgba(229, 168, 90, 0.12);
+  --info: #9aa2f7;
+  --info-soft: rgba(122, 132, 238, 0.15);
 
-  --c1: #1f9e74;
-  --c2: #5a82da;
-  --c3: #c2853c;
-  --grid: #1a1f22;
+  --c1: #26a57a;
+  --c2: #7a84ee;
+  --c3: #c1873f;
+  --grid: rgba(255, 255, 255, 0.05);
 
   --shadow-xs: inset 0 1px 0 rgba(255, 255, 255, 0.025);
   --shadow-md: 0 0 0 1px rgba(255, 255, 255, 0.02), 0 12px 32px -16px rgba(0, 0, 0, 0.7);
   --shadow-lg: 0 0 0 1px rgba(255, 255, 255, 0.04), 0 32px 64px -24px rgba(0, 0, 0, 0.8);
-  --glass: rgba(16, 19, 21, 0.78);
+  --glass: rgba(19, 21, 24, 0.82);
   --ring: rgba(60, 203, 154, 0.3);
-  --scrim: rgba(3, 4, 5, 0.64);
+  --scrim: rgba(0, 0, 0, 0.58);
   --hl: rgba(60, 203, 154, 0.05);
-  --edge-light: rgba(255, 255, 255, 0.04);
+  --edge-light: rgba(255, 255, 255, 0.035);
+  --shadow-pop: 0 18px 44px -18px rgba(0, 0, 0, 0.85), 0 0 0 1px rgba(255, 255, 255, 0.04);
+  --raised: #1b1d21;
 
   /* Inverted neutral ramp: surfaces go deep, ink goes light. */
   --color-white: #101315;
@@ -389,6 +393,10 @@
   --tint-orange: var(--warn-soft);
   --tint-purple: var(--sunken);
   --page-max-width: 1440px;
+  --c-cash: var(--c1);
+  --c-online: var(--c2);
+  --c-udhaar: var(--c3);
+  --shadow-panel: var(--shadow-xs), inset 0 1px 0 var(--edge-light);
   --space-page-x: clamp(16px, 3vw, 40px);
   --space-section: clamp(16px, 2.5vw, 24px);
 
@@ -593,7 +601,7 @@ table, .tabular, .font-mono {
   to { transform: rotate(360deg); }
 }
 
-/* Page entrance: applied by the workspace shell on route change */
+/* Rise-in for single blocks (POS terminal rows and empty states) */
 .al-page-enter {
   animation: almadelRise var(--dur-3) var(--ease) backwards;
 }
@@ -644,6 +652,27 @@ table, .tabular, .font-mono {
   flex: none;
 }
 
+/* Toast stack: always clears the shell's bottom bar (if present) and the device safe area.
+   While New Sale is open it moves to the top so it never covers the checkout controls. */
+:root {
+  --al-bar-h: 0px;
+}
+html:has(.al-bottom-bar) {
+  --al-bar-h: 57px;
+}
+@media (max-width: 768px) {
+  html:has(.al-bottom-bar) {
+    --al-bar-h: 65px;
+  }
+}
+.al-toast-stack {
+  bottom: calc(var(--al-bar-h) + 16px + env(safe-area-inset-bottom, 0px));
+}
+html.al-sale-open .al-toast-stack {
+  top: calc(16px + env(safe-area-inset-top, 0px));
+  bottom: auto;
+}
+
 /* Legacy Tailwind "animate-in" helpers used by older modals */
 .animate-in { animation: almadelFadeIn var(--dur-2) var(--ease) backwards; }
 .zoom-in-95, .zoom-in { animation: almadelScaleUp var(--dur-3) var(--ease) backwards; }
@@ -680,8 +709,28 @@ table, .tabular, .font-mono {
   animation: almadelScaleUp var(--dur-3) var(--ease) backwards;
 }
 
+/* Overlays driven by framer-motion (overlay.tsx) animate in and out in JS */
+[data-motion].al-overlay,
+[data-motion].al-overlay > * {
+  animation: none !important;
+}
+
+[data-motion] > :focus {
+  outline: none;
+}
+
+[data-motion][data-state="closing"] {
+  pointer-events: none;
+}
+
 /* Barcode scanner laser sweep */
 @keyframes scanSweep {
   from { top: 14%; }
   to { top: 86%; }
+}
+
+/* shadcn Select popover (components/ui/select.tsx): drops in from its trigger on the 200ms curve */
+.al-select-content[data-state="open"] {
+  transform-origin: var(--radix-select-content-transform-origin);
+  animation: almadelPop var(--dur-2) var(--ease);
 }

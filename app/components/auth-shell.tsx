@@ -1,130 +1,357 @@
-import Link from "next/link";
-import { LanguageSwitcher } from "./language-switcher";
+"use client";
 
+import Link from "next/link";
+import { AnimatePresence, motion } from "framer-motion";
+import { createContext, useContext, useEffect, useId, useState, type ReactNode } from "react";
+import { useLanguage } from "./language-context";
 import { BrandMark, Icon, type IconName } from "./icons";
+import { CounterStory, SignupStory } from "./auth-story";
+import { DUR, EASE, EASE_EXIT, Reveal } from "./motion";
+import s from "./auth.module.css";
 
 export function AlmadelLogoMark() {
   return <BrandMark size={40} />;
 }
 
-const FEATURES: Array<{ title: string; body: string; d: string }> = [
-  {
-    title: "POS billing in seconds",
-    body: "Barcode scanning, discounts, khata customers and printed receipts at the counter.",
-    d: "M3 7.5V5a2 2 0 0 1 2-2h2.5M16.5 3H19a2 2 0 0 1 2 2v2.5M21 16.5V19a2 2 0 0 1-2 2h-2.5M7.5 21H5a2 2 0 0 1-2-2v-2.5M7 8v8M10 8v8M13.5 8v8M17 8v8",
-  },
-  {
-    title: "Books that balance",
-    body: "Cash, accounts, customer khata, suppliers, expenses and daily closing.",
-    d: "M3 3v18h18M7 15l4-4 3 3 5-6",
-  },
-  {
-    title: "One team, one workspace",
-    body: "Owner, staff and accountant roles with live updates across counters.",
-    d: "M16 20v-1a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v1M9 11a4 4 0 1 0 0-8 4 4 0 0 0 0 8zM22 20v-1a4 4 0 0 0-3-3.9M16 3.1a4 4 0 0 1 0 7.8",
-  },
-];
+/**
+ * Any AuthButton that is busy (or done and navigating) lights the top sweep loader,
+ * so every auth page gets the AuthMobile board's loader without wiring it by hand.
+ */
+const AuthBusyContext = createContext<((busy: boolean) => void) | null>(null);
 
-export function AuthShell({ children, mode }: { children: React.ReactNode; mode: "login" | "signup" }) {
+/** Height-animated reveal for messages that push the form down (errors, alerts). */
+const collapse = {
+  initial: { opacity: 0, height: 0 },
+  animate: { opacity: 1, height: "auto", transition: { height: { duration: DUR.sheet, ease: EASE }, opacity: { duration: DUR.pop, delay: 0.06 } } },
+  exit: { opacity: 0, height: 0, transition: { height: { duration: DUR.pop, ease: EASE_EXIT }, opacity: { duration: DUR.press } } },
+};
+
+export function AuthShell({ children, mode, busy }: { children: ReactNode; mode: "login" | "signup"; busy?: boolean }) {
+  const { language, setLanguage } = useLanguage();
+  const [formBusy, setFormBusy] = useState(false);
+  const loading = Boolean(busy) || formBusy;
   return (
-    <main className="min-h-screen bg-[var(--bg)] lg:grid lg:grid-cols-[minmax(440px,44%)_1fr]">
-      <aside
-        data-theme="dark"
-        className="relative hidden overflow-hidden bg-[#090b0c] px-12 py-11 text-[#eceeef] lg:flex lg:min-h-screen lg:flex-col xl:px-16"
-      >
-        {/* restrained jade horizon light */}
-        <div className="pointer-events-none absolute inset-x-0 bottom-0 h-[55%] bg-[radial-gradient(80%_70%_at_30%_100%,rgba(60,203,154,.16),transparent_70%)]" />
-        <div className="pointer-events-none absolute inset-0 opacity-[.35] [background-image:linear-gradient(rgba(255,255,255,.035)_1px,transparent_1px),linear-gradient(90deg,rgba(255,255,255,.035)_1px,transparent_1px)] [background-size:56px_56px] [mask-image:radial-gradient(70%_60%_at_50%_40%,#000,transparent)]" />
-        <div className="pointer-events-none absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-[rgba(60,203,154,.5)] to-transparent" />
+    <AuthBusyContext.Provider value={setFormBusy}>
+      <main className={`${s.page} ${mode === "signup" ? s.pageSignup : ""}`} aria-busy={loading || undefined}>
+        <AnimatePresence>
+          {loading && (
+            <motion.div
+              key="sweep"
+              className={s.sweep}
+              aria-hidden
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0, transition: { duration: DUR.sheet } }}
+            >
+              <i />
+            </motion.div>
+          )}
+        </AnimatePresence>
 
-        <div className="relative flex items-center gap-3 al-page-enter">
-          <AlmadelLogoMark />
-          <div>
-            <p className="m-0 text-[17px] font-semibold tracking-[-0.015em]">Almadel</p>
-            <p className="m-0 text-xs text-[#80888f]">Store Management</p>
+        {/* Sign in: a live demo counter (decorative). Sign up: the steps ahead, mirrored to the right. */}
+        <aside
+          className={s.aside}
+          data-theme="dark"
+          aria-hidden={mode === "login" ? true : undefined}
+          aria-label={mode === "signup" ? "What happens next" : undefined}
+        >
+          <div className={s.asideRules} />
+          <div className={s.asideGlow} />
+          <div className={`${s.brand} ${mode === "signup" ? s.narrowOnly : ""}`}>
+            <BrandMark size={30} />
+            Almadel
           </div>
-        </div>
 
-        <div className="relative my-auto max-w-[460px] py-16">
-          <p className="mb-5 text-[11px] font-medium uppercase tracking-[.14em] text-[#3ccb9a]">One team. One workspace.</p>
-          <h1 className="m-0 text-[44px] font-semibold leading-[1.06] tracking-[-.04em] text-[#f6f7f7]">
-            Apni Dukaan Ko
-            <br />
-            Asaan Banayein.
-          </h1>
-          <p className="mt-5 max-w-md text-[15px] leading-7 text-[#a9b0b6]">
-            Complete store management, inventory tracking, POS billing, and staff management in one secure workspace.
-          </p>
-          <ul className="al-stagger mt-10 flex list-none flex-col gap-0 p-0">
-            {FEATURES.map((f) => (
-              <li key={f.title} className="flex gap-4 border-t border-[rgba(255,255,255,.07)] py-4">
-                <span className="grid size-9 shrink-0 place-items-center rounded-[10px] border border-[rgba(255,255,255,.08)] bg-[rgba(255,255,255,.03)] text-[#3ccb9a]">
-                  <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
-                    <path d={f.d} />
-                  </svg>
-                </span>
-                <span>
-                  <span className="block text-[14px] font-medium text-[#eceeef]">{f.title}</span>
-                  <span className="mt-0.5 block text-[13px] leading-relaxed text-[#80888f]">{f.body}</span>
-                </span>
-              </li>
-            ))}
-          </ul>
-        </div>
-        <p className="relative m-0 text-xs text-[#5f676e]">© 2026 Almadel. All rights reserved.</p>
-      </aside>
-      <section className="flex min-h-screen flex-col px-5 py-5 sm:px-10 lg:px-14">
-        <header className="flex items-center justify-between gap-4 pb-4 border-b border-[var(--border)] lg:border-0 lg:pb-0">
-          <div className="flex items-center gap-2.5 lg:hidden">
-            <BrandMark size={32} />
-            <span className="text-[15px] font-semibold tracking-[-0.01em] text-[var(--text)]">Almadel</span>
-          </div>
-          <div className="ml-auto flex items-center gap-3 sm:gap-4">
-            <LanguageSwitcher variant="pill" />
-            <p className="m-0 hidden text-[13px] text-[var(--muted)] sm:block">
-              {mode === "login" ? "New to Almadel?" : "Already have an account?"}{" "}
-              <Link className="ml-1 font-medium text-[var(--brand)] transition hover:underline" href={mode === "login" ? "/signup" : "/login"}>
-                {mode === "login" ? "Naya Account Banayein" : "Sign in"}
-              </Link>
+          {mode === "login" ? <CounterStory /> : <SignupStory />}
+
+          <div className={`${s.tagline} ${mode === "signup" ? s.narrowOnly : ""}`}>
+            <p>
+              Run the counter.
+              <br />
+              Keep the books.
             </p>
+            <p>Dukaan bhi, hisaab bhi.</p>
           </div>
-        </header>
-        <div className="al-page-enter mx-auto flex w-full max-w-[420px] flex-1 items-center py-10 sm:py-12">{children}</div>
-      </section>
-    </main>
+        </aside>
+
+        <section className={s.main}>
+          <div className={s.topRow}>
+            {mode === "signup" ? (
+              <span className={s.topBrand}>
+                <BrandMark size={26} />
+                Almadel
+              </span>
+            ) : null}
+            <span>{mode === "login" ? "New to Almadel?" : "Already have an account?"}</span>
+            <Link href={mode === "login" ? "/signup" : "/login"}>{mode === "login" ? "Create an account" : "Sign in"}</Link>
+          </div>
+          <div className={s.formWrap}>{children}</div>
+          <div className={s.foot}>
+            <span>© Almadel</span>
+            <span>
+              {language === "en" ? (
+                <>
+                  English ·{" "}
+                  <button type="button" className={s.langLink} onClick={() => setLanguage("ur")}>
+                    Roman Urdu
+                  </button>
+                </>
+              ) : (
+                <>
+                  <button type="button" className={s.langLink} onClick={() => setLanguage("en")}>
+                    English
+                  </button>{" "}
+                  · Roman Urdu
+                </>
+              )}
+            </span>
+          </div>
+        </section>
+      </main>
+    </AuthBusyContext.Provider>
   );
 }
 
-export function Field({ label, error, right, ...props }: React.InputHTMLAttributes<HTMLInputElement> & { label: string; error?: string; right?: React.ReactNode }) {
+type FieldProps = React.InputHTMLAttributes<HTMLInputElement> & {
+  ref?: React.Ref<HTMLInputElement>;
+  label: ReactNode;
+  /** Text after the label, quieter (e.g. "· for receipts and recovery"). */
+  hint?: ReactNode;
+  /** Right side of the label row (e.g. a "Forgot?" link). */
+  labelAside?: ReactNode;
+  error?: ReactNode;
+  /** Error styling without a message under the field (e.g. the server rejected the password). */
+  invalid?: boolean;
+  /** Control placed inside the input on the right (e.g. the show-password button). */
+  right?: ReactNode;
+  children?: ReactNode;
+};
+
+/** Labelled auth input. Errors slide open under the field and are linked with aria-describedby. */
+export function Field({ label, hint, labelAside, error, invalid, right, children, id, className, ref, ...props }: FieldProps) {
+  const autoId = useId();
+  const isInvalid = Boolean(error) || Boolean(invalid);
+  const inputId = id || `f-${autoId}`;
+  const errorId = `${inputId}-err`;
   return (
-    <label className="block">
-      <span className="mb-1.5 block text-[12.5px] font-medium text-[var(--text-2)]">{label}</span>
-      <span
-        className={`relative block rounded-[10px] border bg-[var(--surface)] shadow-[var(--shadow-xs)] transition-[border-color,box-shadow] duration-150 focus-within:border-[var(--brand)] focus-within:shadow-[0_0_0_3px_var(--ring)] ${
-          error ? "border-[var(--neg)]" : "border-[var(--border)] hover:border-[var(--border-strong)]"
-        }`}
-      >
+    <div className={s.field}>
+      <div className={s.label}>
+        <label htmlFor={inputId}>
+          {label}
+          {hint ? <span className={s.hint}> {hint}</span> : null}
+        </label>
+        {labelAside}
+      </div>
+      <div className={s.control}>
         <input
           {...props}
-          className="h-11 w-full rounded-[10px] bg-transparent px-3.5 pr-14 text-[14.5px] text-[var(--text)] outline-none placeholder:text-[var(--faint)] max-sm:text-[16px]"
+          ref={ref}
+          id={inputId}
+          aria-invalid={isInvalid || undefined}
+          aria-describedby={error ? errorId : props["aria-describedby"]}
+          className={`${s.input} ${right ? s.inputWithAction : ""} ${isInvalid ? s.invalid : ""} ${className || ""}`.trim()}
         />
         {right}
+      </div>
+      <AnimatePresence initial={false}>
+        {error ? (
+          <motion.div key="error" className={s.collapse} {...collapse}>
+            <div id={errorId} className={s.fieldError}>
+              <Icon name="alert" size={13} />
+              <span>{error}</span>
+            </div>
+          </motion.div>
+        ) : null}
+      </AnimatePresence>
+      {children}
+    </div>
+  );
+}
+
+const EYE_OPEN = "M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7S2 12 2 12zM12 15a3 3 0 1 0 0-6 3 3 0 0 0 0 6z";
+const EYE_SHUT =
+  "M3 3l18 18M10.6 5.1A9.8 9.8 0 0 1 12 5c6.5 0 10 7 10 7a17 17 0 0 1-3.2 4.2M6.6 6.6C3.8 8.4 2 12 2 12s3.5 7 10 7c1.8 0 3.4-.5 4.7-1.2M9.9 9.9a3 3 0 0 0 4.2 4.2";
+
+/** Eye button for password fields; the glyph cross-fades between states. */
+export function PasswordToggle({ shown, onToggle }: { shown: boolean; onToggle: () => void }) {
+  return (
+    <button type="button" className={s.eye} onClick={onToggle} aria-label={shown ? "Hide password" : "Show password"} aria-pressed={shown}>
+      <AnimatePresence mode="popLayout" initial={false}>
+        <motion.svg
+          key={shown ? "shut" : "open"}
+          width="16"
+          height="16"
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          strokeWidth="1.6"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+          aria-hidden
+          initial={{ opacity: 0, scale: 0.7 }}
+          animate={{ opacity: 1, scale: 1 }}
+          exit={{ opacity: 0, scale: 0.7 }}
+          transition={{ duration: DUR.press, ease: EASE }}
+        >
+          <path d={shown ? EYE_SHUT : EYE_OPEN} />
+        </motion.svg>
+      </AnimatePresence>
+    </button>
+  );
+}
+
+/** Password field with its own show/hide state. */
+export function PasswordField(props: Omit<FieldProps, "type" | "right"> & { shown?: boolean; onToggle?: () => void }) {
+  const [own, setOwn] = useState(false);
+  const shown = props.shown ?? own;
+  const { shown: _shown, onToggle, children, ...rest } = props;
+  void _shown;
+  return (
+    <Field {...rest} type={shown ? "text" : "password"} right={<PasswordToggle shown={shown} onToggle={onToggle ?? (() => setOwn((v) => !v))} />}>
+      {children}
+    </Field>
+  );
+}
+
+export function Checkbox({ checked, onChange, children, name, required }: { checked?: boolean; onChange?: (v: boolean) => void; children: ReactNode; name?: string; required?: boolean }) {
+  return (
+    <label className={s.check}>
+      <input type="checkbox" name={name} required={required} checked={checked} onChange={(e) => onChange?.(e.target.checked)} />
+      <span className={s.box} aria-hidden>
+        <Icon name="check" size={11} strokeWidth={2.6} />
       </span>
-      {error && <span className="mt-1.5 block text-xs font-medium text-[var(--neg)]">{error}</span>}
+      <span>{children}</span>
     </label>
   );
 }
 
-const STATE_TONE = {
-  pos: "border-[var(--brand-line)] bg-[var(--brand-soft)] text-[var(--brand)]",
-  neg: "border-[color-mix(in_oklab,var(--neg)_25%,transparent)] bg-[var(--neg-soft)] text-[var(--neg)]",
-  warn: "border-[color-mix(in_oklab,var(--warn)_25%,transparent)] bg-[var(--warn-soft)] text-[var(--warn)]",
-} as const;
+/** Check mark that draws itself (button success state). */
+function DrawnCheck() {
+  return (
+    <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+      <motion.path d="M20 6L9 17l-5-5" initial={{ pathLength: 0 }} animate={{ pathLength: 1 }} transition={{ duration: 0.36, delay: 0.08, ease: EASE }} />
+    </svg>
+  );
+}
+
+/**
+ * Auth submit button. The originating control carries the loading state; "done" shows
+ * the outcome while the next page loads. Each state's label rolls in from below.
+ */
+export function AuthButton({
+  state = "idle",
+  children,
+  busyLabel,
+  doneLabel,
+  variant = "primary",
+  type = "submit",
+  disabled,
+  onClick,
+}: {
+  state?: "idle" | "busy" | "done";
+  children: ReactNode;
+  busyLabel?: ReactNode;
+  doneLabel?: ReactNode;
+  variant?: "primary" | "secondary";
+  type?: "submit" | "button";
+  disabled?: boolean;
+  onClick?: () => void;
+}) {
+  const reportBusy = useContext(AuthBusyContext);
+  const working = state !== "idle";
+  useEffect(() => {
+    if (!reportBusy || variant !== "primary") return;
+    reportBusy(working);
+    return () => reportBusy(false);
+  }, [reportBusy, working, variant]);
+
+  return (
+    <button
+      type={type}
+      className={`${s.btn} ${variant === "primary" ? s.primary : ""}`}
+      disabled={disabled || working}
+      aria-busy={state === "busy"}
+      data-state={state}
+      onClick={onClick}
+    >
+      <AnimatePresence mode="popLayout" initial={false}>
+        <motion.span
+          key={state}
+          className={s.btnLabel}
+          initial={{ opacity: 0, y: 12 }}
+          animate={{ opacity: 1, y: 0, transition: { duration: DUR.sheet, ease: EASE } }}
+          exit={{ opacity: 0, y: -12, transition: { duration: DUR.pop, ease: EASE_EXIT } }}
+        >
+          {state === "busy" ? (
+            <>
+              <span className={s.spin} aria-hidden />
+              {busyLabel ?? children}
+            </>
+          ) : state === "done" ? (
+            <>
+              <DrawnCheck />
+              {doneLabel ?? children}
+            </>
+          ) : (
+            children
+          )}
+        </motion.span>
+      </AnimatePresence>
+    </button>
+  );
+}
+
+export function AuthLinkButton({ href, children }: { href: string; children: ReactNode }) {
+  return (
+    <Link href={href} className={s.btn}>
+      {children}
+    </Link>
+  );
+}
+
+/** Inline alert. Inside an AnimatePresence it also slides closed when it goes away. */
+export function AuthAlert({ tone = "neg", id, children }: { tone?: "neg" | "pos"; id?: string; children: ReactNode }) {
+  return (
+    <motion.div className={s.collapse} {...collapse}>
+      <div id={id} role={tone === "neg" ? "alert" : "status"} className={`${s.alert} ${tone === "neg" ? s.alertNeg : s.alertPos}`}>
+        <Icon name={tone === "neg" ? "alert" : "check"} size={16} />
+        <div>{children}</div>
+      </div>
+    </motion.div>
+  );
+}
+
+export function AuthDivider({ children = "or" }: { children?: ReactNode }) {
+  return <div className={s.divider}>{children}</div>;
+}
+
+/** Title block: optional step marker, heading and one-line lede. Each rises in turn inside a RevealGroup. */
+export function AuthHeading({ step, title, lede }: { step?: string; title: ReactNode; lede?: ReactNode }) {
+  return (
+    <div>
+      {step ? (
+        <Reveal>
+          <div className={s.step}>{step}</div>
+        </Reveal>
+      ) : null}
+      <Reveal>
+        <h1 className={s.title}>{title}</h1>
+      </Reveal>
+      {lede ? (
+        <Reveal>
+          <p className={s.lede}>{lede}</p>
+        </Reveal>
+      ) : null}
+    </div>
+  );
+}
+
+export const authStyles = s;
 
 /** Status seal shown above auth result states (link sent, invalid, expired, updated). */
-export function AuthStateIcon({ icon, tone = "pos" }: { icon: IconName; tone?: keyof typeof STATE_TONE }) {
+export function AuthStateIcon({ icon, tone = "pos" }: { icon: IconName; tone?: "pos" | "neg" | "warn" }) {
   return (
-    <span className={`mb-5 inline-grid size-12 place-items-center rounded-[14px] border [animation:almadelScaleUp_420ms_var(--ease-spring)_backwards] ${STATE_TONE[tone]}`}>
+    <span className={`${s.seal} ${s[`seal_${tone}`]}`}>
       <Icon name={icon} size={22} />
     </span>
   );

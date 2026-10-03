@@ -1,8 +1,9 @@
 "use client";
 
 import Link from "next/link";
+import { AnimatePresence, motion } from "framer-motion";
 import { usePathname, useRouter } from "next/navigation";
-import { useEffect, useState, useRef, useMemo, useCallback } from "react";
+import { useEffect, useState, useRef, useMemo } from "react";
 import { useAuth } from "@/hooks/useAuth";
 import { useBusiness } from "@/app/components/business-context";
 import { TrialExpiredModal } from "@/app/components/trial-expired-modal";
@@ -22,9 +23,12 @@ import { useNavRole } from "@/hooks/useNavRole";
 import { useToast } from "@/app/components/toast-context";
 import { useRealtime } from "@/app/components/realtime-provider";
 import { useTheme } from "@/app/components/theme-context";
-import { BrandMark, Icon, routeIcon } from "@/app/components/icons";
+import { BrandMark, Icon, routeIcon, type IconName } from "@/app/components/icons";
+import { AddSaleModal } from "@/app/components/add-sale-modal";
+import { Overlay } from "@/app/components/overlay";
+import { DUR, EASE, EASE_EXIT } from "@/app/components/motion";
+import { startNavigationProgress } from "@/app/components/navigation-progress";
 
-const COLLAPSE_KEY = "almadel_sidebar_collapsed";
 
 /** Presentation-only grouping of the existing nav links. */
 const NAV_GROUPS: Array<{ id: string; label: string; labelKey: string; hrefs: string[] }> = [
@@ -76,23 +80,18 @@ export function WorkspaceShell({ children }: { children: React.ReactNode }) {
       }));
   }, [allLinks, user, navRole, language, t, businessLoading]);
 
-  // Primary mobile navigation bar links (max 3-4 items)
-  const mobilePrimaryLinks = useMemo(() => {
-    if (navRole === "staff") return accessibleLinks;
-    if (workspaceMode === "financial") {
-      // Dashboard, Sales, Products, Accounts
-      return accessibleLinks.slice(0, 4);
-    }
-    // POS: Dashboard, Sales, Products
-    return accessibleLinks.slice(0, 3);
-  }, [accessibleLinks, navRole, workspaceMode]);
+  // Bottom bar destinations: Home, Sales, then Khata (Financial) or Products (POS) — whichever the role can open.
+  const barLinks = useMemo(() => {
+    const pick = (href: string) => accessibleLinks.find((x) => x.href === href);
+    const third = (workspaceMode === "financial" ? pick("/customers") : undefined) ?? pick("/products");
+    return [pick("/dashboard"), pick("/sales"), third].filter((x): x is (typeof accessibleLinks)[number] => Boolean(x));
+  }, [accessibleLinks, workspaceMode]);
 
-  // Secondary links for mobile "More" drawer
-  const mobileDrawerLinks = useMemo(() => {
-    if (navRole === "staff") return [];
-    if (workspaceMode === "financial") return accessibleLinks.slice(4);
-    return accessibleLinks.slice(3);
-  }, [accessibleLinks, navRole, workspaceMode]);
+  // Everything not in the bar lives in the mobile "More" sheet
+  const mobileDrawerLinks = useMemo(
+    () => accessibleLinks.filter((x) => !barLinks.some((b) => b.href === x.href)),
+    [accessibleLinks, barLinks],
+  );
 
   // Check if current route belongs to the "More" drawer
   const isDrawerRouteActive = useMemo(() => {
@@ -183,34 +182,29 @@ export function WorkspaceShell({ children }: { children: React.ReactNode }) {
   const { businesses, switchBusiness } = useBusiness();
   const { socket } = useRealtime();
   const { resolvedTheme, toggleTheme } = useTheme();
-  const [collapsed, setCollapsed] = useState(false);
   const [bizMenuOpen, setBizMenuOpen] = useState(false);
   const [paletteOpen, setPaletteOpen] = useState(false);
   const [paletteQuery, setPaletteQuery] = useState("");
   const [paletteIndex, setPaletteIndex] = useState(0);
   const [liveConnected, setLiveConnected] = useState(false);
+  const [saleOpen, setSaleOpen] = useState(false);
   const bizMenuRef = useRef<HTMLDivElement | null>(null);
   const paletteInputRef = useRef<HTMLInputElement | null>(null);
 
+  // Sidebar clock beside the live indicator
+  const [clock, setClock] = useState("");
   useEffect(() => {
-    try {
-      // eslint-disable-next-line react-hooks/set-state-in-effect
-      setCollapsed(localStorage.getItem(COLLAPSE_KEY) === "1");
-    } catch {
-      /* ignore */
-    }
+    const tick = () => setClock(new Date().toLocaleTimeString(undefined, { hour: "numeric", minute: "2-digit" }).replace(/\s?[AP]M$/i, ""));
+    tick();
+    const id = window.setInterval(tick, 30_000);
+    return () => window.clearInterval(id);
   }, []);
 
-  const toggleCollapsed = useCallback(() => {
-    setCollapsed((prev) => {
-      const next = !prev;
-      try {
-        localStorage.setItem(COLLAPSE_KEY, next ? "1" : "0");
-      } catch {
-        /* ignore */
-      }
-      return next;
-    });
+  // Pages (e.g. the dashboard's mobile quick actions) can open the New Sale drawer
+  useEffect(() => {
+    const open = () => setSaleOpen(true);
+    window.addEventListener("almadel:open-new-sale", open);
+    return () => window.removeEventListener("almadel:open-new-sale", open);
   }, []);
 
   // Realtime connection indicator (reads the existing socket; never changes it)
@@ -257,14 +251,31 @@ export function WorkspaceShell({ children }: { children: React.ReactNode }) {
   // ⌘K / Ctrl+K quick navigation
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
-      if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "k") {
+      if (
+        ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "k") ||
+        (e.key === "F2" && !document.querySelector('[aria-modal="true"]'))
+      ) {
         e.preventDefault();
         setPaletteOpen((open) => !open);
+        return;
+      }
+      // "N" opens New Sale from anywhere, unless the user is typing or another dialog is open
+      const target = e.target as HTMLElement | null;
+      const typing = !!target && (target.isContentEditable || /^(INPUT|TEXTAREA|SELECT)$/.test(target.tagName));
+      if (
+        e.key.toLowerCase() === "n" &&
+        !e.metaKey && !e.ctrlKey && !e.altKey &&
+        !typing &&
+        (navRole === "admin" || navRole === "staff") &&
+        !document.querySelector('[aria-modal="true"]')
+      ) {
+        e.preventDefault();
+        setSaleOpen(true);
       }
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, []);
+  }, [navRole]);
 
   useEffect(() => {
     if (!paletteOpen) return;
@@ -338,10 +349,32 @@ export function WorkspaceShell({ children }: { children: React.ReactNode }) {
   const trialDays = activeBusiness?.trialDaysRemaining;
   const trialPct = trialDays !== undefined ? Math.max(4, Math.min(100, (trialDays / 30) * 100)) : 100;
 
+  const allowedPath = (href: string) =>
+    accessibleLinks.some((x) => x.href === href || Boolean(x.subItems?.some((s) => s.href === href)));
+
+  // Secondary bottom-bar actions (desktop / tablet). They go to the page that owns the action.
+  const quickActions = (
+    workspaceMode === "financial"
+      ? [
+          { key: "receive", label: t("receive.title", "Receive payment"), icon: "downright" as IconName, href: "/customers?receive=1" },
+          { key: "expense", label: t("bar.add_expense", "Add expense"), icon: "upright" as IconName, href: "/expenses?new=1" },
+          { key: "customer", label: t("bar.add_customer", "Add customer"), icon: "user" as IconName, href: "/customers?new=1" },
+          { key: "product", label: t("bar.add_product", "Add product"), icon: "box" as IconName, href: "/products?new=1" },
+        ]
+      : [
+          { key: "product", label: t("bar.add_product", "Add product"), icon: "box" as IconName, href: "/products?new=1" },
+          { key: "stock", label: t("nav.stock_levels", "Stock levels"), icon: "layers" as IconName, href: "/stock" },
+          { key: "search", label: t("shell.jump_to", "Jump to a page…"), icon: "search" as IconName, href: "" },
+        ]
+  ).filter((a) => a.href === "" || allowedPath(a.href.split("?")[0]));
+  const showCloseDay = workspaceMode === "financial" && allowedPath("/daily-closing");
+  const mobileOrder = (n: number) => ({ "--m-order": n }) as React.CSSProperties;
+
   const handleSignOut = async () => {
     setMobileDrawerOpen(false);
     await logout();
     showToast("You have been signed out.", "success");
+    startNavigationProgress();
     router.push("/login");
   };
 
@@ -352,6 +385,7 @@ export function WorkspaceShell({ children }: { children: React.ReactNode }) {
 
   const goToPaletteResult = (href: string) => {
     setPaletteOpen(false);
+    if (href !== pathname) startNavigationProgress();
     router.push(href);
   };
 
@@ -379,55 +413,42 @@ export function WorkspaceShell({ children }: { children: React.ReactNode }) {
   );
 
   return (
-    <div className={`${styles.page} ${collapsed ? styles.isCollapsed : ""}`} data-workspace={workspaceMode}>
+    <div className={styles.page} data-workspace={workspaceMode}>
       {/* ================= Desktop / tablet sidebar ================= */}
       <aside className={styles.sidebar} aria-label="Workspace navigation">
-        <div className={styles.brandRow}>
+        <div className={styles.brandRow} ref={bizMenuRef}>
           <Link className={styles.brand} href="/dashboard" aria-label="Almadel dashboard">
             <BrandMark size={28} />
             <span className={styles.brandText}>
               <strong>Almadel</strong>
-              <small>{t("shell.store_management", "Store Management")}</small>
+              <small>{activeBusiness?.name || t("shell.store_management", "Store Management")}</small>
             </span>
           </Link>
-          <button
-            type="button"
-            className={styles.collapseBtn}
-            onClick={toggleCollapsed}
-            aria-label={collapsed ? "Expand sidebar" : "Collapse sidebar"}
-            title={collapsed ? "Expand sidebar" : "Collapse sidebar"}
-          >
-            <Icon name="panel" size={16} />
-          </button>
-        </div>
-
-        {/* Active business + switcher */}
-        <div className={styles.bizWrap} ref={bizMenuRef}>
-          {activeBusiness ? (
+          {activeBusiness && (
             <button
               type="button"
-              className={styles.bizButton}
+              className={styles.bizSwitch}
               onClick={() => setBizMenuOpen((o) => !o)}
               aria-haspopup="menu"
               aria-expanded={bizMenuOpen}
-              title={activeBusiness.name}
+              aria-label={t("shell.switch_business", "Switch business")}
+              title={t("shell.switch_business", "Switch business")}
             >
-              {businessAvatar()}
-              <span className={styles.bizText}>
-                <strong>{activeBusiness.name}</strong>
-                <small>{activeBusiness.businessType}</small>
-              </span>
-              <Icon name="updown" size={14} className={styles.bizChevron} />
+              <Icon name="updown" size={14} />
             </button>
-          ) : (
-            <div className={styles.noBiz}>
-              <p>{t("shell.no_active_business", "No active business")}</p>
-              <Link href="/setup-business">{t("shell.setup_business", "+ Set up your business")}</Link>
-            </div>
           )}
 
+          <AnimatePresence>
           {bizMenuOpen && activeBusiness && (
-            <div className={`${styles.bizMenu} al-pop`} role="menu">
+            <motion.div
+              key="biz-menu"
+              className={styles.bizMenu}
+              role="menu"
+              style={{ transformOrigin: "top left" }}
+              initial={{ opacity: 0, y: -4, scale: 0.98 }}
+              animate={{ opacity: 1, y: 0, scale: 1, transition: { duration: DUR.pop, ease: EASE } }}
+              exit={{ opacity: 0, y: -4, scale: 0.98, transition: { duration: DUR.exit, ease: EASE_EXIT } }}
+            >
               <div className={styles.menuLabel}>{t("shell.businesses", "Businesses")}</div>
               {(businesses.length ? businesses : [activeBusiness]).map((b) => {
                 const current = b.id === activeBusiness.id;
@@ -443,7 +464,7 @@ export function WorkspaceShell({ children }: { children: React.ReactNode }) {
                       setBizMenuOpen(false);
                     }}
                   >
-                    <span className={`${styles.bizAvatar} ${styles.bizAvatarSm}`}>{initials(b.name)}</span>
+                    {current ? businessAvatar("sm") : <span className={`${styles.bizAvatar} ${styles.bizAvatarSm}`}>{initials(b.name)}</span>}
                     <span className={styles.menuItemText}>
                       <strong>{b.name}</strong>
                       <small>
@@ -461,9 +482,17 @@ export function WorkspaceShell({ children }: { children: React.ReactNode }) {
                   {t("shell.store_settings", "Store settings")}
                 </Link>
               )}
-            </div>
+            </motion.div>
           )}
+          </AnimatePresence>
         </div>
+
+        {!activeBusiness && (
+          <div className={styles.noBiz}>
+            <p>{t("shell.no_active_business", "No active business")}</p>
+            <Link href="/setup-business">{t("shell.setup_business", "+ Set up your business")}</Link>
+          </div>
+        )}
 
         <nav className={styles.nav}>
           {groupedLinks.map((group) => (
@@ -476,7 +505,7 @@ export function WorkspaceShell({ children }: { children: React.ReactNode }) {
                     <Link
                       href={x.href}
                       className={`${styles.navLink} ${active ? styles.active : ""}`}
-                      title={collapsed ? x.label : undefined}
+                      title={x.label}
                       aria-current={pathname === x.href ? "page" : undefined}
                     >
                       <Icon name={routeIcon(x.href)} size={17} className={styles.navIcon} />
@@ -507,21 +536,6 @@ export function WorkspaceShell({ children }: { children: React.ReactNode }) {
           ))}
         </nav>
 
-        {/* Subscription status */}
-        {isPro && (
-          <div className={styles.plan}>
-            <div className={styles.planRow}>
-              <span className={styles.planName}>
-                <Icon name="shield" size={14} />
-                Almadel Pro
-              </span>
-              <Link href="/payments" className={styles.planLink}>
-                {t("shell.billing", "Billing")}
-              </Link>
-            </div>
-            <small>{t("shell.active_plan", "Active Plan")}</small>
-          </div>
-        )}
         {isTrialActive && (
           <div className={styles.plan}>
             <div className={styles.planRow}>
@@ -544,49 +558,51 @@ export function WorkspaceShell({ children }: { children: React.ReactNode }) {
           </div>
         )}
 
-        <div className={styles.user}>
-          <b aria-hidden>{initials(user.name)}</b>
-          <span>
-            <strong>{user.name}</strong>
-            <small>{roleLabel}</small>
-          </span>
-          <button
-            type="button"
-            aria-label={t("shell.sign_out", "Sign out")}
-            title={t("shell.sign_out", "Sign out")}
-            onClick={handleSignOut}
+        <div className={styles.foot}>
+          <div
+            className={styles.liveCard}
+            title={liveConnected ? "Realtime updates connected" : "Realtime updates offline"}
           >
-            <Icon name="logout" size={16} />
-          </button>
+            <span className={`${styles.liveDot} ${liveConnected ? styles.liveDotOn : ""}`} aria-hidden />
+            <span>{liveConnected ? t("shell.live_synced", "Live · synced") : t("shell.offline_reconnecting", "Offline · reconnecting")}</span>
+            <span className={styles.liveClock}>{clock}</span>
+          </div>
+          <div className={styles.user}>
+            <b aria-hidden>{initials(user.name)}</b>
+            <span>
+              <strong>{user.name}</strong>
+              <small>{roleLabel}</small>
+            </span>
+            <button
+              type="button"
+              aria-label={t("shell.sign_out", "Sign out")}
+              title={t("shell.sign_out", "Sign out")}
+              onClick={handleSignOut}
+            >
+              <Icon name="logout" size={15} />
+            </button>
+          </div>
         </div>
       </aside>
 
-      {/* ================= Main sheet ================= */}
+      {/* ================= Main column ================= */}
       <div className={styles.main}>
-        {/* Desktop header */}
+        {/* Desktop topbar — pages portal their title and actions into the two slots */}
         <header className={styles.topbar}>
-          <div className={styles.crumbs}>
-            <span className={styles.crumbWs}>{workspaceLabel}</span>
-            {currentTitle && (
-              <>
-                <Icon name="right" size={12} />
-                <strong>{currentTitle}</strong>
-              </>
-            )}
+          <div className={styles.titleSlot} id="al-topbar-title">
+            <h1 className={styles.fallbackTitle}>{currentTitle || workspaceLabel}</h1>
           </div>
-          <span className={styles.spacer} />
-          <button type="button" className={styles.searchBtn} onClick={() => setPaletteOpen(true)}>
-            <Icon name="search" size={15} />
-            <span>{t("shell.jump_to", "Jump to a page…")}</span>
-            <kbd>⌘K</kbd>
-          </button>
-          <span
-            className={`${styles.live} ${liveConnected ? styles.liveOn : ""}`}
-            title={liveConnected ? "Realtime updates connected" : "Realtime updates offline"}
-          >
-            <span className={styles.liveDot} />
-            {liveConnected ? t("shell.live", "Live") : t("shell.offline", "Offline")}
+          <span className={`${styles.modeBadge} ${workspaceMode === "financial" ? styles.modeBadgeFin : ""}`}>
+            {workspaceMode === "financial"
+              ? t("shell.financial_mode", "Financial mode")
+              : t("shell.pos_mode", "POS mode")}
           </span>
+          <button type="button" className={styles.searchBtn} onClick={() => setPaletteOpen(true)} aria-keyshortcuts="F2">
+            <Icon name="search" size={15} />
+            <span>{t("shell.search_or_command", "Search or run a command")}</span>
+            <kbd>F2</kbd>
+          </button>
+          <div className={styles.actionSlot} id="al-topbar-actions" />
           <LanguageSwitcher variant="compact" />
           <button
             type="button"
@@ -595,14 +611,8 @@ export function WorkspaceShell({ children }: { children: React.ReactNode }) {
             aria-label={resolvedTheme === "dark" ? "Switch to light theme" : "Switch to dark theme"}
             title={resolvedTheme === "dark" ? "Light theme" : "Dark theme"}
           >
-            <Icon name={resolvedTheme === "dark" ? "sun" : "moon"} size={16} />
+            <Icon name={resolvedTheme === "dark" ? "sun" : "moon"} size={17} />
           </button>
-          {canSell && pathname !== "/sales" && (
-            <Link href="/sales" className={styles.primaryAction}>
-              <Icon name="plus" size={15} strokeWidth={2} />
-              {t("action.new_sale", "New Sale")}
-            </Link>
-          )}
         </header>
 
         {/* Mobile header */}
@@ -631,218 +641,298 @@ export function WorkspaceShell({ children }: { children: React.ReactNode }) {
 
         {/* Page content */}
         <section className={styles.content}>
-          <div className={`${styles.contentInner} al-page-enter`} key={pathname}>
+          <motion.div
+            className={`${styles.contentInner} al-stagger`}
+            key={pathname}
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            transition={{ duration: 0.24, ease: EASE }}
+          >
             {activeBusiness && (activeBusiness.isTrialExpired || activeBusiness.subscriptionStatus === "expired") && (
               <TrialExpiredModal business={activeBusiness} />
             )}
             {children}
-          </div>
+          </motion.div>
         </section>
       </div>
 
-      {/* ================= Mobile bottom bar ================= */}
-      <nav className={styles.bottom} aria-label="Mobile Navigation">
-        {mobilePrimaryLinks.map((x) => {
-          const active = isActive(x);
-          return (
-            <Link key={x.href} href={x.href} className={active ? styles.active : ""} aria-current={active ? "page" : undefined}>
-              <Icon name={routeIcon(x.href)} size={21} strokeWidth={active ? 1.9 : 1.6} />
-              <span>{x.label.split(" ")[0]}</span>
-            </Link>
-          );
-        })}
+      {/* ================= Bottom bar (all breakpoints, full width) ================= */}
+      <nav
+        className={`${styles.bar} ${saleOpen ? styles.barHidden : ""} al-bottom-bar`}
+        aria-label={t("bar.quick_actions", "Quick actions")}
+      >
+        <div className={styles.barInner}>
+          {barLinks.map((x, i) => {
+            const active = isActive(x);
+            const label =
+              x.href === "/dashboard"
+                ? t("bar.home", "Home")
+                : x.href === "/customers"
+                ? t("bar.khata", "Khata")
+                : x.label.split(" ")[0];
+            return (
+              <Link
+                key={x.href}
+                href={x.href}
+                className={`${styles.barItem} ${active ? styles.barItemOn : ""}`}
+                style={mobileOrder(i < 2 ? i : i + 1)}
+                aria-current={active ? "page" : undefined}
+              >
+                <Icon name={routeIcon(x.href)} size={18} strokeWidth={active ? 1.9 : 1.6} />
+                <span>{label}</span>
+              </Link>
+            );
+          })}
 
-        {navRole === "admin" && mobileDrawerLinks.length > 0 && (
-          <button
-            type="button"
-            onClick={() => setMobileDrawerOpen(true)}
-            className={`${styles.bottomMoreBtn} ${isDrawerRouteActive ? styles.active : ""}`}
-            aria-label="Open full workspace navigation menu"
-            aria-expanded={mobileDrawerOpen}
-          >
-            <Icon name="grid" size={21} />
-            <span>{t("shell.more", "More")}</span>
-          </button>
-        )}
-      </nav>
-
-      {/* ================= Mobile "More" sheet ================= */}
-      {mobileDrawerOpen && (
-        <div
-          className={styles.drawerBackdrop}
-          onClick={() => setMobileDrawerOpen(false)}
-          role="dialog"
-          aria-modal="true"
-          aria-label="More navigation"
-        >
-          <div className={styles.drawerSheet} onClick={(e) => e.stopPropagation()}>
-            <div className={styles.drawerHandle} />
-            <div className={styles.drawerHead}>
-              <div className={styles.drawerTitle}>
-                {businessAvatar("sm")}
-                <span>
-                  <strong>{activeBusiness?.name || "Workspace Tools"}</strong>
-                  <small>
-                    {workspaceLabel} · {roleLabel}
-                  </small>
-                </span>
-              </div>
+          {canSell && (
+            <>
+              <span className={`${styles.barSep} ${styles.barDesktop}`} aria-hidden />
               <button
                 type="button"
-                className={styles.iconBtn}
-                onClick={() => setMobileDrawerOpen(false)}
-                aria-label="Close menu"
+                className={styles.barSale}
+                style={mobileOrder(2)}
+                onClick={() => setSaleOpen(true)}
+                aria-keyshortcuts="N"
+                aria-haspopup="dialog"
+                aria-expanded={saleOpen}
               >
-                <Icon name="x" size={17} />
+                <Icon name="plus" size={17} strokeWidth={2.2} />
+                <span>{t("bar.new_sale", "New sale")}</span>
+                <kbd className={styles.barDesktop} aria-hidden>N</kbd>
               </button>
-            </div>
+            </>
+          )}
 
-            <div className={styles.drawerGrid}>
-              {mobileDrawerLinks.map((x) => {
-                const active = isActive(x);
+          {quickActions.length > 0 && <span className={`${styles.barSep} ${styles.barDesktop}`} aria-hidden />}
+          {quickActions.map((a) =>
+            a.href ? (
+              <Link key={a.key} href={a.href} className={`${styles.barItem} ${styles.barIcon} ${styles.barDesktop}`} aria-label={a.label}>
+                <Icon name={a.icon} size={17} />
+                <span className={styles.barTip}>{a.label}</span>
+              </Link>
+            ) : (
+              <button
+                key={a.key}
+                type="button"
+                className={`${styles.barItem} ${styles.barIcon} ${styles.barDesktop}`}
+                onClick={() => setPaletteOpen(true)}
+                aria-label={a.label}
+              >
+                <Icon name={a.icon} size={17} />
+                <span className={styles.barTip}>{a.label}</span>
+              </button>
+            ),
+          )}
+
+          {showCloseDay && (
+            <>
+              <span className={`${styles.barSep} ${styles.barDesktop}`} aria-hidden />
+              <Link
+                href="/daily-closing"
+                className={`${styles.barItem} ${styles.barDesktop} ${pathname === "/daily-closing" ? styles.barItemOn : ""}`}
+                aria-current={pathname === "/daily-closing" ? "page" : undefined}
+              >
+                <Icon name="lock" size={17} />
+                <span>{t("bar.close_day", "Close day")}</span>
+              </Link>
+            </>
+          )}
+
+          {mobileDrawerLinks.length > 0 && (
+            <button
+              type="button"
+              onClick={() => setMobileDrawerOpen(true)}
+              className={`${styles.barItem} ${styles.barMobile} ${isDrawerRouteActive ? styles.barItemOn : ""}`}
+              style={mobileOrder(4)}
+              aria-label="Open full workspace navigation menu"
+              aria-expanded={mobileDrawerOpen}
+            >
+              <Icon name="grid" size={18} />
+              <span>{t("shell.more", "More")}</span>
+            </button>
+          )}
+        </div>
+      </nav>
+
+      {/* ================= New Sale drawer ================= */}
+      {canSell && (
+        <AddSaleModal
+          variant="drawer"
+          isOpen={saleOpen}
+          onClose={() => setSaleOpen(false)}
+          onSaleCompleted={() => window.dispatchEvent(new CustomEvent("almadel:sale-completed"))}
+        />
+      )}
+
+      {/* ================= Mobile "More" sheet ================= */}
+      <Overlay
+        open={mobileDrawerOpen}
+        onClose={() => setMobileDrawerOpen(false)}
+        variant="sheet"
+        className={styles.drawerBackdrop}
+        role="dialog"
+        aria-modal="true"
+        aria-label="More navigation"
+      >
+        <div className={styles.drawerSheet}>
+          <div className={styles.drawerHandle} />
+          <div className={styles.drawerHead}>
+            <div className={styles.drawerTitle}>
+              {businessAvatar("sm")}
+              <span>
+                <strong>{activeBusiness?.name || "Workspace Tools"}</strong>
+                <small>
+                  {workspaceLabel} · {roleLabel}
+                </small>
+              </span>
+            </div>
+            <button
+              type="button"
+              className={styles.iconBtn}
+              onClick={() => setMobileDrawerOpen(false)}
+              aria-label="Close menu"
+            >
+              <Icon name="x" size={17} />
+            </button>
+          </div>
+
+          <div className={styles.drawerGrid}>
+            {mobileDrawerLinks.map((x) => {
+              const active = isActive(x);
+              return (
+                <Link
+                  key={x.href}
+                  href={x.href}
+                  onClick={() => setMobileDrawerOpen(false)}
+                  className={`${styles.drawerCard} ${active ? styles.drawerCardActive : ""}`}
+                >
+                  <span className={styles.drawerCardIcon}>
+                    <Icon name={routeIcon(x.href)} size={20} />
+                  </span>
+                  <span className={styles.drawerCardLabel}>{x.label}</span>
+                </Link>
+              );
+            })}
+          </div>
+
+          {businesses.length > 1 && (
+            <div className={styles.drawerSection}>
+              <div className={styles.menuLabel}>{t("shell.businesses", "Businesses")}</div>
+              {businesses.map((b) => {
+                const current = b.id === activeBusiness?.id;
                 return (
-                  <Link
-                    key={x.href}
-                    href={x.href}
-                    onClick={() => setMobileDrawerOpen(false)}
-                    className={`${styles.drawerCard} ${active ? styles.drawerCardActive : ""}`}
+                  <button
+                    key={b.id}
+                    type="button"
+                    className={`${styles.menuItem} ${current ? styles.menuItemOn : ""}`}
+                    onClick={() => {
+                      if (!current) switchBusiness(b.id);
+                      setMobileDrawerOpen(false);
+                    }}
                   >
-                    <span className={styles.drawerCardIcon}>
-                      <Icon name={routeIcon(x.href)} size={20} />
+                    <span className={`${styles.bizAvatar} ${styles.bizAvatarSm}`}>{initials(b.name)}</span>
+                    <span className={styles.menuItemText}>
+                      <strong>{b.name}</strong>
+                      <small>{b.businessType}</small>
                     </span>
-                    <span className={styles.drawerCardLabel}>{x.label}</span>
-                  </Link>
+                    {current && <Icon name="check" size={15} strokeWidth={2} className={styles.menuCheck} />}
+                  </button>
                 );
               })}
             </div>
+          )}
 
-            {businesses.length > 1 && (
-              <div className={styles.drawerSection}>
-                <div className={styles.menuLabel}>{t("shell.businesses", "Businesses")}</div>
-                {businesses.map((b) => {
-                  const current = b.id === activeBusiness?.id;
-                  return (
-                    <button
-                      key={b.id}
-                      type="button"
-                      className={`${styles.menuItem} ${current ? styles.menuItemOn : ""}`}
-                      onClick={() => {
-                        if (!current) switchBusiness(b.id);
-                        setMobileDrawerOpen(false);
-                      }}
-                    >
-                      <span className={`${styles.bizAvatar} ${styles.bizAvatarSm}`}>{initials(b.name)}</span>
-                      <span className={styles.menuItemText}>
-                        <strong>{b.name}</strong>
-                        <small>{b.businessType}</small>
-                      </span>
-                      {current && <Icon name="check" size={15} strokeWidth={2} className={styles.menuCheck} />}
-                    </button>
-                  );
-                })}
-              </div>
-            )}
-
-            {(isPro || isTrialActive) && (
-              <Link href="/payments" className={styles.drawerPlan} onClick={() => setMobileDrawerOpen(false)}>
-                <Icon name={isPro ? "shield" : "sparkle"} size={16} />
-                <span>
-                  {isPro
-                    ? `Almadel Pro · ${t("shell.active_plan", "Active Plan")}`
-                    : `${t("shell.free_trial", "30-Day Free Trial")}${
-                        trialDays !== undefined ? ` · ${trialDays} ${t("shell.days_remaining", "days remaining")}` : ""
-                      }`}
-                </span>
-                <Icon name="right" size={15} />
-              </Link>
-            )}
-
-            <div className={styles.drawerFoot}>
-              <span className={styles.drawerUser}>
-                <b aria-hidden>{initials(user.name)}</b>
-                <span>
-                  <strong>{user.name}</strong>
-                  <small>{roleLabel}</small>
-                </span>
+          {(isPro || isTrialActive) && (
+            <Link href="/payments" className={styles.drawerPlan} onClick={() => setMobileDrawerOpen(false)}>
+              <Icon name={isPro ? "shield" : "sparkle"} size={16} />
+              <span>
+                {isPro
+                  ? `Almadel Pro · ${t("shell.active_plan", "Active Plan")}`
+                  : `${t("shell.free_trial", "30-Day Free Trial")}${
+                      trialDays !== undefined ? ` · ${trialDays} ${t("shell.days_remaining", "days remaining")}` : ""
+                    }`}
               </span>
-              <LanguageSwitcher variant="pill" />
-              <button type="button" onClick={handleSignOut} className={styles.signOut}>
-                <Icon name="logout" size={15} />
-                {t("shell.sign_out", "Sign out")}
-              </button>
-            </div>
+              <Icon name="right" size={15} />
+            </Link>
+          )}
+
+          <div className={styles.drawerFoot}>
+            <span className={styles.drawerUser}>
+              <b aria-hidden>{initials(user.name)}</b>
+              <span>
+                <strong>{user.name}</strong>
+                <small>{roleLabel}</small>
+              </span>
+            </span>
+            <LanguageSwitcher variant="pill" />
+            <button type="button" onClick={handleSignOut} className={styles.signOut}>
+              <Icon name="logout" size={15} />
+              {t("shell.sign_out", "Sign out")}
+            </button>
           </div>
         </div>
-      )}
+      </Overlay>
 
       {/* ================= Quick navigation palette ================= */}
-      {paletteOpen && (
-        <div className={styles.paletteBackdrop} onClick={() => setPaletteOpen(false)} role="presentation">
-          <div
-            className={styles.palette}
-            role="dialog"
-            aria-modal="true"
-            aria-label="Jump to a page"
-            onClick={(e) => e.stopPropagation()}
-          >
-            <div className={styles.paletteInput}>
-              <Icon name="search" size={18} />
-              <input
-                ref={paletteInputRef}
-                value={paletteQuery}
-                onChange={(e) => {
-                  setPaletteQuery(e.target.value);
-                  setPaletteIndex(0);
-                }}
-                onKeyDown={(e) => {
-                  if (e.key === "ArrowDown") {
-                    e.preventDefault();
-                    setPaletteIndex((i) => Math.min(i + 1, Math.max(paletteResults.length - 1, 0)));
-                  } else if (e.key === "ArrowUp") {
-                    e.preventDefault();
-                    setPaletteIndex((i) => Math.max(i - 1, 0));
-                  } else if (e.key === "Enter") {
-                    const target = paletteResults[paletteIndex];
-                    if (target) goToPaletteResult(target.href);
-                  } else if (e.key === "Escape") {
-                    setPaletteOpen(false);
-                  }
-                }}
-                placeholder={t("shell.jump_placeholder", "Search pages — Khata, Stock, Daily Closing…")}
-                aria-label="Search pages"
-              />
-              <kbd>esc</kbd>
-            </div>
-            <div className={styles.paletteList} role="listbox">
-              {paletteResults.length === 0 && <div className={styles.paletteEmpty}>No matching pages</div>}
-              {paletteResults.map((d, i) => (
-                <button
-                  key={d.href + d.label}
-                  type="button"
-                  role="option"
-                  aria-selected={i === paletteIndex}
-                  className={`${styles.paletteItem} ${i === paletteIndex ? styles.paletteItemOn : ""}`}
-                  onMouseEnter={() => setPaletteIndex(i)}
-                  onClick={() => goToPaletteResult(d.href)}
-                >
-                  <Icon name={routeIcon(d.href)} size={16} />
-                  <span className={styles.paletteLabel}>
-                    {d.parent ? <span className={styles.paletteParent}>{d.parent} / </span> : null}
-                    {d.label}
-                  </span>
-                  {pathname === d.href && <span className={styles.paletteHere}>Current</span>}
-                </button>
-              ))}
-            </div>
-            <div className={styles.paletteFoot}>
-              <span>↑↓ navigate</span>
-              <span>↵ open</span>
-              <span className={styles.spacer} />
-              <span>{workspaceLabel} workspace</span>
-            </div>
+      <Overlay open={paletteOpen} onClose={() => setPaletteOpen(false)} variant="palette" className={styles.paletteBackdrop} role="presentation">
+        <div className={styles.palette} role="dialog" aria-modal="true" aria-label="Jump to a page">
+          <div className={styles.paletteInput}>
+            <Icon name="search" size={18} />
+            <input
+              ref={paletteInputRef}
+              value={paletteQuery}
+              onChange={(e) => {
+                setPaletteQuery(e.target.value);
+                setPaletteIndex(0);
+              }}
+              onKeyDown={(e) => {
+                if (e.key === "ArrowDown") {
+                  e.preventDefault();
+                  setPaletteIndex((i) => Math.min(i + 1, Math.max(paletteResults.length - 1, 0)));
+                } else if (e.key === "ArrowUp") {
+                  e.preventDefault();
+                  setPaletteIndex((i) => Math.max(i - 1, 0));
+                } else if (e.key === "Enter") {
+                  const target = paletteResults[paletteIndex];
+                  if (target) goToPaletteResult(target.href);
+                } else if (e.key === "Escape") {
+                  setPaletteOpen(false);
+                }
+              }}
+              placeholder={t("shell.jump_placeholder", "Search pages — Khata, Stock, Daily Closing…")}
+              aria-label="Search pages"
+            />
+            <kbd>esc</kbd>
+          </div>
+          <div className={styles.paletteList} role="listbox">
+            {paletteResults.length === 0 && <div className={styles.paletteEmpty}>No matching pages</div>}
+            {paletteResults.map((d, i) => (
+              <button
+                key={d.href + d.label}
+                type="button"
+                role="option"
+                aria-selected={i === paletteIndex}
+                className={`${styles.paletteItem} ${i === paletteIndex ? styles.paletteItemOn : ""}`}
+                onMouseEnter={() => setPaletteIndex(i)}
+                onClick={() => goToPaletteResult(d.href)}
+              >
+                <Icon name={routeIcon(d.href)} size={16} />
+                <span className={styles.paletteLabel}>
+                  {d.parent ? <span className={styles.paletteParent}>{d.parent} / </span> : null}
+                  {d.label}
+                </span>
+                {pathname === d.href && <span className={styles.paletteHere}>Current</span>}
+              </button>
+            ))}
+          </div>
+          <div className={styles.paletteFoot}>
+            <span>↑↓ navigate</span>
+            <span>↵ open</span>
+            <span className={styles.spacer} />
+            <span>{workspaceLabel} workspace</span>
           </div>
         </div>
-      )}
+      </Overlay>
     </div>
   );
 }

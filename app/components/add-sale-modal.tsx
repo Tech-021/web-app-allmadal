@@ -1,588 +1,925 @@
 "use client";
 
-import React, { useState, useEffect, useMemo, useRef, FormEvent } from "react";
-import { api, fetchProductCatalog, Product } from "@/app/lib/api";
+import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { AnimatePresence, motion, useDragControls, type PanInfo } from "framer-motion";
+import { api, fetchProductCatalog, Product, resolveImageUrl } from "@/app/lib/api";
 import { useToast } from "@/app/components/toast-context";
 import { useBusiness } from "@/app/components/business-context";
+import { useAuth } from "@/hooks/useAuth";
+import { useLanguage } from "@/app/components/language-context";
 import { logActivity } from "@/app/lib/logger";
 import { DetailedSaleReceipt, PosReceiptModal } from "@/app/components/pos-receipt-modal";
-import { formatCurrencyInput, parseCurrencyInput } from "@/app/lib/validators";
-import { Icon, type IconName } from "@/app/components/icons";
-import ui from "@/app/components/workspace-ui.module.css";
+import { CameraBarcodeScannerModal } from "@/app/components/camera-barcode-scanner-modal";
+import { parseCurrencyInput } from "@/app/lib/validators";
+import { formatRs } from "@/app/components/figures";
+import { useDebounce } from "@/hooks/useDebounce";
+import { Icon } from "@/app/components/icons";
+import { EASE, EASE_EXIT } from "@/app/components/motion";
 import sm from "./add-sale-modal.module.css";
 
-interface CartLine {
-  productId: number;
-  productName: string;
-  barcode?: string;
-  price: number;
-  quantity: number;
-  maxStock: number;
-}
+/* New Sale — the bottom-drawer POS workspace.
+   Product grid on the left, the bill on the right (two steps on mobile).
+   Checkout logic matches the counter POS: barcode Enter, camera scan, product default discounts,
+   optional bill discount, cash tender with change. */
 
-interface CustomerOption {
-  id: number;
-  name: string;
-  mobile: string;
-}
+type CartLine = {
+  product: Product;
+  quantity: number;
+  discountType: "none" | "fixed" | "percentage";
+  discountValue: number;
+};
+
+type CustomerOption = { id: number; name: string; mobile: string; currentBalance?: number };
+type Status = "idle" | "busy" | "done" | "error";
 
 interface AddSaleModalProps {
   isOpen: boolean;
   onClose: () => void;
   onSaleCompleted?: () => void;
+  /** Kept for compatibility; New Sale always presents as the bottom drawer. */
+  variant?: "modal" | "drawer";
 }
 
+const priceOf = (p: Product) => Number(p.sellingPrice ?? p.price ?? 0);
+const initialsOf = (name: string) =>
+  name
+    .split(/\s+/)
+    .map((w) => w[0])
+    .filter(Boolean)
+    .slice(0, 2)
+    .join("")
+    .toUpperCase() || "–";
+const monogram = (name: string) => {
+  const words = name.replace(/[^A-Za-z0-9 ]/g, " ").split(/\s+/).filter(Boolean);
+  const digits = name.match(/\d+/)?.[0] ?? "";
+  return ((words[0]?.[0] ?? "") + (words[1]?.[0] ?? "") + (digits ? digits.slice(0, 2) : "")).toUpperCase().slice(0, 3) || "–";
+};
+const lineDiscountOf = (c: CartLine) => {
+  const line = priceOf(c.product) * c.quantity;
+  if (c.discountType === "fixed") return Math.min(line, c.discountValue * c.quantity);
+  if (c.discountType === "percentage") return Math.round(line * (Math.min(100, c.discountValue) / 100));
+  return 0;
+};
+
 export function AddSaleModal({ isOpen, onClose, onSaleCompleted }: AddSaleModalProps) {
-  const { showToast } = useToast();
+  const { showToast, confirmDialog } = useToast();
   const { activeBusiness } = useBusiness();
-  const activeBusinessId = activeBusiness?.id ?? null;
+  const { user } = useAuth();
+  const { t } = useLanguage();
+  const allowDiscounts = activeBusiness?.allowDiscounts !== false;
 
   const [products, setProducts] = useState<Product[]>([]);
   const [customers, setCustomers] = useState<CustomerOption[]>([]);
-  const [loadingData, setLoadingData] = useState(false);
+  const [loading, setLoading] = useState(false);
 
-  // Cart state
-  const [lines, setLines] = useState<CartLine[]>([]);
+  const [query, setQuery] = useState("");
+  const [category, setCategory] = useState("All");
+  const [cart, setCart] = useState<CartLine[]>([]);
+  const [flash, setFlash] = useState<{ id: number; key: number } | null>(null);
 
-  // Customer state
-  const [customerMode, setCustomerMode] = useState<"walkin" | "existing">("walkin");
-  const [selectedCustomerId, setSelectedCustomerId] = useState<string>("");
-  const [walkinName, setWalkinName] = useState<string>("");
-  const [walkinMobile, setWalkinMobile] = useState<string>("");
+  const [customerId, setCustomerId] = useState<number | null>(null);
+  const [walkinName, setWalkinName] = useState("");
+  const [walkinMobile, setWalkinMobile] = useState("");
+  const [custOpen, setCustOpen] = useState(false);
+  const [custQuery, setCustQuery] = useState("");
+  const debouncedCustQuery = useDebounce(custQuery, 300);
 
-  // Discount state
+  const [discountOpen, setDiscountOpen] = useState(false);
   const [discountType, setDiscountType] = useState<"none" | "fixed" | "percentage">("none");
-  const [discountValue, setDiscountValue] = useState<string>("0");
+  const [discountValue, setDiscountValue] = useState("");
 
-  // Payment state
   const [paymentMethod, setPaymentMethod] = useState<"cash" | "online">("cash");
-  const [cashTendered, setCashTendered] = useState<string>("");
+  const [cashTendered, setCashTendered] = useState("");
 
-  // Submit & receipt
-  const [submitting, setSubmitting] = useState(false);
-  const [createdReceipt, setCreatedReceipt] = useState<DetailedSaleReceipt | null>(null);
-  const checkoutLockRef = useRef(false);
+  const [status, setStatus] = useState<Status>("idle");
+  const [errorMsg, setErrorMsg] = useState("");
+  const [receipt, setReceipt] = useState<DetailedSaleReceipt | null>(null);
+  const [scannerOpen, setScannerOpen] = useState(false);
+  const [scannerLast, setScannerLast] = useState<{ code: string; productName: string; price?: number; found: boolean } | null>(null);
+  const [mobileStep, setMobileStep] = useState<"browse" | "bill">("browse");
 
-  // Reset form and load catalog when modal opens or active business changes.
-  useEffect(() => {
-    if (!isOpen) return;
+  const dragControls = useDragControls();
+  const searchRef = useRef<HTMLInputElement | null>(null);
+  const lockRef = useRef(false);
+  const custRef = useRef<HTMLDivElement | null>(null);
 
-    setLines([
-      {
-        productId: 0,
-        productName: "",
-        price: 0,
-        quantity: 1,
-        maxStock: 0,
-      },
-    ]);
-    setCustomerMode("walkin");
-    setSelectedCustomerId("");
+  const businessId = activeBusiness?.id ?? null;
+
+  const reset = useCallback(() => {
+    setQuery("");
+    setCategory("All");
+    setCart([]);
+    setCustomerId(null);
     setWalkinName("");
     setWalkinMobile("");
+    setCustOpen(false);
+    setCustQuery("");
+    setDiscountOpen(false);
     setDiscountType("none");
-    setDiscountValue("0");
+    setDiscountValue("");
     setPaymentMethod("cash");
     setCashTendered("");
-    setCreatedReceipt(null);
+    setStatus("idle");
+    setErrorMsg("");
+    setMobileStep("browse");
+  }, []);
 
-    if (!activeBusinessId) {
-      setProducts([]);
-      setCustomers([]);
-      setLoadingData(false);
-      return;
-    }
-
-    let mounted = true;
-    async function fetchData() {
-      setLoadingData(true);
-      try {
-        const [prodRes, custRes] = await Promise.all([
-          fetchProductCatalog().catch(() => []),
-          api<{ customers: CustomerOption[] }>("/customers").catch(() => ({ customers: [] })),
-        ]);
-        if (mounted) {
-          setProducts(Array.isArray(prodRes) ? prodRes : []);
-          setCustomers(custRes.customers || []);
-        }
-      } catch (e) {
-        console.error("Failed to load POS data:", e);
-      } finally {
-        if (mounted) setLoadingData(false);
-      }
-    }
-
-    void fetchData();
-    return () => {
-      mounted = false;
-    };
-  }, [isOpen, activeBusinessId]);
-
-  // Handle line change
-  const handleProductSelect = (index: number, productId: number) => {
-    const prod = products.find((p) => p.id === productId);
-    if (!prod) return;
-
-    const updated = [...lines];
-    const unitPrice = Number(prod.sellingPrice ?? prod.price ?? 0);
-    updated[index] = {
-      productId: prod.id,
-      productName: prod.name,
-      barcode: prod.barcode || "",
-      price: unitPrice,
-      quantity: 1,
-      maxStock: Number(prod.stock || 0),
-    };
-    setLines(updated);
-  };
-
-  const handleQuantityChange = (index: number, qty: number) => {
-    const updated = [...lines];
-    const max = updated[index].maxStock;
-    const finalQty = Math.max(1, max > 0 ? Math.min(qty, max) : qty);
-    updated[index].quantity = finalQty;
-    setLines(updated);
-  };
-
-  const handleAddLine = () => {
-    setLines([
-      ...lines,
-      {
-        productId: 0,
-        productName: "",
-        price: 0,
-        quantity: 1,
-        maxStock: 0,
-      },
-    ]);
-  };
-
-  const handleRemoveLine = (index: number) => {
-    if (lines.length <= 1) {
-      setLines([
-        {
-          productId: 0,
-          productName: "",
-          price: 0,
-          quantity: 1,
-          maxStock: 0,
-        },
-      ]);
-      return;
-    }
-    setLines(lines.filter((_, i) => i !== index));
-  };
-
-  // Calculations
-  const subtotal = useMemo(() => {
-    return lines.reduce((acc, curr) => {
-      if (!curr.productId) return acc;
-      return acc + curr.price * curr.quantity;
-    }, 0);
-  }, [lines]);
-
-  const discountAmount = useMemo(() => {
-    const val = Number(parseCurrencyInput(discountValue)) || 0;
-    if (discountType === "fixed") {
-      return Math.min(subtotal, Math.max(0, val));
-    }
-    if (discountType === "percentage") {
-      const pct = Math.min(100, Math.max(0, val));
-      return Math.round((subtotal * pct) / 100);
-    }
-    return 0;
-  }, [subtotal, discountType, discountValue]);
-
-  const grandTotal = useMemo(() => {
-    return Math.max(0, subtotal - discountAmount);
-  }, [subtotal, discountAmount]);
-
-  const changeDue = useMemo(() => {
-    if (paymentMethod !== "cash") return 0;
-    const tendered = Number(parseCurrencyInput(cashTendered)) || 0;
-    return Math.max(0, tendered - grandTotal);
-  }, [cashTendered, grandTotal, paymentMethod]);
-
-  const handleSubmit = async (e: FormEvent) => {
-    e.preventDefault();
-
-    if (checkoutLockRef.current) return;
-    checkoutLockRef.current = true;
-    setSubmitting(true);
-
+  const loadCatalog = useCallback(async () => {
+    if (!businessId) return;
+    setLoading(true);
     try {
-      const validLines = lines.filter((l) => l.productId > 0);
-      if (validLines.length === 0) {
-        showToast("Please select at least one product.", "error");
-        return;
-      }
+      const [prod, cust] = await Promise.all([
+        fetchProductCatalog().catch(() => [] as Product[]),
+        api<{ customers: CustomerOption[] }>("/customers?limit=100").catch(() => ({ customers: [] as CustomerOption[] })),
+      ]);
+      setProducts(prod);
+      setCustomers(cust.customers || []);
+    } finally {
+      setLoading(false);
+    }
+  }, [businessId]);
 
-      for (const l of validLines) {
-        if (l.maxStock > 0 && l.quantity > l.maxStock) {
-          showToast(`Quantity for ${l.productName} exceeds available stock (${l.maxStock}).`, "error");
-          return;
-        }
-      }
+  // Fresh bill + catalog every time the drawer opens
+  useEffect(() => {
+    if (!isOpen) return;
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    reset();
+    setReceipt(null);
+    void loadCatalog();
+    const id = window.setTimeout(() => searchRef.current?.focus(), 380);
+    return () => window.clearTimeout(id);
+  }, [isOpen, businessId, reset, loadCatalog]);
 
-      let customerName = walkinName.trim() || "Walk-in Customer";
-      let customerMobile = walkinMobile.trim();
+  // Server-side customer search when the list on hand doesn't have a match
+  useEffect(() => {
+    const q = debouncedCustQuery.trim();
+    if (!isOpen || q.length < 2) return;
+    let live = true;
+    void api<{ customers: CustomerOption[] }>(`/customers?limit=20&q=${encodeURIComponent(q)}`)
+      .then((r) => {
+        if (!live) return;
+        setCustomers((prev) => {
+          const seen = new Set(prev.map((c) => c.id));
+          return [...prev, ...(r.customers || []).filter((c) => !seen.has(c.id))];
+        });
+      })
+      .catch(() => undefined);
+    return () => {
+      live = false;
+    };
+  }, [debouncedCustQuery, isOpen]);
 
-      if (customerMode === "existing" && selectedCustomerId) {
-        const selected = customers.find((c) => String(c.id) === selectedCustomerId);
-        if (selected) {
-          customerName = selected.name;
-          customerMobile = selected.mobile;
-        }
-      }
+  // Close the customer popover on outside click
+  useEffect(() => {
+    if (!custOpen) return;
+    const onDown = (e: MouseEvent) => {
+      if (custRef.current && !custRef.current.contains(e.target as Node)) setCustOpen(false);
+    };
+    document.addEventListener("mousedown", onDown);
+    return () => document.removeEventListener("mousedown", onDown);
+  }, [custOpen]);
 
-      const payload = {
-        items: validLines.map((l) => ({
-          productId: l.productId,
-          barcode: l.barcode || undefined,
-          quantity: l.quantity,
-        })),
-        customerName,
-        customerMobile: customerMobile || undefined,
-        discountType,
-        discountValue: Number(parseCurrencyInput(discountValue)) || 0,
-        paymentMethod,
-      };
+  /* ---------- catalog ---------- */
 
-      const response = await api<{
-        id: number;
-        invoiceNumber: string;
-        createdAt: string;
-        totalAmount: number;
-        subtotal: number;
-        discountAmount?: number;
-      }>("/sales/checkout", {
+  const categories = useMemo(() => {
+    const counts = new Map<string, number>();
+    products.forEach((p) => {
+      if (p.category) counts.set(p.category, (counts.get(p.category) || 0) + 1);
+    });
+    return [{ name: "All", count: products.length }, ...Array.from(counts, ([name, count]) => ({ name, count }))];
+  }, [products]);
+
+  const visible = useMemo(() => {
+    const q = query.trim().toLowerCase();
+    return products.filter((p) => {
+      if (category !== "All" && p.category !== category) return false;
+      if (!q) return true;
+      return [p.name, p.barcode, p.sku, p.category].some((v) => (v || "").toLowerCase().includes(q));
+    });
+  }, [products, query, category]);
+
+  /* ---------- cart ---------- */
+
+  const qtyOf = (id: number) => cart.find((c) => c.product.id === id)?.quantity ?? 0;
+
+  const add = (product: Product) => {
+    if (status === "busy" || status === "done") return;
+    const stock = Number(product.stock || 0);
+    const existing = cart.find((c) => c.product.id === product.id);
+    if (stock <= 0) {
+      showToast(t("sale.out_of_stock", "{name} is out of stock.").replace("{name}", product.name), "info");
+      return;
+    }
+    if (existing && existing.quantity >= stock) {
+      showToast(t("sale.only_in_stock", "Only {n} in stock.").replace("{n}", String(stock)), "info");
+      return;
+    }
+    setCart((prev) =>
+      existing
+        ? prev.map((c) => (c.product.id === product.id ? { ...c, quantity: c.quantity + 1 } : c))
+        : [
+            ...prev,
+            {
+              product,
+              quantity: 1,
+              discountType: allowDiscounts ? product.discountType || "none" : "none",
+              discountValue: allowDiscounts ? Number(product.discountValue || 0) : 0,
+            },
+          ],
+    );
+    setFlash((f) => ({ id: product.id, key: (f?.key ?? 0) + 1 }));
+    if (status === "error") setStatus("idle");
+  };
+
+  const setQty = (id: number, qty: number) => {
+    setCart((prev) =>
+      prev
+        .map((c) => {
+          if (c.product.id !== id) return c;
+          const stock = Number(c.product.stock || 0);
+          return { ...c, quantity: stock > 0 ? Math.min(qty, stock) : qty };
+        })
+        .filter((c) => c.quantity > 0),
+    );
+  };
+
+  // Hardware scanners type the code and press Enter
+  const onSearchKey = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (e.key !== "Enter") return;
+    const code = query.trim().toLowerCase();
+    if (!code) return;
+    e.preventDefault();
+    const exact = products.find((p) => (p.barcode || "").toLowerCase() === code || (p.sku || "").toLowerCase() === code);
+    const target = exact ?? (visible.length === 1 ? visible[0] : undefined);
+    if (target) {
+      add(target);
+      setQuery("");
+    } else {
+      showToast(t("sale.no_match", "No product matches “{q}”.").replace("{q}", query.trim()), "info");
+    }
+  };
+
+  const onCameraScan = (code: string) => {
+    const c = code.trim().toLowerCase();
+    const match = products.find((p) => (p.barcode || "").toLowerCase() === c || (p.sku || "").toLowerCase() === c || String(p.id) === c);
+    if (match) {
+      add(match);
+      setScannerLast({ code, productName: match.name, price: priceOf(match), found: true });
+    } else {
+      setScannerLast({ code, productName: t("scanner.not_found", "Product not found"), found: false });
+    }
+  };
+
+  /* ---------- totals ---------- */
+
+  const gross = cart.reduce((a, c) => a + priceOf(c.product) * c.quantity, 0);
+  const lineDiscounts = cart.reduce((a, c) => a + lineDiscountOf(c), 0);
+  const afterLines = Math.max(0, gross - lineDiscounts);
+  const billDiscount = (() => {
+    if (!allowDiscounts) return 0;
+    const v = Number(parseCurrencyInput(discountValue)) || 0;
+    if (discountType === "fixed") return Math.min(afterLines, Math.max(0, v));
+    if (discountType === "percentage") return Math.round((afterLines * Math.min(100, Math.max(0, v))) / 100);
+    return 0;
+  })();
+  const discountTotal = lineDiscounts + billDiscount;
+  const total = Math.max(0, gross - discountTotal);
+  const items = cart.reduce((a, c) => a + c.quantity, 0);
+  const tendered = cashTendered.trim() === "" ? total : Number(parseCurrencyInput(cashTendered)) || 0;
+  const change = paymentMethod === "cash" ? Math.max(0, tendered - total) : 0;
+  const shortCash = paymentMethod === "cash" && tendered < total;
+  const quickCash = Array.from(new Set([total, Math.ceil(total / 500) * 500, Math.ceil(total / 1000) * 1000, Math.ceil(total / 5000) * 5000]))
+    .filter((v) => v >= total && v > 0)
+    .slice(0, 3);
+
+  const customer = customers.find((c) => c.id === customerId) ?? null;
+  const owes = Number(customer?.currentBalance || 0);
+
+  /* ---------- checkout ---------- */
+
+  const complete = async () => {
+    if (lockRef.current || status === "busy" || status === "done") return;
+    if (!cart.length) return;
+    if (shortCash) {
+      setStatus("error");
+      setErrorMsg(t("sale.cash_short", "Cash received is less than the total (Rs {total}).").replace("{total}", formatRs(total)));
+      return;
+    }
+    lockRef.current = true;
+    setStatus("busy");
+    setErrorMsg("");
+    setCustOpen(false);
+    const customerName = customer?.name || walkinName.trim() || "Walk-in Customer";
+    const customerMobile = customer?.mobile || walkinMobile.trim();
+    try {
+      const res = await api<{ id: number; invoiceNumber: string; createdAt: string; totalAmount: number }>("/sales/checkout", {
         method: "POST",
-        body: JSON.stringify(payload),
+        body: JSON.stringify({
+          items: cart.map((c) => ({
+            productId: c.product.id,
+            barcode: c.product.barcode || undefined,
+            quantity: c.quantity,
+            discountType: c.discountType,
+            discountValue: c.discountValue,
+          })),
+          customerName,
+          customerMobile: customerMobile || undefined,
+          discountType: allowDiscounts ? discountType : "none",
+          discountValue: allowDiscounts ? Number(parseCurrencyInput(discountValue)) || 0 : 0,
+          paymentMethod,
+        }),
       });
-
-      const receiptObj: DetailedSaleReceipt = {
-        id: response.id,
-        invoiceNumber: response.invoiceNumber || `ALM-${response.id}`,
-        createdAt: response.createdAt || new Date().toISOString(),
+      const created: DetailedSaleReceipt = {
+        id: res.id,
+        invoiceNumber: res.invoiceNumber || `ALM-${res.id}`,
+        createdAt: res.createdAt || new Date().toISOString(),
         customerName,
         customerMobile,
-        items: validLines.map((l) => ({
-          name: l.productName,
-          quantity: l.quantity,
-          price: l.price,
-          total: l.price * l.quantity,
-        })),
-        subtotal,
-        discountAmount,
+        items: cart.map((c) => {
+          const rate = priceOf(c.product);
+          const d = lineDiscountOf(c);
+          return { name: c.product.name, quantity: c.quantity, price: rate, total: rate * c.quantity - d, discountAmount: d, discountType: c.discountType, discountValue: c.discountValue };
+        }),
+        subtotal: gross,
+        discountAmount: discountTotal,
         discountType,
-        totalAmount: response.totalAmount ?? grandTotal,
+        totalAmount: res.totalAmount ?? total,
         paymentMethod,
-        cashTendered: Number(parseCurrencyInput(cashTendered)) || undefined,
-        changeDue: paymentMethod === "cash" ? changeDue : undefined,
+        cashTendered: paymentMethod === "cash" ? tendered : undefined,
+        changeDue: paymentMethod === "cash" ? change : undefined,
+        cashierName: user?.name,
       };
-
-      setCreatedReceipt(receiptObj);
-      showToast(`Sale recorded successfully! Invoice #${receiptObj.invoiceNumber}`, "success");
-
-      logActivity(
-        "SALE_CREATE",
-        "Sales",
-        `Completed sale #${receiptObj.invoiceNumber} for ₨ ${grandTotal.toLocaleString()}`,
-        receiptObj.invoiceNumber,
-        {
-          invoiceNumber: receiptObj.invoiceNumber,
-          total: grandTotal,
-          itemsCount: validLines.length,
-          paymentMethod,
-        }
+      setStatus("done");
+      logActivity("SALE_CREATE", "Sales", `Completed sale #${created.invoiceNumber} for Rs ${formatRs(total)}`, created.invoiceNumber, {
+        invoiceNumber: created.invoiceNumber,
+        total,
+        itemsCount: cart.length,
+        paymentMethod,
+      });
+      showToast(
+        t("sale.completed_toast", "Sale completed · {inv} · Rs {total}").replace("{inv}", created.invoiceNumber).replace("{total}", formatRs(total)),
+        "success",
       );
-
-      if (onSaleCompleted) {
-        onSaleCompleted();
-      }
-    } catch (err: any) {
-      console.error("Sale checkout error:", err);
-      showToast(err.message || "Failed to complete sale.", "error");
+      onSaleCompleted?.();
+      window.setTimeout(() => setReceipt(created), 1000);
+    } catch (err) {
+      const message = err instanceof Error ? err.message : "";
+      setStatus("error");
+      setErrorMsg(message || t("sale.payment_failed_body", "The connection dropped before the sale was saved. Nothing was charged and your bill is kept."));
+      showToast(t("sale.payment_failed", "Payment failed"), "error");
     } finally {
-      checkoutLockRef.current = false;
-      setSubmitting(false);
+      lockRef.current = false;
     }
   };
 
-  if (!isOpen) return null;
+  /* ---------- closing ---------- */
 
-  const sectionTitle = (icon: IconName, label: string) => (
-    <span className="flex items-center gap-2 text-[12.5px] font-medium text-[var(--text-2)]">
-      <Icon name={icon} size={14} className="text-[var(--muted)]" />
-      {label}
-    </span>
-  );
+  const requestClose = async () => {
+    if (status === "busy") return;
+    if (cart.length > 0 && status !== "done") {
+      const discard = await confirmDialog({
+        title: t("sale.discard_title", "Discard this sale?"),
+        message: t("sale.discard_body", "{n} items · Rs {total} haven't been billed. Discarding clears the bill — this can't be undone.")
+          .replace("{n}", String(items))
+          .replace("{total}", formatRs(total)),
+        confirmLabel: t("sale.discard", "Discard sale"),
+        cancelLabel: t("sale.keep_editing", "Continue editing"),
+        danger: true,
+      });
+      if (!discard) return;
+    }
+    onClose();
+  };
+
+  // Keyboard: F2 search, F9 complete, Esc close (not while the receipt, scanner or a confirm is up)
+  useEffect(() => {
+    if (!isOpen || receipt || scannerOpen) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (document.querySelector('[role="alertdialog"]')) return;
+      if (e.key === "F2") {
+        e.preventDefault();
+        searchRef.current?.focus();
+      } else if (e.key === "F9") {
+        e.preventDefault();
+        void complete();
+      } else if (e.key === "Escape") {
+        if (custOpen) setCustOpen(false);
+        else void requestClose();
+      }
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  });
+
+  // The page recedes behind the sheet while it is up (Main board), and toasts move to the top edge.
+  useEffect(() => {
+    const html = document.documentElement;
+    html.classList.toggle("al-sale-open", isOpen);
+    return () => html.classList.remove("al-sale-open");
+  }, [isOpen]);
+
+  /** Pulled far or flung down: close (asks first if the bill has items; otherwise it springs back). */
+  const onSheetDragEnd = (_: unknown, info: PanInfo) => {
+    if (info.offset.y > 140 || info.velocity.y > 900) void requestClose();
+  };
+
+  const busy = status === "busy";
+  const done = status === "done";
 
   return (
     <>
-      <div
-        className={ui.modal}
-        role="dialog"
-        aria-modal="true"
-        aria-label="New sale"
-        onMouseDown={(e) => {
-          if (e.target === e.currentTarget && !createdReceipt) onClose();
-        }}
-      >
-        <div className={`${ui.sheet} ${sm.sheet}`}>
-          <div className={ui.sheetHead}>
-            <div className="flex min-w-0 items-center gap-2.5">
-              <span className={ui.iconTile}>
-                <Icon name="cart" size={15} />
-              </span>
-              <div className="min-w-0">
-                <h2>New sale / Bill Banayein</h2>
-                <p className="m-0 mt-0.5 truncate text-[12.5px] text-[var(--muted)]">{activeBusiness?.name || "Active Store"} · record a customer transaction</p>
-              </div>
-            </div>
-            <button type="button" onClick={onClose} className={ui.iconButton} aria-label="Close">
-              <Icon name="x" size={15} />
-            </button>
-          </div>
+      <AnimatePresence>
+        {isOpen && (
+          <motion.div
+            key="new-sale"
+            className={`${sm.scrim} al-sale-sheet`}
+            role="dialog"
+            aria-modal="true"
+            aria-label={t("sale.new_sale", "New sale")}
+            onMouseDown={(e) => {
+              if (e.target === e.currentTarget && !receipt) void requestClose();
+            }}
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1, transition: { duration: 0.32, ease: EASE } }}
+            exit={{ opacity: 0, transition: { duration: 0.28, ease: "linear" } }}
+          >
+            <motion.section
+              className={sm.sheet}
+              initial={{ y: "104%" }}
+              animate={{ y: 0, transition: { duration: 0.46, ease: EASE } }}
+              exit={{ y: "104%", transition: { duration: 0.3, ease: EASE_EXIT } }}
+              drag="y"
+              dragListener={false}
+              dragControls={dragControls}
+              dragConstraints={{ top: 0, bottom: 0 }}
+              dragElastic={{ top: 0, bottom: 1 }}
+              onDragEnd={onSheetDragEnd}
+            >
+              <button
+                type="button"
+                className={sm.handle}
+                aria-label={t("sale.drag_close", "Drag down to close the sale")}
+                onPointerDown={(e) => {
+                  if (status !== "busy") dragControls.start(e);
+                }}
+              >
+                <i />
+              </button>
 
-          <form onSubmit={handleSubmit} className="flex flex-col gap-5">
-            {/* 1. Items */}
-            <section className="flex flex-col gap-2.5">
-              <div className="flex items-center justify-between">
-                {sectionTitle("box", "Items")}
-                <button type="button" onClick={handleAddLine} className={`${ui.secondary} ${ui.btnSm}`}>
-                  <Icon name="plus" size={13} />
-                  Add item
-                </button>
-              </div>
-
-              {loadingData ? (
-                <div className="flex flex-col gap-2">
-                  <span className="al-skeleton block h-[52px] w-full" />
-                  <span className="al-skeleton block h-[52px] w-full" />
-                </div>
-              ) : products.length === 0 ? (
-                <div className={`${ui.notice} !border-[color-mix(in_oklab,var(--warn)_25%,transparent)] !bg-[var(--warn-soft)] !text-[var(--warn)]`}>
-                  <Icon name="alert" size={15} className="mt-px shrink-0" />
-                  No products in your catalogue yet. Add products from the Products page first.
-                </div>
-              ) : (
-                <div className="overflow-hidden rounded-[11px] border border-[var(--border)]">
-                  {lines.map((line, index) => (
-                    <div key={index} className={`${sm.line} ${index > 0 ? "border-t border-[var(--border)]" : ""}`}>
-                      <select
-                        value={line.productId || ""}
-                        onChange={(e) => handleProductSelect(index, Number(e.target.value))}
-                        className={`${ui.select} ${sm.product}`}
-                        required
-                        aria-label={`Product for line ${index + 1}`}
-                      >
-                        <option value="">Choose product…</option>
-                        {products.map((p) => {
-                          const pPrice = Number(p.sellingPrice ?? p.price ?? 0);
-                          return (
-                            <option key={p.id} value={p.id}>
-                              {p.name} {p.barcode ? `(${p.barcode})` : ""} — Rs {pPrice.toLocaleString()} · stock {p.stock}
-                            </option>
-                          );
-                        })}
-                      </select>
-
-                      <div className={sm.stepper}>
-                        <button type="button" onClick={() => handleQuantityChange(index, line.quantity - 1)} disabled={line.quantity <= 1} aria-label="Decrease quantity">
-                          <Icon name="minus" size={13} />
-                        </button>
-                        <input
-                          type="number"
-                          min="1"
-                          max={line.maxStock > 0 ? line.maxStock : undefined}
-                          value={line.quantity}
-                          onChange={(e) => handleQuantityChange(index, Number(e.target.value) || 1)}
-                          aria-label="Quantity"
-                        />
-                        <button
-                          type="button"
-                          onClick={() => handleQuantityChange(index, line.quantity + 1)}
-                          disabled={line.maxStock > 0 && line.quantity >= line.maxStock}
-                          aria-label="Increase quantity"
-                        >
-                          <Icon name="plus" size={13} />
-                        </button>
-                      </div>
-
-                      <div className={sm.lineTotal}>
-                        <span className="block font-mono text-[13px] font-medium">Rs {(line.price * line.quantity).toLocaleString()}</span>
-                        <span className="font-mono text-[11px] text-[var(--faint)]">@ {line.price.toLocaleString()}</span>
-                      </div>
-
-                      <button type="button" onClick={() => handleRemoveLine(index)} className={`${ui.iconButton} hover:!text-[var(--neg)]`} title="Remove item" aria-label="Remove item">
-                        <Icon name="trash" size={14} />
-                      </button>
-                    </div>
-                  ))}
-                </div>
-              )}
-            </section>
-
-            {/* 2. Customer */}
-            <section className="flex flex-col gap-2.5">
-              <div className="flex flex-wrap items-center justify-between gap-2">
-                {sectionTitle("user", "Customer")}
-                <div className={ui.segmented} role="tablist" aria-label="Customer type">
-                  <button type="button" role="tab" aria-selected={customerMode === "walkin"} onClick={() => setCustomerMode("walkin")} className={customerMode === "walkin" ? ui.segmentedOn : ""}>
-                    Walk-in
+              <header className={sm.head}>
+                {mobileStep === "bill" && (
+                  <button type="button" className={`${sm.iconBtn} ${sm.mobileOnly}`} onClick={() => setMobileStep("browse")} aria-label={t("sale.back", "Back to products")}>
+                    <Icon name="left" size={18} />
                   </button>
-                  <button type="button" role="tab" aria-selected={customerMode === "existing"} onClick={() => setCustomerMode("existing")} className={customerMode === "existing" ? ui.segmentedOn : ""}>
-                    Khata customer
-                  </button>
-                </div>
-              </div>
-
-              {customerMode === "walkin" ? (
-                <div className={ui.formGrid}>
-                  <div className={ui.field}>
-                    <label htmlFor="as-name">Name (optional)</label>
-                    <input id="as-name" type="text" placeholder="Walk-in / Bilal" value={walkinName} onChange={(e) => setWalkinName(e.target.value)} className={ui.input} />
-                  </div>
-                  <div className={ui.field}>
-                    <label htmlFor="as-mobile">Mobile / WhatsApp (optional)</label>
-                    <input id="as-mobile" type="tel" placeholder="03001234567" value={walkinMobile} onChange={(e) => setWalkinMobile(e.target.value)} className={`${ui.input} ${ui.inputMono}`} />
-                  </div>
-                </div>
-              ) : (
-                <div className={ui.field}>
-                  <label htmlFor="as-customer">Customer from khata</label>
-                  <select id="as-customer" value={selectedCustomerId} onChange={(e) => setSelectedCustomerId(e.target.value)} className={ui.select}>
-                    <option value="">Choose existing customer…</option>
-                    {customers.map((c) => (
-                      <option key={c.id} value={c.id}>
-                        {c.name} ({c.mobile})
-                      </option>
-                    ))}
-                  </select>
-                </div>
-              )}
-            </section>
-
-            {/* 3. Discount & payment */}
-            <div className={ui.formGrid}>
-              <section className="flex flex-col gap-2.5">
-                {sectionTitle("tag", "Discount")}
-                <div className="flex gap-2">
-                  <select value={discountType} onChange={(e) => setDiscountType(e.target.value as any)} className={ui.select} aria-label="Discount type">
-                    <option value="none">No discount</option>
-                    <option value="fixed">Fixed (Rs off)</option>
-                    <option value="percentage">Percent (% off)</option>
-                  </select>
-                  {discountType !== "none" && (
-                    <input
-                      type="text"
-                      inputMode="numeric"
-                      placeholder={discountType === "percentage" ? "10" : "500"}
-                      value={discountType === "fixed" ? formatCurrencyInput(discountValue) : discountValue}
-                      onChange={(e) => setDiscountValue(e.target.value)}
-                      className={`${ui.input} ${ui.inputMono}`}
-                      aria-label="Discount value"
-                    />
-                  )}
-                </div>
-                {discountAmount > 0 && (
-                  <span className="text-[12px] text-[var(--pos)]">
-                    Saving <span className="font-mono">Rs {discountAmount.toLocaleString()}</span>
-                  </span>
                 )}
-              </section>
-
-              <section className="flex flex-col gap-2.5">
-                {sectionTitle("card", "Payment")}
-                <div className={ui.segmented} role="radiogroup" aria-label="Payment method">
-                  <button type="button" role="radio" aria-checked={paymentMethod === "cash"} onClick={() => setPaymentMethod("cash")} className={`flex-1 justify-center ${paymentMethod === "cash" ? ui.segmentedOn : ""}`}>
-                    <Icon name="coins" size={13} />
-                    Cash
-                  </button>
-                  <button type="button" role="radio" aria-checked={paymentMethod === "online"} onClick={() => setPaymentMethod("online")} className={`flex-1 justify-center ${paymentMethod === "online" ? ui.segmentedOn : ""}`}>
-                    <Icon name="bank" size={13} />
-                    Online / bank
-                  </button>
+                <div className={sm.headTitle}>
+                  <h2>{mobileStep === "bill" ? <span className={sm.mobileTitle}>{t("sale.review_bill", "Review bill")}</span> : t("sale.new_sale", "New sale")}</h2>
+                  <span className={sm.badgeN}>
+                    {activeBusiness?.name || "Counter"} · {user?.name?.split(" ")[0] || "Staff"}
+                  </span>
                 </div>
-                {paymentMethod === "cash" && (
-                  <div className="flex items-end gap-3">
-                    <div className={`${ui.field} flex-1`}>
-                      <label htmlFor="as-tendered">Cash tendered (Rs)</label>
+                <span className={sm.keys}>
+                  <kbd>F2</kbd> {t("sale.search", "search")} <kbd>F9</kbd> {t("sale.complete", "complete")} <kbd>Esc</kbd> {t("sale.close", "close")}
+                </span>
+                <button type="button" className={sm.closeBtn} onClick={() => void requestClose()} disabled={busy} aria-label={t("sale.close_sale", "Close new sale")}>
+                  <Icon name="x" size={18} />
+                </button>
+              </header>
+
+              <div className={`${sm.body} ${mobileStep === "bill" ? sm.showBill : ""}`}>
+                {/* ================= Catalog ================= */}
+                <div className={sm.catalog}>
+                  <div className={sm.searchRow}>
+                    <div className={sm.searchBox}>
+                      <Icon name="search" size={17} />
                       <input
-                        id="as-tendered"
-                        type="text"
-                        inputMode="numeric"
-                        placeholder="5,000"
-                        value={formatCurrencyInput(cashTendered)}
-                        onChange={(e) => setCashTendered(e.target.value)}
-                        className={`${ui.input} ${ui.inputMono}`}
+                        ref={searchRef}
+                        value={query}
+                        onChange={(e) => setQuery(e.target.value)}
+                        onKeyDown={onSearchKey}
+                        placeholder={t("sale.search_placeholder", "Search product, SKU or scan barcode")}
+                        aria-label={t("sale.search_products", "Search products")}
                       />
+                      <kbd>F2</kbd>
                     </div>
-                    {changeDue > 0 && (
-                      <div className="pb-2 text-right">
-                        <span className="block text-[11.5px] text-[var(--muted)]">Change due</span>
-                        <strong className="font-mono text-[14px] font-medium text-[var(--pos)]">Rs {changeDue.toLocaleString()}</strong>
+                    <button type="button" className={sm.scanBtn} onClick={() => setScannerOpen(true)} aria-label={t("pos.scan_camera", "Scan with camera")}>
+                      <Icon name="scan" size={17} />
+                      <span>{t("sale.scan", "Scan")}</span>
+                    </button>
+                  </div>
+
+                  <div className={sm.chips} role="tablist" aria-label={t("sale.categories", "Categories")}>
+                    {categories.map((c) => (
+                      <button
+                        key={c.name}
+                        type="button"
+                        role="tab"
+                        aria-selected={category === c.name}
+                        className={`${sm.chip} ${category === c.name ? sm.chipOn : ""}`}
+                        onClick={() => setCategory(c.name)}
+                      >
+                        {c.name === "All" ? t("sale.all", "All") : c.name}
+                        <span>{c.count}</span>
+                      </button>
+                    ))}
+                  </div>
+
+                  <div className={sm.grid}>
+                    {loading &&
+                      products.length === 0 &&
+                      Array.from({ length: 8 }).map((_, i) => <span key={i} className={`${sm.cardSkeleton} al-skeleton`} aria-hidden />)}
+                    {visible.map((p) => {
+                      const stock = Number(p.stock || 0);
+                      const low = stock > 0 && stock <= Number(p.lowStockThreshold || 5);
+                      const q = qtyOf(p.id);
+                      const img = resolveImageUrl(p.imageUrl);
+                      const flashing = flash?.id === p.id;
+                      return (
+                        <button
+                          key={p.id}
+                          type="button"
+                          className={sm.card}
+                          onClick={() => add(p)}
+                          disabled={stock <= 0}
+                          aria-label={`${t("sale.add", "Add")} ${p.name}, Rs ${formatRs(priceOf(p))}${stock <= 0 ? `, ${t("sale.out", "out of stock")}` : ""}`}
+                        >
+                          <span className={sm.thumb}>
+                            {img ? (
+                              // eslint-disable-next-line @next/next/no-img-element
+                              <img src={img} alt="" />
+                            ) : (
+                              monogram(p.name)
+                            )}
+                            {q > 0 && <span className={sm.inCart}>× {q}</span>}
+                          </span>
+                          <span className={sm.cardName}>{p.name}</span>
+                          <span className={sm.cardFoot}>
+                            <span className={sm.mono}>Rs {formatRs(priceOf(p))}</span>
+                            <small style={{ color: stock <= 0 ? "var(--neg)" : low ? "var(--warn)" : undefined }}>
+                              {stock <= 0 ? t("sale.out_of_stock_short", "Out of stock") : low ? `${stock} ${t("sale.left", "left")}` : `${stock} ${t("sale.in_stock", "in stock")}`}
+                            </small>
+                          </span>
+                          <span className={`${sm.addBtn} ${q > 0 ? sm.addBtnOn : ""}`} aria-hidden>
+                            {q > 0 ? q : <Icon name="plus" size={18} strokeWidth={2} />}
+                          </span>
+                          {flashing && (
+                            <span key={flash?.key} className={sm.plusOne} aria-hidden>
+                              +1
+                            </span>
+                          )}
+                        </button>
+                      );
+                    })}
+                    {!loading && visible.length === 0 && (
+                      <div className={sm.noResults}>
+                        <b>{t("sale.nothing_found", "Nothing matches “{q}”").replace("{q}", query || category)}</b>
+                        <span>{t("sale.nothing_found_hint", "Try a product name, SKU or barcode.")}</span>
                       </div>
                     )}
                   </div>
-                )}
-              </section>
-            </div>
 
-            {/* 4. Summary */}
-            <dl className={`${ui.kv} ${sm.summary}`}>
-              <div>
-                <dt>Subtotal · {lines.filter((l) => l.productId > 0).length} items</dt>
-                <dd className="font-mono">Rs {subtotal.toLocaleString()}</dd>
-              </div>
-              {discountAmount > 0 && (
-                <div>
-                  <dt>Discount</dt>
-                  <dd className="font-mono !text-[var(--pos)]">− Rs {discountAmount.toLocaleString()}</dd>
+                  {/* Mobile: sticky bill bar */}
+                  <button type="button" className={sm.billBar} onClick={() => setMobileStep("bill")} disabled={!cart.length}>
+                    <span>
+                      <b className={sm.mono}>{items}</b>
+                      {cart.length ? t("sale.review_bill", "Review bill") : t("sale.add_items", "Add items to start")}
+                    </span>
+                    <span className={sm.mono}>Rs {formatRs(total)}</span>
+                  </button>
                 </div>
-              )}
-              <div className={ui.kvTotal}>
-                <dt>Total bill</dt>
-                <dd className="font-mono !text-[22px] tracking-[-0.03em]">Rs {grandTotal.toLocaleString()}</dd>
+
+                {/* ================= Bill ================= */}
+                <div className={sm.bill}>
+                  <div className={sm.custWrap} ref={custRef}>
+                    <div className={sm.eyebrow}>{t("sale.customer", "Customer")}</div>
+                    <button
+                      type="button"
+                      className={sm.custBtn}
+                      onClick={() => setCustOpen((o) => !o)}
+                      aria-haspopup="listbox"
+                      aria-expanded={custOpen}
+                      disabled={busy}
+                    >
+                      <span className={`${sm.av} ${customer ? sm.avOn : ""}`}>{customer ? initialsOf(customer.name) : "W"}</span>
+                      <span className={sm.custText}>
+                        <b>{customer?.name || walkinName || t("sale.walk_in", "Walk-in customer")}</b>
+                        <small>{customer ? customer.mobile : walkinMobile || t("sale.walk_in_hint", "Tap to choose a saved customer")}</small>
+                      </span>
+                      {owes > 0 && <span className={sm.owes}>{t("sale.owes", "Owes")} Rs {formatRs(owes)}</span>}
+                      <Icon name="down" size={15} />
+                    </button>
+                    {custOpen && (
+                      <div className={sm.pop} role="listbox" aria-label={t("sale.choose_customer", "Choose customer")}>
+                        <input
+                          className={sm.popSearch}
+                          value={custQuery}
+                          onChange={(e) => setCustQuery(e.target.value)}
+                          placeholder={t("sale.search_customer", "Search name or mobile")}
+                          autoFocus
+                        />
+                        <div className={sm.popList}>
+                          <button
+                            type="button"
+                            role="option"
+                            aria-selected={!customer}
+                            className={sm.opt}
+                            onClick={() => {
+                              setCustomerId(null);
+                              setCustOpen(false);
+                            }}
+                          >
+                            <span className={sm.av}>W</span>
+                            <span className={sm.custText}>
+                              <b>{t("sale.walk_in", "Walk-in customer")}</b>
+                              <small>{t("sale.no_account", "No saved account")}</small>
+                            </span>
+                          </button>
+                          {customers
+                            .filter((c) => {
+                              const q = custQuery.trim().toLowerCase();
+                              return !q || c.name.toLowerCase().includes(q) || (c.mobile || "").includes(q);
+                            })
+                            .slice(0, 30)
+                            .map((c) => (
+                              <button
+                                key={c.id}
+                                type="button"
+                                role="option"
+                                aria-selected={customerId === c.id}
+                                className={sm.opt}
+                                onClick={() => {
+                                  setCustomerId(c.id);
+                                  setCustOpen(false);
+                                }}
+                              >
+                                <span className={sm.av}>{initialsOf(c.name)}</span>
+                                <span className={sm.custText}>
+                                  <b>{c.name}</b>
+                                  <small>{c.mobile}</small>
+                                </span>
+                                {Number(c.currentBalance || 0) > 0 && <span className={`${sm.mono} ${sm.optBal}`}>Rs {formatRs(Number(c.currentBalance))}</span>}
+                              </button>
+                            ))}
+                        </div>
+                        {!customer && (
+                          <div className={sm.walkin}>
+                            <input value={walkinName} onChange={(e) => setWalkinName(e.target.value)} placeholder={t("sale.walkin_name", "Name (optional)")} />
+                            <input
+                              value={walkinMobile}
+                              onChange={(e) => setWalkinMobile(e.target.value)}
+                              placeholder={t("sale.walkin_mobile", "Mobile (optional)")}
+                              inputMode="tel"
+                            />
+                          </div>
+                        )}
+                      </div>
+                    )}
+                  </div>
+
+                  <div className={sm.lines}>
+                    {cart.length === 0 ? (
+                      <div className={sm.emptyBill}>
+                        <span>
+                          <Icon name="receipt" size={20} />
+                        </span>
+                        <b>{t("sale.bill_empty", "The bill is empty")}</b>
+                        <small>{t("sale.bill_empty_hint", "Scan a barcode or tap a product to start this sale.")}</small>
+                      </div>
+                    ) : (
+                      cart.map((c) => {
+                        const rate = priceOf(c.product);
+                        const d = lineDiscountOf(c);
+                        return (
+                          <div key={c.product.id} className={sm.line}>
+                            <div className={sm.lineMain}>
+                              <b>{c.product.name}</b>
+                              <small className={sm.mono}>
+                                Rs {formatRs(rate)} {t("sale.each", "each")}
+                                {d > 0 ? ` · −${formatRs(d)}` : ""}
+                              </small>
+                            </div>
+                            <div className={sm.step} role="group" aria-label={`${t("sale.qty_of", "Quantity of")} ${c.product.name}`}>
+                              <button type="button" onClick={() => setQty(c.product.id, c.quantity - 1)} aria-label={t("sale.decrease", "Decrease quantity")} disabled={busy}>
+                                <Icon name="minus" size={13} />
+                              </button>
+                              <span key={c.quantity} className={sm.bump}>
+                                {c.quantity}
+                              </span>
+                              <button type="button" onClick={() => setQty(c.product.id, c.quantity + 1)} aria-label={t("sale.increase", "Increase quantity")} disabled={busy}>
+                                <Icon name="plus" size={13} />
+                              </button>
+                            </div>
+                            <span className={`${sm.mono} ${sm.lineTotal}`}>{formatRs(rate * c.quantity - d)}</span>
+                          </div>
+                        );
+                      })
+                    )}
+                  </div>
+
+                  <div className={sm.foot}>
+                    <div className={sm.sums}>
+                      <div>
+                        <span>
+                          {t("sale.subtotal", "Subtotal")} · {items} {t("sale.items", "items")}
+                        </span>
+                        <span className={sm.mono}>{formatRs(gross)}</span>
+                      </div>
+                      {allowDiscounts && (
+                        <div>
+                          {discountOpen || discountType !== "none" ? (
+                            <span className={sm.discountCtl}>
+                              <span className={sm.miniSeg}>
+                                <button type="button" className={discountType !== "fixed" ? sm.miniOn : ""} onClick={() => setDiscountType("percentage")}>
+                                  %
+                                </button>
+                                <button type="button" className={discountType === "fixed" ? sm.miniOn : ""} onClick={() => setDiscountType("fixed")}>
+                                  Rs
+                                </button>
+                              </span>
+                              <input
+                                className={sm.mono}
+                                value={discountValue}
+                                onChange={(e) => {
+                                  setDiscountValue(e.target.value);
+                                  if (discountType === "none") setDiscountType("percentage");
+                                }}
+                                placeholder={discountType === "fixed" ? "200" : "5"}
+                                inputMode="decimal"
+                                aria-label={t("sale.discount", "Discount")}
+                                autoFocus
+                              />
+                              <button
+                                type="button"
+                                className={sm.textBtn}
+                                onClick={() => {
+                                  setDiscountOpen(false);
+                                  setDiscountType("none");
+                                  setDiscountValue("");
+                                }}
+                                aria-label={t("sale.remove_discount", "Remove discount")}
+                              >
+                                <Icon name="x" size={13} />
+                              </button>
+                            </span>
+                          ) : (
+                            <button type="button" className={sm.addDiscount} onClick={() => setDiscountOpen(true)}>
+                              + {t("sale.add_discount", "Add discount")}
+                            </button>
+                          )}
+                          <span className={sm.mono}>{discountTotal ? `− ${formatRs(discountTotal)}` : "0"}</span>
+                        </div>
+                      )}
+                    </div>
+                    <div className={sm.total}>
+                      <span>{t("sale.total", "Total")}</span>
+                      <span className={`${sm.mono} ${sm.totalFig}`}>
+                        <span className={sm.cur}>Rs</span>
+                        {formatRs(total)}
+                      </span>
+                    </div>
+
+                    <div className={sm.tiles} role="radiogroup" aria-label={t("sale.payment_method", "Payment method")}>
+                      {(
+                        [
+                          ["cash", t("payment.cash", "Cash"), t("sale.drawer", "Drawer"), "pkr", "var(--c-cash)"],
+                          ["online", t("payment.online", "Online"), t("sale.online_hint", "JazzCash · Easypaisa · Bank"), "phone", "var(--c-online)"],
+                        ] as const
+                      ).map(([id, label, hint, icon, color]) => (
+                        <button
+                          key={id}
+                          type="button"
+                          role="radio"
+                          aria-checked={paymentMethod === id}
+                          className={`${sm.tile} ${paymentMethod === id ? sm.tileOn : ""}`}
+                          onClick={() => setPaymentMethod(id)}
+                          disabled={busy}
+                        >
+                          <span className={sm.tileTop}>
+                            <span style={{ color, display: "inline-flex" }}>
+                              <Icon name={icon} size={17} />
+                            </span>
+                            <span className={sm.radio} />
+                          </span>
+                          <b>{label}</b>
+                          <small>{hint}</small>
+                        </button>
+                      ))}
+                    </div>
+
+                    {paymentMethod === "cash" && total > 0 && (
+                      <div className={sm.cashRow}>
+                        <span className={sm.sub}>{t("sale.received", "Received")}</span>
+                        {quickCash.map((v, i) => (
+                          <button
+                            key={v}
+                            type="button"
+                            className={`${sm.chip} ${sm.chipSm} ${tendered === v ? sm.chipOn : ""}`}
+                            onClick={() => setCashTendered(String(v))}
+                          >
+                            {i === 0 ? t("sale.exact", "Exact") : formatRs(v)}
+                          </button>
+                        ))}
+                        <input
+                          className={`${sm.cashInput} ${sm.mono}`}
+                          value={cashTendered}
+                          onChange={(e) => setCashTendered(e.target.value)}
+                          placeholder={formatRs(total)}
+                          inputMode="numeric"
+                          aria-label={t("sale.cash_received", "Cash received")}
+                        />
+                        <span className={sm.change}>
+                          {t("sale.change", "Change")} <b className={sm.mono}>Rs {formatRs(change)}</b>
+                        </span>
+                      </div>
+                    )}
+
+                    {status === "error" && (
+                      <div className={sm.errorBox} role="alert">
+                        <Icon name="alert" size={17} />
+                        <div>
+                          <b>{shortCash ? t("sale.cash_short_title", "Not enough cash") : t("sale.payment_failed", "Payment failed")}</b> — {errorMsg}
+                        </div>
+                      </div>
+                    )}
+
+                    <button
+                      type="button"
+                      className={sm.cta}
+                      onClick={() => void complete()}
+                      disabled={!cart.length || busy || done}
+                      aria-busy={busy}
+                      aria-keyshortcuts="F9"
+                    >
+                      {status === "idle" && (
+                        <>
+                          <span className={sm.ctaLabel}>{t("sale.complete_sale", "Complete sale")}</span>
+                          <span className={sm.mono}>Rs {formatRs(total)}</span>
+                          <kbd>F9</kbd>
+                        </>
+                      )}
+                      {busy && (
+                        <>
+                          <span className={sm.spin} />
+                          {t("sale.processing", "Processing sale…")}
+                        </>
+                      )}
+                      {status === "error" && (
+                        <>
+                          <Icon name="refresh" size={17} />
+                          {t("sale.retry", "Retry payment")} · Rs {formatRs(total)}
+                        </>
+                      )}
+                      {done && (
+                        <>
+                          <Icon name="check" size={18} strokeWidth={2.4} />
+                          {t("sale.completed", "Sale completed")}
+                        </>
+                      )}
+                    </button>
+                  </div>
+
+                  {done && (
+                    <div className={sm.success} role="status">
+                      <svg width="72" height="72" viewBox="0 0 72 72" aria-hidden>
+                        <circle className={sm.checkC} cx="36" cy="36" r="25" />
+                        <path className={sm.checkP} d="M25 37l7 7 15-16" />
+                      </svg>
+                      <b>{t("sale.completed", "Sale completed")}</b>
+                      <span className={`${sm.mono} ${sm.successFig}`}>Rs {formatRs(total)}</span>
+                      <small>
+                        {paymentMethod === "cash" ? t("payment.cash", "Cash") : t("payment.online", "Online")} · {customer?.name || walkinName || t("sale.walk_in", "Walk-in customer")}
+                      </small>
+                    </div>
+                  )}
+                </div>
               </div>
-            </dl>
+            </motion.section>
+          </motion.div>
+        )}
+      </AnimatePresence>
 
-            <div className={`${ui.formActions} !mt-0`}>
-              <button type="button" onClick={onClose} className={ui.secondary}>
-                Cancel
-              </button>
-              <button type="submit" disabled={submitting || subtotal === 0} className={`${ui.primary} ${ui.btnLg}`}>
-                {submitting ? (
-                  <>
-                    <span className="size-3.5 rounded-full border-2 border-current border-t-transparent [animation:almadelSpin_700ms_linear_infinite]" />
-                    Processing sale…
-                  </>
-                ) : (
-                  <>
-                    <Icon name="check" size={15} />
-                    Complete sale (Bill Banayein)
-                  </>
-                )}
-              </button>
-            </div>
-          </form>
-        </div>
-      </div>
+      <CameraBarcodeScannerModal
+        isOpen={scannerOpen}
+        onClose={() => setScannerOpen(false)}
+        onScan={onCameraScan}
+        continuous
+        lastScannedInfo={scannerLast}
+        title={t("scanner.title", "Scan barcode")}
+        subtitle={t("scanner.subtitle", "Point the camera at a product barcode to add it to the bill")}
+      />
 
-      {/* Instant Print Modal after sale */}
-      {createdReceipt && (
-        <PosReceiptModal
-          receipt={createdReceipt}
-          onClose={() => {
-            setCreatedReceipt(null);
-            onClose();
-          }}
-          onNewSale={() => {
-            setCreatedReceipt(null);
-          }}
-        />
-      )}
+      <PosReceiptModal
+        receipt={receipt}
+        onClose={() => {
+          setReceipt(null);
+          onClose();
+        }}
+        onNewSale={() => {
+          setReceipt(null);
+          reset();
+          void loadCatalog();
+        }}
+      />
     </>
   );
 }

@@ -12,6 +12,7 @@ import { Icon, type IconName } from "@/app/components/icons";
 import { FieldError, OnboardingFrame, StepHead, UserChip } from "@/app/components/onboarding-frame";
 import ob from "@/app/components/onboarding.module.css";
 import ui from "@/app/components/workspace-ui.module.css";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/app/components/ui/select";
 
 const BUSINESS_TYPES = [
   "Mobile Shop",
@@ -475,18 +476,18 @@ export default function SetupBusinessPage() {
                     <label className={ob.label} htmlFor="ob-category">
                       Business category
                     </label>
-                    <select
-                      id="ob-category"
-                      value={businessCategory}
-                      onChange={(e) => setBusinessCategory(e.target.value)}
-                      className={`${ui.select} sm:max-w-[320px]`}
-                    >
-                      {MOBILE_CATEGORIES.map((c) => (
-                        <option key={c} value={c}>
-                          {c}
-                        </option>
-                      ))}
-                    </select>
+                    <Select value={businessCategory} onValueChange={setBusinessCategory}>
+                      <SelectTrigger id="ob-category" className="sm:max-w-[320px]">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {MOBILE_CATEGORIES.map((c) => (
+                          <SelectItem key={c} value={c}>
+                            {c}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
                   </div>
                 )}
               </div>
@@ -621,13 +622,18 @@ export default function SetupBusinessPage() {
                           <label className={ob.label} htmlFor="ob-province">
                             Province / territory
                           </label>
-                          <select id="ob-province" value={province} onChange={(e) => setProvince(e.target.value)} className={ui.select}>
-                            {PROVINCES.map((p) => (
-                              <option key={p} value={p}>
-                                {p}
-                              </option>
-                            ))}
-                          </select>
+                          <Select value={province} onValueChange={setProvince}>
+                            <SelectTrigger id="ob-province">
+                              <SelectValue placeholder="Choose a province" />
+                            </SelectTrigger>
+                            <SelectContent>
+                              {PROVINCES.map((p) => (
+                                <SelectItem key={p} value={p}>
+                                  {p}
+                                </SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
                         </div>
                       </div>
                     </div>

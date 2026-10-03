@@ -18,11 +18,40 @@ import {
 import ui from "@/app/components/workspace-ui.module.css";
 import { PageHeader } from "@/app/components/page-layout";
 import { Icon } from "@/app/components/icons";
+import { useLanguage } from "@/app/components/language-context";
+import { useTheme } from "@/app/components/theme-context";
+import { useNavRole } from "@/hooks/useNavRole";
+import st from "./settings.module.css";
+
+type Snapshot = { form: Record<string, string>; logoUrl: string; allowDiscounts: boolean };
+
+const FIELD_LABELS: Record<string, string> = {
+  name: "owner name",
+  email: "email",
+  business: "store name",
+  mobileNumber: "store phone",
+  whatsappNumber: "WhatsApp",
+  address: "address",
+  city: "city",
+};
+
+const SECTIONS = [
+  { id: "workspace", label: "Workspace & region" },
+  { id: "logo", label: "Store logo" },
+  { id: "store", label: "Store details" },
+  { id: "owner", label: "Owner account" },
+  { id: "counter", label: "Counter rules" },
+] as const;
 
 export default function SettingsPage() {
   const { user, updateUser } = useAuth();
-  const { activeBusiness, reloadBusinesses } = useBusiness();
+  const { activeBusiness, reloadBusinesses, workspaceMode, setWorkspaceMode } = useBusiness();
   const { showToast } = useToast();
+  const { language, setLanguage } = useLanguage();
+  const { theme, setTheme } = useTheme();
+  const navRole = useNavRole();
+  const [snapshot, setSnapshot] = useState<Snapshot | null>(null);
+  const [activeSection, setActiveSection] = useState<string>(SECTIONS[0].id);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const [saving, setSaving] = useState(false);
@@ -42,7 +71,7 @@ export default function SettingsPage() {
   });
 
   useEffect(() => {
-    setForm({
+    const next = {
       name: user?.name || "",
       email: user?.email || "",
       business: activeBusiness?.name || "",
@@ -50,11 +79,46 @@ export default function SettingsPage() {
       whatsappNumber: activeBusiness?.whatsappNumber || "",
       address: activeBusiness?.address || "",
       city: activeBusiness?.city || "",
-    });
+    };
+    setForm(next);
     setLogoUrl(activeBusiness?.logoUrl || "");
     setAllowDiscounts(activeBusiness?.allowDiscounts ?? true);
+    setSnapshot({ form: next, logoUrl: activeBusiness?.logoUrl || "", allowDiscounts: activeBusiness?.allowDiscounts ?? true });
     setFieldErrors({});
   }, [user?.name, user?.email, activeBusiness]);
+
+  // Highlight the section in view in the sub-nav.
+  useEffect(() => {
+    const els = SECTIONS.map((x) => document.getElementById(`settings-${x.id}`)).filter((x): x is HTMLElement => Boolean(x));
+    if (!els.length || typeof IntersectionObserver === "undefined") return;
+    const io = new IntersectionObserver(
+      (entries) => {
+        const visible = entries.filter((e) => e.isIntersecting).sort((a, b) => a.boundingClientRect.top - b.boundingClientRect.top)[0];
+        if (visible) setActiveSection(visible.target.id.replace("settings-", ""));
+      },
+      { rootMargin: "-20% 0px -60% 0px" },
+    );
+    els.forEach((el) => io.observe(el));
+    return () => io.disconnect();
+  }, []);
+
+  const changes = snapshot
+    ? [
+        ...Object.keys(FIELD_LABELS).filter((k) => (form as Record<string, string>)[k] !== snapshot.form[k]).map((k) => FIELD_LABELS[k]),
+        ...(logoUrl !== snapshot.logoUrl ? ["logo"] : []),
+        ...(allowDiscounts !== snapshot.allowDiscounts ? ["discounts"] : []),
+      ]
+    : [];
+  const dirty = changes.length > 0;
+
+  const discard = () => {
+    if (!snapshot) return;
+    setForm(snapshot.form as typeof form);
+    setLogoUrl(snapshot.logoUrl);
+    setAllowDiscounts(snapshot.allowDiscounts);
+    setFieldErrors({});
+    if (fileInputRef.current) fileInputRef.current.value = "";
+  };
 
   const validateAll = useCallback(() => {
     const errors: Record<string, string> = {};
@@ -122,7 +186,7 @@ export default function SettingsPage() {
         delete next.logo;
         return next;
       });
-      showToast("Logo uploaded. Click 'Save Changes' to apply.", "success");
+      showToast("Logo uploaded", "success", { description: "Save changes to put it on your receipts." });
     } catch (err) {
       if (fileInputRef.current) fileInputRef.current.value = "";
       const msg = err instanceof Error ? err.message : "Could not upload logo.";
@@ -140,7 +204,7 @@ export default function SettingsPage() {
       delete next.logo;
       return next;
     });
-    showToast("Logo removed. Click 'Save Changes' to apply.", "info");
+    showToast("Logo removed", "info", { description: "Save changes to apply." });
   };
 
   async function submit(e: FormEvent) {
@@ -186,7 +250,7 @@ export default function SettingsPage() {
 
       await reloadBusinesses();
 
-      showToast("Store settings and logo updated successfully!", "success");
+      showToast("Settings saved", "success", { description: "New receipts use these details right away." });
 
       logActivity(
         "SETTINGS_UPDATE",
@@ -213,17 +277,108 @@ export default function SettingsPage() {
     ) : null;
   const inv = (key: string) => (fieldErrors[key] ? ui.invalid : "");
 
+  const sectionHead = (id: string, title: string, body: string) => (
+    <div className={ui.sectionAside}>
+      <h2 id={`settings-${id}-title`}>{title}</h2>
+      <p>{body}</p>
+    </div>
+  );
+
   return (
     <WorkspaceShell>
-      <PageHeader eyebrow="Workspace" title="Settings" description="Your store branding, contact details and counter preferences." />
+      <PageHeader title="Settings" />
 
-      <form onSubmit={submit} noValidate className={ui.sectionList}>
+      <div className={st.layout}>
+        <nav className={st.subnav} aria-label="Settings sections">
+          {SECTIONS.map((x) => (
+            <a
+              key={x.id}
+              href={`#settings-${x.id}`}
+              className={activeSection === x.id ? st.subnavOn : undefined}
+              aria-current={activeSection === x.id ? "true" : undefined}
+              onClick={(e) => {
+                e.preventDefault();
+                document.getElementById(`settings-${x.id}`)?.scrollIntoView({ behavior: "smooth", block: "start" });
+                setActiveSection(x.id);
+              }}
+            >
+              {x.label}
+            </a>
+          ))}
+        </nav>
+
+        <form onSubmit={submit} noValidate className={`${ui.sectionList} ${st.form}`}>
+          <section className={ui.section} id="settings-workspace" aria-labelledby="settings-workspace-title">
+            {sectionHead("workspace", "Workspace & region", "How Almadel works at your counter, and how it looks. These apply instantly on this device.")}
+            <div className={`${ui.sectionBody} ${st.stack}`}>
+              {navRole === "admin" && activeBusiness && (
+                <div role="radiogroup" aria-label="Workspace mode" className={st.modes}>
+                  {(
+                    [
+                      ["pos", "POS", "Fast counter selling, products and stock. Cash and online only."],
+                      ["financial", "Financial", "Everything in POS, plus khata, cash books, expenses, closing and reports."],
+                    ] as const
+                  ).map(([id, label, body]) => (
+                    <button
+                      key={id}
+                      type="button"
+                      role="radio"
+                      aria-checked={workspaceMode === id}
+                      className={`${st.mode} ${workspaceMode === id ? st.modeOn : ""}`}
+                      onClick={() => setWorkspaceMode(id)}
+                    >
+                      <span className={st.modeHead}>
+                        <b>{label}</b>
+                        <span className={st.radio} aria-hidden />
+                      </span>
+                      <span className={st.modeBody}>{body}</span>
+                    </button>
+                  ))}
+                </div>
+              )}
+              <div className={st.prefRow}>
+                <div>
+                  <b>Language</b>
+                  <span>Menus and receipts. Product names stay as you typed them.</span>
+                </div>
+                <div className={ui.segmented} role="radiogroup" aria-label="Language">
+                  {(
+                    [
+                      ["en", "English"],
+                      ["ur", "Roman Urdu"],
+                    ] as const
+                  ).map(([id, label]) => (
+                    <button key={id} type="button" role="radio" aria-checked={language === id} className={language === id ? ui.segmentedOn : ""} onClick={() => setLanguage(id)}>
+                      {label}
+                    </button>
+                  ))}
+                </div>
+              </div>
+              <div className={st.prefRow}>
+                <div>
+                  <b>Appearance</b>
+                  <span>Porcelain by day, Graphite at night — or follow this device.</span>
+                </div>
+                <div className={ui.segmented} role="radiogroup" aria-label="Theme">
+                  {(
+                    [
+                      ["light", "Light", "sun"],
+                      ["dark", "Dark", "moon"],
+                      ["system", "System", "panel"],
+                    ] as const
+                  ).map(([id, label, icon]) => (
+                    <button key={id} type="button" role="radio" aria-checked={theme === id} className={theme === id ? ui.segmentedOn : ""} onClick={() => setTheme(id)}>
+                      <Icon name={icon} size={13} />
+                      {label}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            </div>
+          </section>
         {/* Branding */}
-        <section className={ui.section}>
-          <div className={ui.sectionAside}>
-            <h2>Store logo</h2>
-            <p>Appears on customer bills, thermal / A4 receipts and in your workspace sidebar.</p>
-          </div>
+        <section className={ui.section} id="settings-logo" aria-labelledby="settings-logo-title">
+          {sectionHead("logo", "Store logo", "Appears on customer bills, thermal / A4 receipts and in your workspace sidebar.")}
           <div className={ui.sectionBody}>
             <div className="flex flex-wrap items-center gap-5">
               <div className="relative grid size-20 shrink-0 place-items-center overflow-hidden rounded-[14px] border border-[var(--border)] bg-[var(--surface-2)] shadow-[var(--shadow-xs)]">
@@ -266,11 +421,8 @@ export default function SettingsPage() {
         </section>
 
         {/* Store details */}
-        <section className={ui.section}>
-          <div className={ui.sectionAside}>
-            <h2>Store details</h2>
-            <p>Printed on invoices so customers know where to find and reach you.</p>
-          </div>
+        <section className={ui.section} id="settings-store" aria-labelledby="settings-store-title">
+          {sectionHead("store", "Store details", "Printed on invoices so customers know where to find and reach you.")}
           <div className={`${ui.sectionBody} ${ui.formGrid}`}>
             <div className={`${ui.field} ${ui.span2}`}>
               <label htmlFor="st-business">Business / store name</label>
@@ -324,11 +476,8 @@ export default function SettingsPage() {
         </section>
 
         {/* Owner account */}
-        <section className={ui.section}>
-          <div className={ui.sectionAside}>
-            <h2>Owner account</h2>
-            <p>The name and email used to sign in and receive account notices.</p>
-          </div>
+        <section className={ui.section} id="settings-owner" aria-labelledby="settings-owner-title">
+          {sectionHead("owner", "Owner account", "The name and email used to sign in and receive account notices.")}
           <div className={`${ui.sectionBody} ${ui.formGrid}`}>
             <div className={ui.field}>
               <label htmlFor="st-name">Full name</label>
@@ -344,11 +493,8 @@ export default function SettingsPage() {
         </section>
 
         {/* POS rules */}
-        <section className={ui.section}>
-          <div className={ui.sectionAside}>
-            <h2>Counter rules</h2>
-            <p>Control how much pricing flexibility cashiers have at the POS.</p>
-          </div>
+        <section className={ui.section} id="settings-counter" aria-labelledby="settings-counter-title">
+          {sectionHead("counter", "Counter rules", "Control how much pricing flexibility cashiers have at the POS.")}
           <div className={ui.sectionBody}>
             <label className={ui.switchRow}>
               <span>
@@ -360,23 +506,21 @@ export default function SettingsPage() {
           </div>
         </section>
 
-        <div className={ui.sectionFooter}>
-          <p>Changes apply to new receipts immediately.</p>
-          <button className={ui.primary} disabled={saving || logoUploading}>
-            {saving ? (
-              <>
-                <span className="size-3.5 rounded-full border-2 border-current border-t-transparent [animation:almadelSpin_700ms_linear_infinite]" />
-                Saving…
-              </>
-            ) : (
-              <>
-                <Icon name="check" size={15} />
-                Save changes
-              </>
-            )}
+        <div className={`${st.saveBar} ${dirty || saving ? st.saveBarOn : ""}`} role="region" aria-label="Unsaved changes" aria-hidden={!dirty && !saving}>
+          <span className={st.saveDot} aria-hidden />
+          <span className={st.saveText} aria-live="polite">
+            {saving ? "Saving changes…" : `${changes.length} unsaved ${changes.length === 1 ? "change" : "changes"} · ${changes.slice(0, 3).join(", ")}${changes.length > 3 ? "…" : ""}`}
+          </span>
+          <button type="button" className={st.discard} onClick={discard} disabled={saving} tabIndex={dirty ? 0 : -1}>
+            Discard
+          </button>
+          <button type="submit" className={st.save} disabled={saving || logoUploading} tabIndex={dirty || saving ? 0 : -1}>
+            {saving ? <span className={st.spin} aria-hidden /> : null}
+            {saving ? "Saving…" : "Save changes"}
           </button>
         </div>
       </form>
+      </div>
     </WorkspaceShell>
   );
 }

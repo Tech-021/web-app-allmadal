@@ -1,0 +1,377 @@
+/* Figures, charts and ledgers — shared by dashboard, reports, khata, cash. */
+
+.num {
+  font-family: var(--font-mono);
+  font-variant-numeric: tabular-nums;
+  letter-spacing: -0.02em;
+}
+
+.money {
+  font-family: var(--font-mono);
+  font-variant-numeric: tabular-nums;
+  font-weight: 500;
+  color: var(--text);
+  white-space: nowrap;
+}
+
+.cur {
+  font-family: var(--font-sans);
+  font-size: 0.42em;
+  font-weight: 500;
+  color: var(--muted);
+  letter-spacing: 0.02em;
+  margin-right: 0.3em;
+  vertical-align: 0.62em;
+}
+
+.money_xl {
+  font-size: 56px;
+  letter-spacing: -0.045em;
+  line-height: 1.05;
+}
+
+.money_lg {
+  font-size: 30px;
+  letter-spacing: -0.04em;
+  line-height: 1.15;
+}
+
+.money_md {
+  font-size: 20px;
+  letter-spacing: -0.03em;
+}
+
+.money_sm {
+  font-size: 15px;
+  letter-spacing: -0.02em;
+}
+
+.money_sm .cur,
+.money_md .cur {
+  font-size: 0.6em;
+  vertical-align: 0.15em;
+}
+
+.tone_pos { color: var(--pos); }
+.tone_neg { color: var(--neg); }
+.tone_warn { color: var(--warn); }
+
+/* Composition bar */
+.compBar {
+  display: flex;
+  gap: 2px;
+  height: 8px;
+}
+
+.compBar i {
+  display: block;
+  height: 100%;
+  border-radius: 2px;
+  transition: flex-grow 420ms var(--ease);
+}
+
+.compLegend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 22px;
+  margin-top: 9px;
+  font-size: 12.5px;
+  color: var(--text-2);
+}
+
+.compLegend > span {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+}
+
+.compLegend i {
+  width: 8px;
+  height: 8px;
+  border-radius: 2px;
+}
+
+.compLegend b {
+  font-weight: 550;
+  color: var(--text);
+}
+
+.compLegend em {
+  font-style: normal;
+  font-size: 11.5px;
+  color: var(--faint);
+}
+
+/* Meter */
+.meter {
+  display: block;
+  height: 4px;
+  border-radius: 2px;
+  background: var(--sunken);
+  overflow: hidden;
+}
+
+.meter i {
+  display: block;
+  height: 100%;
+  border-radius: 2px;
+}
+
+/* Ledger rows */
+.ledger {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 12px;
+  padding: 9px 0;
+  border-top: 1px solid var(--border);
+  font-size: 13px;
+  color: var(--text-2);
+}
+
+.ledger:first-child {
+  border-top: 0;
+}
+
+.ledger .num {
+  color: var(--text);
+  font-size: 13.5px;
+}
+
+.ledger .tone_neg { color: var(--neg); }
+.ledger .tone_pos { color: var(--pos); }
+.ledger .tone_warn { color: var(--warn); }
+
+.ledgerLabel {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+
+.ledgerLabel i {
+  width: 8px;
+  height: 8px;
+  border-radius: 2px;
+  flex: none;
+}
+
+.ledgerDouble {
+  border-bottom: 3px double var(--border-strong);
+}
+
+.ledgerStrong {
+  border-top: 0;
+  padding-top: 12px;
+}
+
+.ledgerStrong .ledgerLabel {
+  font-weight: 600;
+  color: var(--text);
+}
+
+.ledgerStrong .num {
+  font-size: 20px;
+  font-weight: 550;
+}
+
+/* Charts */
+.chart {
+  position: relative;
+  width: 100%;
+}
+
+.svg {
+  display: block;
+  overflow: visible;
+}
+
+.grid {
+  stroke: var(--grid);
+  stroke-width: 1;
+}
+
+.baseline {
+  stroke: var(--border-strong);
+}
+
+.area {
+  fill: var(--c-cash);
+  opacity: 0.1;
+}
+
+.line {
+  fill: none;
+  stroke: var(--c-cash);
+  stroke-width: 2;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.cmpLine {
+  fill: none;
+  stroke: var(--faint);
+  stroke-width: 1.5;
+  stroke-dasharray: 3 4;
+  stroke-linecap: round;
+}
+
+.avgLine {
+  stroke: var(--text);
+  stroke-width: 1;
+  stroke-dasharray: 3 4;
+  opacity: 0.5;
+}
+
+.crosshair {
+  stroke: var(--border-strong);
+  stroke-width: 1;
+}
+
+.endDot {
+  fill: var(--c-cash);
+  stroke: var(--surface);
+  stroke-width: 2;
+}
+
+.bar {
+  transform-box: fill-box;
+  transform-origin: bottom;
+  animation: vizGrow 600ms var(--ease) both;
+  transition: fill var(--dur-1) var(--ease);
+}
+
+.draw {
+  stroke-dasharray: 2400;
+  animation: vizDraw 1100ms var(--ease) both;
+}
+
+.fadeIn {
+  animation: vizFade 700ms 200ms var(--ease) both;
+}
+
+.tick {
+  position: absolute;
+  right: 0;
+  transform: translateY(-100%);
+  padding-bottom: 2px;
+  font-family: var(--font-mono);
+  font-size: 10.5px;
+  color: var(--faint);
+  pointer-events: none;
+}
+
+.xLabels {
+  position: absolute;
+  left: 0;
+  right: 0;
+  height: 16px;
+  pointer-events: none;
+}
+
+.xLabels span {
+  position: absolute;
+  transform: translateX(-50%);
+  font-family: var(--font-mono);
+  font-size: 10.5px;
+  color: var(--faint);
+  white-space: nowrap;
+}
+
+.hit {
+  position: absolute;
+  top: 0;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  cursor: crosshair;
+}
+
+.hit:focus-visible {
+  outline: none;
+  background: var(--brand-soft);
+}
+
+.marker {
+  position: absolute;
+  width: 10px;
+  height: 10px;
+  margin: -5px 0 0 -5px;
+  border-radius: 50%;
+  background: var(--c-cash);
+  box-shadow: 0 0 0 2px var(--surface);
+  pointer-events: none;
+  transition: left var(--dur-1) var(--ease), top var(--dur-1) var(--ease);
+}
+
+.markerCmp {
+  width: 8px;
+  height: 8px;
+  margin: -4px 0 0 -4px;
+  background: var(--surface);
+  box-shadow: 0 0 0 1.5px var(--faint);
+}
+
+.tooltip {
+  position: absolute;
+  top: -6px;
+  z-index: 2;
+  min-width: 180px;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 10px 12px;
+  border-radius: 10px;
+  background: var(--raised);
+  border: 1px solid var(--border-strong);
+  box-shadow: var(--shadow-pop);
+  pointer-events: none;
+  font-size: 12px;
+  color: var(--text-2);
+  transition: left var(--dur-1) var(--ease);
+}
+
+.tooltip small {
+  font-size: 11.5px;
+  color: var(--muted);
+}
+
+.tooltip strong {
+  font-size: 17px;
+  font-weight: 550;
+  color: var(--text);
+}
+
+.tipRule {
+  display: block;
+  height: 1px;
+  margin: 6px 0;
+  background: var(--border);
+}
+
+.tipCmp {
+  display: flex;
+  justify-content: space-between;
+  gap: 10px;
+  color: var(--muted);
+}
+
+.tipCmp > span:first-child {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+@keyframes vizDraw {
+  from { stroke-dashoffset: 2400; }
+  to { stroke-dashoffset: 0; }
+}
+
+@keyframes vizFade {
+  from { opacity: 0; }
+}
+
+@keyframes vizGrow {
+  from { transform: scaleY(0); }
+  to { transform: scaleY(1); }
+}

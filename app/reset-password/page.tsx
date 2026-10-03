@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { FormEvent, Suspense, useState } from "react";
 import { useSearchParams } from "next/navigation";
-import { AuthShell, AuthStateIcon, Field } from "@/app/components/auth-shell";
+import { AuthAlert, AuthButton, AuthShell, AuthStateIcon, Field, authStyles } from "@/app/components/auth-shell";
 import { publicApi } from "@/app/lib/api";
 
 function ResetPasswordForm() {
@@ -53,13 +53,13 @@ function ResetPasswordForm() {
     return (
       <div className="w-full">
         <AuthStateIcon icon="alert" tone="neg" />
-        <h1 className="m-0 text-[28px] font-semibold leading-tight tracking-[-.03em] text-[var(--text)]">Invalid link</h1>
+        <h1 className={authStyles.title}>Invalid link</h1>
         <p className="mt-2 text-sm text-[var(--muted)]">
           This password reset link is missing or incomplete. Request a new one from the login page.
         </p>
         <Link
           href="/forgot-password"
-          className="mt-6 inline-flex h-11 w-full items-center justify-center rounded-[10px] bg-[var(--brand)] text-[14px] font-medium text-[var(--on-brand)] transition hover:bg-[var(--brand-strong)]"
+          className={`${authStyles.btn} ${authStyles.primary} mt-6`}
         >
           Request new link
         </Link>
@@ -75,7 +75,7 @@ function ResetPasswordForm() {
         <p className="mt-2 text-sm text-[var(--muted)]">You can sign in with your new password.</p>
         <Link
           href="/login"
-          className="mt-6 inline-flex h-11 w-full items-center justify-center rounded-[10px] bg-[var(--brand)] text-[14px] font-medium text-[var(--on-brand)] transition hover:bg-[var(--brand-strong)]"
+          className={`${authStyles.btn} ${authStyles.primary} mt-6`}
         >
           Go to login
         </Link>
@@ -85,10 +85,10 @@ function ResetPasswordForm() {
 
   return (
     <div className="w-full">
-      <h1 className="m-0 text-[28px] font-semibold leading-tight tracking-[-.03em] text-[var(--text)]">Choose a new password</h1>
+      <h1 className={authStyles.title}>Choose a new password</h1>
       <p className="mt-1.5 text-sm text-[var(--muted)]">Enter a new password for your Almadel account.</p>
 
-      <form className="mt-7 space-y-4.5" onSubmit={submit}>
+      <form className={`mt-7 ${authStyles.fields}`} onSubmit={submit}>
         <Field
           label="New password"
           name="password"
@@ -111,17 +111,10 @@ function ResetPasswordForm() {
         />
 
         {error && (
-          <p role="alert" className="al-pop rounded-[10px] border border-[color-mix(in_oklab,var(--neg)_25%,transparent)] bg-[var(--neg-soft)] px-3.5 py-2.5 text-[13px] font-medium text-[var(--neg)]">
-            {error}
-          </p>
+          <AuthAlert>{error}</AuthAlert>
         )}
 
-        <button
-          disabled={busy}
-          className="h-11 w-full rounded-[10px] bg-[var(--brand)] text-[14px] font-medium text-[var(--on-brand)] shadow-[inset_0_1px_0_rgba(255,255,255,.18),0_1px_2px_rgba(10,94,72,.3)] transition-[background-color,transform] duration-150 hover:bg-[var(--brand-strong)] active:scale-[0.99] disabled:cursor-not-allowed disabled:opacity-60 cursor-pointer"
-        >
-          {busy ? "Saving…" : "Update password"}
-        </button>
+        <AuthButton state={busy ? "busy" : "idle"} busyLabel="Saving…">Update password</AuthButton>
       </form>
     </div>
   );

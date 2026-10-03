@@ -2,138 +2,164 @@
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { FormEvent, useEffect, useState } from "react";
+import { AnimatePresence, useAnimate, useReducedMotion } from "framer-motion";
+import { FormEvent, useEffect, useRef, useState, useSyncExternalStore } from "react";
+import { flushSync } from "react-dom";
 import { isRememberAuthPreferred } from "@/app/lib/auth-session";
-import { Field } from "./auth-shell";
+import { AuthAlert, AuthButton, AuthDivider, AuthHeading, AuthLinkButton, Checkbox, Field, PasswordField, authStyles as s } from "./auth-shell";
+import { Reveal, RevealGroup } from "./motion";
+import { useToast } from "./toast-context";
 import { useAuth } from "@/hooks/useAuth";
 import { useLanguage } from "./language-context";
 
-export function LoginForm() {
+const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+const noSubscribe = () => () => {};
+
+export function LoginForm({ onBusyChange }: { onBusyChange?: (busy: boolean) => void }) {
   const router = useRouter();
   const { login } = useAuth();
+  const { showToast } = useToast();
   const { t, language } = useLanguage();
-  const [show, setShow] = useState(false);
-  const [busy, setBusy] = useState(false);
+  const reduceMotion = useReducedMotion();
+  const [fieldsScope, animateFields] = useAnimate<HTMLDivElement>();
+  const [state, setState] = useState<"idle" | "busy" | "done">("idle");
   const [error, setError] = useState("");
-  const [rememberMe, setRememberMe] = useState(true);
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+  const [fieldErrors, setFieldErrors] = useState<{ email?: string; password?: string }>({});
+  // The stored preference seeds the checkbox (read after hydration); a click overrides it.
+  const storedRemember = useSyncExternalStore(noSubscribe, isRememberAuthPreferred, () => true);
+  const [rememberChoice, setRememberMe] = useState<boolean | null>(null);
+  const rememberMe = rememberChoice ?? storedRemember;
+  const emailRef = useRef<HTMLInputElement>(null);
+  const passwordRef = useRef<HTMLInputElement>(null);
+  const ur = (en: string, urdu: string) => (language === "ur" ? urdu : en);
 
   useEffect(() => {
-    setRememberMe(isRememberAuthPreferred());
-  }, []);
+    onBusyChange?.(state !== "idle");
+  }, [state, onBusyChange]);
+
+  /** The credentials block shakes once when the server turns them down, as a login window does. */
+  function shake() {
+    if (reduceMotion || !fieldsScope.current) return;
+    void animateFields(fieldsScope.current, { x: [0, -9, 8, -6, 4, -2, 0] }, { duration: 0.46, ease: "easeInOut" });
+  }
 
   async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
+    if (state !== "idle") return;
+    const errs: typeof fieldErrors = {};
+    if (!email.trim()) errs.email = ur("Enter the email you signed up with.", "Woh email likhein jis se account banaya tha.");
+    else if (!EMAIL_RE.test(email.trim())) errs.email = ur("Use a full email address, like name@shop.pk.", "Poora email likhein, jaise name@shop.pk.");
+    if (!password) errs.password = ur("Enter your password.", "Apna password likhein.");
+    else if (password.length < 8) errs.password = ur("Passwords are at least 8 characters.", "Password kam az kam 8 haroof ka hota hai.");
+    setFieldErrors(errs);
     setError("");
-    setBusy(true);
-    const form = new FormData(event.currentTarget);
+    if (errs.email) return emailRef.current?.focus();
+    if (errs.password) return passwordRef.current?.focus();
+
+    setState("busy");
     try {
-      const user = await login({
-        email: String(form.get("email")),
-        password: String(form.get("password")),
-        rememberMe,
+      const user = await login({ email: email.trim(), password, rememberMe });
+      setState("done");
+      const firstName = user.name.split(" ")[0];
+      showToast(ur("Signed in", "Sign in ho gaya"), "success", {
+        description: ur(`Welcome back, ${firstName}. Opening today’s counter.`, `Khush aamdeed, ${firstName}. Aaj ka counter khul raha hai.`),
+        duration: 4000,
       });
-      if (user.role === "pending") {
-        router.push("/setup-business");
-      } else {
-        router.push("/dashboard");
-      }
+      router.push(user.role === "pending" ? "/setup-business" : "/dashboard");
     } catch (e) {
-      setError(e instanceof Error ? e.message : "Unable to sign in.");
-    } finally {
-      setBusy(false);
+      // Commit first: the password field is still disabled until "idle" renders, and a disabled field can't take focus.
+      flushSync(() => {
+        setError(e instanceof Error ? e.message : "Unable to sign in.");
+        setState("idle");
+      });
+      shake();
+      passwordRef.current?.focus();
     }
   }
 
+  const locked = state !== "idle";
+
   return (
-    <div className="w-full">
-      <h1 className="m-0 text-[28px] font-semibold leading-tight tracking-[-.03em] text-[var(--text)]">
-        {t("auth.welcome_back", "Welcome back")}
-      </h1>
-      <p className="mt-1.5 text-sm text-[var(--muted)]">
-        Apni Dukaan Ko Asaan Banayein. {language === "ur" ? "Credentials enter karein." : "Enter credentials to continue."}
-      </p>
+    <RevealGroup className="w-full">
+      <AuthHeading
+        title={t("auth.welcome_back", "Welcome back")}
+        lede={ur("Sign in to open today’s counter and books.", "Aaj ka counter aur hisaab kholne ke liye sign in karein.")}
+      />
 
-      <form className="mt-7 space-y-4.5" onSubmit={submit}>
-        <Field
-          label={t("auth.email", "Email address")}
-          name="email"
-          type="email"
-          placeholder="you@almadel.com"
-          autoComplete="email"
-          required
-        />
-        <Field
-          label={t("auth.password", "Password")}
-          name="password"
-          type={show ? "text" : "password"}
-          placeholder={language === "ur" ? "Apna password darj karein" : "Enter your password"}
-          autoComplete="current-password"
-          minLength={8}
-          required
-          right={
-            <button
-              className="absolute inset-y-0 right-0 px-4 text-xs font-bold text-[var(--muted)] transition hover:text-[var(--brand)] cursor-pointer"
-              type="button"
-              onClick={() => setShow(!show)}
-              aria-label={show ? "Hide password" : "Show password"}
-            >
-              {show ? (language === "ur" ? "Chupayein" : "Hide") : (language === "ur" ? "Dikhayein" : "Show")}
-            </button>
-          }
-        />
-
-        <div className="flex items-center justify-between text-xs">
-          <label className="flex items-center gap-2 font-medium text-[var(--text-2)] cursor-pointer">
-            <input
-              className="accent-[var(--brand)] rounded"
-              type="checkbox"
-              name="remember"
-              checked={rememberMe}
-              onChange={(e) => setRememberMe(e.target.checked)}
-            />
-            {t("auth.remember_me", "Remember me")}
-          </label>
-          <Link className="font-medium text-[var(--brand)] transition hover:underline" href="/forgot-password">
-            {t("auth.forgot_password", "Forgot Password?")}
-          </Link>
-        </div>
-
+      <AnimatePresence initial={false}>
         {error && (
-          <p role="alert" className="al-pop rounded-[10px] border border-[color-mix(in_oklab,var(--neg)_25%,transparent)] bg-[var(--neg-soft)] px-3.5 py-2.5 text-[13px] font-medium text-[var(--neg)]">
-            {error}
-          </p>
+          <AuthAlert key="auth-error" id="login-auth-error">
+            <b className="font-semibold">{ur("We couldn’t sign you in.", "Sign in nahi ho saka.")}</b> {error}{" "}
+            <Link href="/forgot-password">{ur("Reset your password by email", "Email se password reset karein")}</Link>.
+          </AuthAlert>
         )}
+      </AnimatePresence>
 
-        <button
-          disabled={busy}
-          className="h-11 w-full rounded-[10px] bg-[var(--brand)] text-[14px] font-medium text-[var(--on-brand)] shadow-[inset_0_1px_0_rgba(255,255,255,.18),0_1px_2px_rgba(10,94,72,.3)] transition-[background-color,transform] duration-150 hover:bg-[var(--brand-strong)] active:scale-[0.99] disabled:cursor-not-allowed disabled:opacity-60 cursor-pointer"
-        >
-          {busy ? t("auth.signing_in", "Signing in…") : t("auth.login", "Login Karein")}
-        </button>
-
-        <div className="relative py-1">
-          <div className="absolute inset-0 flex items-center" aria-hidden>
-            <div className="w-full border-t border-[var(--border)]" />
-          </div>
-          <div className="relative flex justify-center text-xs">
-            <span className="bg-[var(--bg)] px-2 text-[var(--faint)]">or</span>
-          </div>
+      <form onSubmit={submit} noValidate>
+        <div ref={fieldsScope} className={s.fields}>
+          <Reveal>
+            <Field
+              ref={emailRef}
+              label={t("auth.email", "Email address")}
+              name="email"
+              type="email"
+              inputMode="email"
+              placeholder="you@shop.pk"
+              autoComplete="username"
+              value={email}
+              disabled={locked}
+              error={fieldErrors.email}
+              onChange={(e) => {
+                setEmail(e.target.value);
+                if (fieldErrors.email) setFieldErrors((f) => ({ ...f, email: undefined }));
+              }}
+            />
+          </Reveal>
+          <Reveal>
+            <PasswordField
+              ref={passwordRef}
+              label={t("auth.password", "Password")}
+              labelAside={<Link href="/forgot-password">{ur("Forgot?", "Bhool gaye?")}</Link>}
+              name="password"
+              placeholder={ur("At least 8 characters", "Kam az kam 8 haroof")}
+              autoComplete="current-password"
+              value={password}
+              disabled={locked}
+              error={fieldErrors.password}
+              invalid={Boolean(error)}
+              aria-describedby={error ? "login-auth-error" : undefined}
+              onChange={(e) => {
+                setPassword(e.target.value);
+                if (fieldErrors.password) setFieldErrors((f) => ({ ...f, password: undefined }));
+                if (error) setError("");
+              }}
+            />
+          </Reveal>
         </div>
 
-        <Link
-          href="/magic-link"
-          className="flex h-11 w-full items-center justify-center gap-2 rounded-[10px] border border-[var(--border)] bg-[var(--surface)] text-[14px] font-medium text-[var(--text)] shadow-[var(--shadow-xs)] transition-colors hover:border-[var(--border-strong)] hover:bg-[var(--surface-2)]"
-        >
-          {t("auth.magic_link", "Email me a sign-in link")}
-        </Link>
-      </form>
+        <Reveal className={s.optionsRow}>
+          <Checkbox checked={rememberMe} onChange={setRememberMe} name="remember">
+            {ur("Keep me signed in on this device", "Is device par sign in rehne dein")}
+          </Checkbox>
+        </Reveal>
 
-      <p className="mt-7 text-center text-xs font-medium text-[var(--muted)]">
-        Don&apos;t have an account?{" "}
-        <Link className="font-medium text-[var(--brand)] hover:underline" href="/signup">
-          Naya Account Banayein
-        </Link>
-      </p>
-    </div>
+        <Reveal>
+          <AuthButton state={state} busyLabel={t("auth.signing_in", "Signing in…")} doneLabel={ur("Opening your workspace…", "Workspace khul raha hai…")}>
+            {ur("Sign in", "Sign in karein")}
+          </AuthButton>
+
+          <AuthDivider>{ur("or", "ya")}</AuthDivider>
+
+          <AuthLinkButton href="/magic-link">
+            <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+              <path d="M3 5h18v14H3zM3 6l9 7 9-7" />
+            </svg>
+            {t("auth.magic_link", "Email me a sign-in link")}
+          </AuthLinkButton>
+        </Reveal>
+      </form>
+    </RevealGroup>
   );
 }

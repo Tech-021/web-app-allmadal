@@ -200,3 +200,225 @@
     flex-direction: column;
   }
 }
+
+/* ---------- v2 overview layout (Reports board) ---------- */
+.topGrid {
+  display: grid;
+  grid-template-columns: 380px minmax(0, 1fr);
+  gap: 18px;
+}
+
+.triGrid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 18px;
+}
+
+.card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  box-shadow: var(--shadow-panel);
+  padding: 18px 20px;
+  min-width: 0;
+}
+
+.cardHead {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 12px;
+}
+
+.cardTitle {
+  margin: 0;
+  font-size: 13.5px;
+  font-weight: 600;
+  color: var(--text);
+}
+
+.cardSub {
+  margin: 2px 0 0;
+  font-size: 12px;
+  color: var(--muted);
+}
+
+.cardNote {
+  margin: 10px 0 0;
+  font-size: 12px;
+  color: var(--muted);
+}
+
+.monoMuted {
+  font-family: var(--font-mono);
+  font-variant-numeric: tabular-nums;
+  font-size: 12.5px;
+  color: var(--muted);
+  white-space: nowrap;
+}
+
+.pl {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 12px;
+  padding: 9px 0;
+  font-size: 13.5px;
+  color: var(--text-2);
+  border-top: 1px solid var(--border);
+}
+
+.pl:first-child {
+  border-top: 0;
+}
+
+.pl > :last-child {
+  font-family: var(--font-mono);
+  font-variant-numeric: tabular-nums;
+  letter-spacing: -0.02em;
+  color: var(--text);
+}
+
+.plStrong {
+  border-top-color: var(--border-strong);
+}
+
+.plStrong > :first-child {
+  font-weight: 600;
+  color: var(--text);
+}
+
+.plTotal {
+  border-top-color: var(--border-strong);
+  border-bottom: 3px double var(--border-strong);
+  padding: 12px 0;
+}
+
+.plTotal > :first-child {
+  font-weight: 600;
+  color: var(--text);
+}
+
+.plTotal > :last-child {
+  font-size: 22px;
+  font-weight: 550;
+}
+
+.plNeg > :last-child {
+  color: var(--neg);
+}
+
+.badges {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 10px;
+  align-items: center;
+  margin-top: 12px;
+}
+
+.rankList {
+  margin-top: 10px;
+}
+
+.rankRow {
+  display: grid;
+  grid-template-columns: minmax(0, 120px) 1fr 74px;
+  gap: 10px;
+  align-items: center;
+  padding: 6px 0;
+  font-size: 13px;
+  color: var(--text-2);
+}
+
+.rankRow > span:first-child {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.rankRow i {
+  display: block;
+  height: 8px;
+  border-radius: 2px;
+  transform-origin: left;
+  animation: rpWidth 600ms var(--ease) backwards;
+}
+
+.rankRow > span:last-child {
+  text-align: right;
+  font-family: var(--font-mono);
+  font-variant-numeric: tabular-nums;
+  letter-spacing: -0.02em;
+  color: var(--text);
+}
+
+.mixRows {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  margin-top: 14px;
+}
+
+.mixRow {
+  display: grid;
+  grid-template-columns: 52px 1fr;
+  gap: 10px;
+  align-items: center;
+}
+
+.mixRow > span {
+  font-family: var(--font-mono);
+  font-size: 11.5px;
+  color: var(--muted);
+}
+
+.mixBar {
+  display: flex;
+  gap: 2px;
+  height: 14px;
+}
+
+.mixBar i {
+  border-radius: 2px;
+  transform-origin: left;
+  animation: rpWidth 600ms var(--ease) backwards;
+}
+
+.legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 14px;
+  margin-top: 14px;
+  font-size: 12px;
+  color: var(--text-2);
+}
+
+.legend span {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.legend i {
+  width: 8px;
+  height: 8px;
+  border-radius: 2px;
+}
+
+@media (max-width: 1180px) {
+  .topGrid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .triGrid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 720px) {
+  .triGrid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .card {
+    padding: 16px;
+  }
+}

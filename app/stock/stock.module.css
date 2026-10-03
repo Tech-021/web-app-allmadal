@@ -99,3 +99,43 @@
     border-radius: 0 0 12px 12px;
   }
 }
+
+.thumb {
+  width: 36px;
+  height: 36px;
+  flex: none;
+  border-radius: 8px;
+  background: var(--sunken);
+  display: grid;
+  place-items: center;
+  font: 600 10.5px var(--font-mono);
+  color: var(--faint);
+}
+
+.stockCell {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.meter {
+  width: 90px;
+  height: 4px;
+  border-radius: 2px;
+  background: var(--sunken);
+  overflow: hidden;
+  flex: none;
+}
+
+.meter i {
+  display: block;
+  height: 100%;
+  border-radius: 2px;
+  transform-origin: left;
+  animation: stGrow 600ms var(--ease) backwards;
+}
+
+@keyframes stGrow {
+  from { transform: scaleX(0); }
+  to { transform: scaleX(1); }
+}

@@ -1,0 +1,145 @@
+/* Inventory summary strip (Inventory board): value at cost · health bar · units. */
+
+.summary {
+  display: grid;
+  grid-template-columns: 1.1fr 1.4fr 1fr;
+  padding-bottom: 18px;
+  border-bottom: 1px solid var(--border);
+}
+
+.sumCell {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-width: 0;
+  padding: 0 24px;
+}
+
+.sumCell:first-child {
+  padding-left: 0;
+}
+
+.sumCell + .sumCell {
+  border-left: 1px solid var(--border);
+}
+
+.eyebrow {
+  font-size: 11px;
+  letter-spacing: 0.09em;
+  text-transform: uppercase;
+  color: var(--muted);
+  font-weight: 550;
+}
+
+.sumFigure {
+  font-size: clamp(30px, 3vw, 40px) !important;
+}
+
+.sumMid {
+  font-family: var(--font-mono);
+  font-variant-numeric: tabular-nums;
+  font-size: 24px;
+  font-weight: 500;
+  letter-spacing: -0.03em;
+  color: var(--text);
+}
+
+.sumSub {
+  font-size: 12.5px;
+  color: var(--muted);
+}
+
+.sumRow {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.healthBar {
+  display: flex;
+  gap: 2px;
+  height: 12px;
+  margin-top: 6px;
+}
+
+.healthBar i {
+  border-radius: 3px;
+  transform-origin: left;
+  animation: prGrow 600ms var(--ease) backwards;
+}
+
+@keyframes prGrow {
+  from { transform: scaleX(0); }
+  to { transform: scaleX(1); }
+}
+
+.healthKeys {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 18px;
+  margin-top: 4px;
+}
+
+.healthKeys button {
+  border: 0;
+  background: transparent;
+  padding: 2px 0;
+  font-size: 13px;
+  color: var(--muted);
+  border-radius: 4px;
+  transition: color var(--dur-1) var(--ease);
+}
+
+.healthKeys button b {
+  font-family: var(--font-mono);
+  font-weight: 550;
+  color: var(--text);
+}
+
+.healthKeys button:hover,
+.healthKeys button[aria-pressed="true"] {
+  color: var(--text);
+  text-decoration: underline;
+  text-underline-offset: 4px;
+}
+
+.healthKeys .keyWarn,
+.healthKeys .keyWarn b {
+  color: var(--warn);
+}
+
+.healthKeys .keyNeg,
+.healthKeys .keyNeg b {
+  color: var(--neg);
+}
+
+@media (max-width: 1024px) {
+  .summary {
+    grid-template-columns: 1fr 1fr;
+    gap: 18px 0;
+  }
+  .sumCell:last-child {
+    grid-column: span 2;
+    border-left: 0;
+    padding-left: 0;
+    padding-top: 16px;
+    border-top: 1px solid var(--border);
+  }
+}
+
+@media (max-width: 640px) {
+  .summary {
+    grid-template-columns: 1fr;
+  }
+  .sumCell {
+    padding: 0;
+  }
+  .sumCell + .sumCell {
+    border-left: 0;
+    border-top: 1px solid var(--border);
+    padding-top: 14px;
+  }
+  .sumCell:last-child {
+    grid-column: auto;
+  }
+}

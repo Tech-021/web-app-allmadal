@@ -9,15 +9,22 @@ import { logActivity } from "@/app/lib/logger";
 import { CameraBarcodeScannerModal } from "@/app/components/camera-barcode-scanner-modal";
 import { PaginationControls } from "@/app/components/pagination-controls";
 import ui from "@/app/components/workspace-ui.module.css";
+import { Overlay } from "@/app/components/overlay";
 import { Icon } from "@/app/components/icons";
-import { Metric, MetricStrip, PageHeader, TableEmptyRow } from "@/app/components/page-layout";
+import { PageHeader, TableEmptyRow, TableSkeletonRows } from "@/app/components/page-layout";
+import { InventorySummary, healthOf } from "@/app/components/inventory-summary";
+import { formatRs } from "@/app/components/figures";
 import st from "./stock.module.css";
 
-const money = (n: number) => `Rs ${Number(n).toLocaleString()}`;
-
 function ProductAvatar({ name }: { name: string }) {
-  const initial = name[0]?.toUpperCase() || "P";
-  return <span className={ui.productThumbPlaceholder}>{initial}</span>;
+  const initials =
+    name
+      .split(/\s+/)
+      .filter(Boolean)
+      .slice(0, 2)
+      .map((w) => w[0]?.toUpperCase())
+      .join("") || "P";
+  return <span className={st.thumb}>{initials}</span>;
 }
 
 export default function StockPage() {
@@ -39,14 +46,45 @@ export default function StockPage() {
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
 
+  const [loading, setLoading] = useState(true);
+
   const load = useCallback(async () => {
+    setLoading(true);
     try {
       setProducts(await fetchProductCatalog());
     } catch (e) {
       const msg = e instanceof Error ? e.message : "Could not load products.";
       showToast(msg, "error");
+    } finally {
+      setLoading(false);
     }
   }, [showToast, activeBusiness?.id]);
+
+  // "Reorder" / "Stock in" on the products page link here with ?restock=<barcode> (or 1) to open the drawer.
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const restock = params.get("restock");
+    if (!restock) return;
+    params.delete("restock");
+    const qs = params.toString();
+    window.history.replaceState(window.history.state, "", window.location.pathname + (qs ? `?${qs}` : ""));
+    if (restock !== "1") setBarcode(restock);
+    setModalOpen(true);
+  }, []);
+
+  // Fill the product name once the catalogue arrives for a deep-linked barcode.
+  useEffect(() => {
+    if (!modalOpen || !barcode || search) return;
+    const match = products.find((p) => p.barcode === barcode);
+    if (match) setSearch(match.name);
+  }, [modalOpen, barcode, search, products]);
+
+  useEffect(() => {
+    if (!modalOpen) return;
+    const onKey = (e: KeyboardEvent) => e.key === "Escape" && setModalOpen(false);
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [modalOpen]);
 
   useEffect(() => {
     void load();
@@ -224,9 +262,7 @@ export default function StockPage() {
   return (
     <WorkspaceShell>
       <PageHeader
-        eyebrow="Inventory"
-        title="Stock management"
-        description="Monitor stock counts, catch low-inventory alerts early and record new stock intake."
+        title="Stock levels"
         actions={
           <button
             className={ui.primary}
@@ -236,17 +272,17 @@ export default function StockPage() {
             }}
           >
             <Icon name="plus" size={15} />
-            Stock Update Karein
+            Stock in
           </button>
         }
       />
 
-      <MetricStrip>
-        <Metric label="Products" icon="box" value={stats.totalProducts.toLocaleString()} hint="Tracked in catalogue" />
-        <Metric label="Units in stock" icon="layers" value={stats.totalItems.toLocaleString()} hint="Across all products" />
-        <Metric label="Low stock" icon="alert" tone={stats.lowStock > 0 ? "warn" : undefined} value={stats.lowStock.toLocaleString()} hint="Needs reorder" />
-        <Metric label="Out of stock" icon="x" tone={stats.outOfStock > 0 ? "neg" : undefined} value={stats.outOfStock.toLocaleString()} hint="Zero units left" />
-      </MetricStrip>
+      <InventorySummary
+        products={products}
+        loading={loading}
+        active={activeTab === "low" ? "low" : activeTab === "out" ? "out" : null}
+        onFilter={(h) => setActiveTab(h === "low" ? "low" : h === "out" ? "out" : "all")}
+      />
 
       {/* Quick intake */}
       <section className={`${ui.panel} ${ui.panelFlush}`}>
@@ -299,7 +335,7 @@ export default function StockPage() {
             </div>
             <button className={`${ui.primary} mt-4 w-full`} disabled={saving || !selectedProduct}>
               <Icon name="plus" size={15} />
-              {saving ? "Saving…" : "Stock Update Karein"}
+              {saving ? "Saving…" : "Add to stock"}
             </button>
           </form>
         </div>
@@ -342,18 +378,21 @@ export default function StockPage() {
             <thead>
               <tr>
                 <th>Item</th>
-                <th>Barcode / SKU</th>
-                <th>Category</th>
-                <th className="text-right">Price</th>
-                <th className="text-right">Stock</th>
-                <th>Status</th>
-                <th className="text-right">Action</th>
+                <th style={{ width: 140 }}>Category</th>
+                <th style={{ width: 200 }}>Stock</th>
+                <th style={{ width: 130 }}>Status</th>
+                <th className="text-right" style={{ width: 120 }}>Price</th>
+                <th className="text-right" style={{ width: 130 }}>
+                  <span className="sr-only">Action</span>
+                </th>
               </tr>
             </thead>
             <tbody>
-              {!displayedProducts.length ? (
+              {loading && !products.length ? (
+                <TableSkeletonRows cols={6} rows={6} />
+              ) : !displayedProducts.length ? (
                 <TableEmptyRow
-                  colSpan={7}
+                  colSpan={6}
                   icon={activeTab === "all" ? "box" : "check"}
                   title={query.trim() ? "No items match your filter" : activeTab === "all" ? "No products yet" : activeTab === "low" ? "Nothing running low" : "Nothing out of stock"}
                   body={
@@ -367,32 +406,45 @@ export default function StockPage() {
               ) : (
                 paginatedStockProducts.map((p) => {
                   const stockNum = Number(p.stock);
-                  const isOut = stockNum === 0;
-                  const isLow = !isOut && stockNum <= Number(p.lowStockThreshold ?? 5);
+                  const threshold = Number(p.lowStockThreshold ?? 5);
+                  const health = healthOf(p);
+                  const pct = Math.min(100, (stockNum / Math.max(threshold * 2, 1)) * 100);
                   return (
                     <tr key={p.id}>
                       <td>
                         <div className={ui.productCell}>
                           <ProductAvatar name={p.name} />
-                          <span className="truncate font-medium">{p.name}</span>
+                          <div className="min-w-0">
+                            <span className="block truncate font-medium text-[var(--text)]">{p.name}</span>
+                            <span className="block truncate font-mono text-[11.5px] text-[var(--muted)]">
+                              {p.barcode}
+                              {p.sku ? ` · SKU ${p.sku}` : ""}
+                            </span>
+                          </div>
+                        </div>
+                      </td>
+                      <td className="truncate">{p.category || <span className="text-[var(--faint)]">—</span>}</td>
+                      <td>
+                        <div className={st.stockCell}>
+                          <span className={st.meter} aria-hidden>
+                            <i style={{ width: `${health === "out" ? 0 : Math.max(4, pct)}%`, background: health === "healthy" ? "var(--brand)" : health === "low" ? "var(--warn)" : "var(--neg)" }} />
+                          </span>
+                          <span className={`font-mono ${health === "out" ? "text-[var(--neg)]" : health === "low" ? "text-[var(--warn)]" : "text-[var(--text)]"}`}>{stockNum}</span>
+                          <span className="font-mono text-[12px] text-[var(--faint)]">/ {threshold}</span>
                         </div>
                       </td>
                       <td>
-                        <span className="block font-mono text-[12.5px]">{p.barcode}</span>
-                        <span className="text-[12px] text-[var(--faint)]">{p.sku || "No SKU"}</span>
+                        {health === "out" ? <span className={ui.outOfStock}>Out of stock</span> : health === "low" ? <span className={ui.lowStock}>Reorder</span> : <span className={ui.healthy}>Healthy</span>}
                       </td>
-                      <td>{p.category ? <span className={ui.chip}>{p.category}</span> : <span className="text-[var(--faint)]">—</span>}</td>
-                      <td className="text-right font-mono">{money(p.sellingPrice || p.price)}</td>
-                      <td className={`text-right font-mono font-medium ${isOut ? "text-[var(--neg)]" : isLow ? "text-[var(--warn)]" : ""}`}>{p.stock}</td>
-                      <td>
-                        {isOut ? <span className={ui.outOfStock}>Out of stock</span> : isLow ? <span className={ui.lowStock}>Low stock</span> : <span className={ui.healthy}>Healthy</span>}
-                      </td>
+                      <td className="text-right font-mono text-[var(--text)]">{formatRs(Number(p.sellingPrice || p.price))}</td>
                       <td className="text-right">
                         <button
+                          type="button"
                           className={`${ui.secondary} ${ui.btnSm}`}
                           onClick={() => {
                             setBarcode(p.barcode);
                             setSearch(p.name);
+                            setError("");
                             setModalOpen(true);
                           }}
                         >
@@ -425,79 +477,72 @@ export default function StockPage() {
       </section>
 
       {/* Stock Update Sheet */}
-      {modalOpen && (
-        <div
-          className={ui.modal}
-          onMouseDown={(e) => {
-            if (e.target === e.currentTarget) setModalOpen(false);
-          }}
-        >
-          <form className={ui.sheet} onSubmit={handleAddStock} role="dialog" aria-modal="true" aria-label="Stock update">
-            <div className={ui.sheetHead}>
-              <div className="flex items-center gap-2.5">
-                <span className={ui.iconTile}>
-                  <Icon name="layers" size={15} />
-                </span>
-                <h2>Stock Update Karein</h2>
-              </div>
-              <button type="button" className={ui.iconButton} onClick={() => setModalOpen(false)} aria-label="Close">
-                <Icon name="x" size={15} />
-              </button>
+      <Overlay open={modalOpen} onClose={() => setModalOpen(false)} variant="drawer" dismissible={!saving}>
+        <form className={ui.sheet} onSubmit={handleAddStock} role="dialog" aria-modal="true" aria-label="Stock update">
+          <div className={ui.sheetHead}>
+            <div className="flex items-center gap-2.5">
+              <span className={ui.iconTile}>
+                <Icon name="layers" size={15} />
+              </span>
+              <h2>Stock in</h2>
             </div>
+            <button type="button" className={ui.iconButton} onClick={() => setModalOpen(false)} aria-label="Close">
+              <Icon name="x" size={15} />
+            </button>
+          </div>
 
-            {error && (
-              <div className="mb-4">
-                <div className={ui.error} role="alert">
-                  <Icon name="alert" size={15} className="mt-px shrink-0" />
-                  {error}
-                </div>
-              </div>
-            )}
-
-            <div className={ui.formGrid}>
-              <div className={`${ui.field} ${ui.span2}`}>
-                <label htmlFor="stk-m-search">Product name or barcode</label>
-                <div className="flex gap-2">
-                  <input
-                    id="stk-m-search"
-                    className={`${ui.input} ${ui.search} flex-1`}
-                    value={search}
-                    onChange={(e) => setSearch(e.target.value)}
-                    placeholder="Type a name or scan a barcode…"
-                    autoFocus
-                  />
-                  <button type="button" className={ui.secondary} onClick={() => setScannerOpen(true)} title="Scan barcode with camera">
-                    <Icon name="camera" size={15} />
-                    Scan
-                  </button>
-                </div>
-                {productPicker(true)}
-              </div>
-
-              {selectedProduct && <div className={ui.span2}>{selectedCard}</div>}
-
-              <div className={ui.field}>
-                <label htmlFor="stk-m-qty">Quantity to add</label>
-                <input id="stk-m-qty" className={`${ui.input} font-mono`} type="number" min="1" step="1" value={quantity} onChange={(e) => setQuantity(e.target.value)} required />
-              </div>
-
-              <div className={ui.field}>
-                <label htmlFor="stk-m-note">Note / reason (optional)</label>
-                <input id="stk-m-note" className={ui.input} value={note} onChange={(e) => setNote(e.target.value)} placeholder="Supplier intake, restock…" />
+          {error && (
+            <div className="mb-4">
+              <div className={ui.error} role="alert">
+                <Icon name="alert" size={15} className="mt-px shrink-0" />
+                {error}
               </div>
             </div>
+          )}
 
-            <div className={ui.formActions}>
-              <button type="button" className={ui.secondary} onClick={() => setModalOpen(false)}>
-                Cancel
-              </button>
-              <button className={ui.primary} disabled={saving || !selectedProduct}>
-                {saving ? "Updating…" : "Stock Update Karein"}
-              </button>
+          <div className={ui.formGrid}>
+            <div className={`${ui.field} ${ui.span2}`}>
+              <label htmlFor="stk-m-search">Product name or barcode</label>
+              <div className="flex gap-2">
+                <input
+                  id="stk-m-search"
+                  className={`${ui.input} ${ui.search} flex-1`}
+                  value={search}
+                  onChange={(e) => setSearch(e.target.value)}
+                  placeholder="Type a name or scan a barcode…"
+                  autoFocus
+                />
+                <button type="button" className={ui.secondary} onClick={() => setScannerOpen(true)} title="Scan barcode with camera">
+                  <Icon name="camera" size={15} />
+                  Scan
+                </button>
+              </div>
+              {productPicker(true)}
             </div>
-          </form>
-        </div>
-      )}
+
+            {selectedProduct && <div className={ui.span2}>{selectedCard}</div>}
+
+            <div className={ui.field}>
+              <label htmlFor="stk-m-qty">Quantity to add</label>
+              <input id="stk-m-qty" className={`${ui.input} font-mono`} type="number" min="1" step="1" value={quantity} onChange={(e) => setQuantity(e.target.value)} required />
+            </div>
+
+            <div className={ui.field}>
+              <label htmlFor="stk-m-note">Note / reason (optional)</label>
+              <input id="stk-m-note" className={ui.input} value={note} onChange={(e) => setNote(e.target.value)} placeholder="Supplier intake, restock…" />
+            </div>
+          </div>
+
+          <div className={ui.formActions}>
+            <button type="button" className={ui.secondary} onClick={() => setModalOpen(false)}>
+              Cancel
+            </button>
+            <button className={ui.primary} disabled={saving || !selectedProduct}>
+              {saving ? "Updating…" : "Add to stock"}
+            </button>
+          </div>
+        </form>
+      </Overlay>
 
       {/* Camera Barcode & QR Scanner Modal */}
       <CameraBarcodeScannerModal

@@ -15,12 +15,17 @@ import { Icon, type IconName } from "@/app/components/icons";
 import { EmptyState, PageHeader } from "@/app/components/page-layout";
 import { Skeleton } from "@/app/components/motion";
 import ui from "./workspace-ui.module.css";
+import { Overlay } from "@/app/components/overlay";
+import Link from "next/link";
+import { AccountsOverview } from "./accounts-overview";
+import { formatRs } from "./figures";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/app/components/ui/select";
 
 type Mode = "customers" | "suppliers" | "expenses" | "accounts" | "sales";
 type Row = Record<string, unknown> & { id: number };
 type Field = { key: string; label: string; type?: string; required?: boolean };
 
-const money = (v: unknown) => `Rs ${Number(v || 0).toLocaleString()}`;
+const money = (v: unknown) => formatRs(Number(v || 0));
 const title = (value: string) =>
   value.replace(/([A-Z])/g, " $1").replace(/^./, (x) => x.toUpperCase());
 
@@ -251,6 +256,17 @@ export function BusinessManagementPage({ mode }: { mode: Mode }) {
     return () => window.removeEventListener("keydown", handleKeyDown);
   }, [open]);
 
+  // Bottom-bar quick actions ("Add customer", "Add expense") link here with ?new=1 to open the create form.
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    if (params.get("new") !== "1") return;
+    params.delete("new");
+    const qs = params.toString();
+    window.history.replaceState(window.history.state, "", window.location.pathname + (qs ? `?${qs}` : ""));
+    begin();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   function begin(row?: Row) {
     setEditing(row || null);
     setFieldErrors({});
@@ -451,18 +467,32 @@ export function BusinessManagementPage({ mode }: { mode: Mode }) {
     <WorkspaceShell>
       <div className={ui.pageStack}>
       <PageHeader
-        eyebrow={language === "ur" ? "Dukaan Intizam (Management)" : MODE_META[mode].eyebrow}
         title={modeTitle}
-        description={language === "ur" ? "Mehfooz aur asaan hisab kitab, talaash aur mukammal ledger record." : MODE_META[mode].description}
         actions={
           mode !== "sales" && (
-            <button className={ui.primary} onClick={() => begin()}>
-              <Icon name="plus" size={15} />
-              {modeAdd}
-            </button>
+            <>
+              {mode === "accounts" && (
+                <>
+                  <Link className={ui.secondary} href="/expenses?new=1">
+                    <Icon name="expense" size={14} />
+                    {language === "ur" ? "Kharcha" : "Add expense"}
+                  </Link>
+                  <Link className={ui.secondary} href="/daily-closing">
+                    <Icon name="lock" size={14} />
+                    {language === "ur" ? "Hisab band" : "Close day"}
+                  </Link>
+                </>
+              )}
+              <button className={ui.primary} onClick={() => begin()}>
+                <Icon name="plus" size={15} />
+                {modeAdd}
+              </button>
+            </>
           )
         }
       />
+
+      {mode === "accounts" && <AccountsOverview accounts={rows} loading={loading} />}
 
       <section className={`${ui.panel} ${ui.panelFlush}`}>
         {mode !== "sales" && (
@@ -649,130 +679,125 @@ export function BusinessManagementPage({ mode }: { mode: Mode }) {
       </section>
       </div>
 
-      {open && (
-        <div
-          className={ui.modal}
-          role="dialog"
-          aria-modal="true"
-          onMouseDown={(e) => e.target === e.currentTarget && setOpen(false)}
-        >
-          <form className={ui.sheet} onSubmit={submit}>
-            <div className={ui.sheetHead}>
-              <div className="flex items-center gap-2.5">
-                <span className={ui.iconTile}>
-                  <Icon name={editing ? "edit" : MODE_META[mode].icon} size={15} />
-                </span>
-                <h2>{editing ? `${t("action.edit")} ${modeTitle}` : modeAdd}</h2>
-              </div>
-              <button type="button" className={ui.iconButton} onClick={() => setOpen(false)} aria-label={t("form.close")}>
-                <Icon name="x" size={15} />
-              </button>
+      <Overlay open={open} onClose={() => setOpen(false)} variant="drawer" dismissible={!saving} role="dialog" aria-modal="true">
+        <form className={ui.sheet} onSubmit={submit}>
+          <div className={ui.sheetHead}>
+            <div className="flex items-center gap-2.5">
+              <span className={ui.iconTile}>
+                <Icon name={editing ? "edit" : MODE_META[mode].icon} size={15} />
+              </span>
+              <h2>{editing ? `${t("action.edit")} ${modeTitle}` : modeAdd}</h2>
             </div>
-            <div className={ui.formGrid}>
-              {c.fields.map((field) => (
-                <div className={ui.field} key={field.key}>
-                  <label>
-                    {getFieldLabel(field)} {field.required && <span className="text-[var(--neg)]">*</span>}
-                  </label>
-                  {field.type === "select" ? (
-                    <select
-                      className={ui.select}
-                      value={draft[field.key] || "cash"}
-                      onChange={(e) => {
-                        setDraft({ ...draft, [field.key]: e.target.value });
-                        if (fieldErrors[field.key]) setFieldErrors((p) => ({ ...p, [field.key]: "" }));
-                      }}
-                    >
-                      <option value="cash">Cash (Rokarr)</option>
-                      <option value="bank">Bank</option>
-                      <option value="wallet">Wallet</option>
-                      <option value="online">Online</option>
-                    </select>
-                  ) : field.type === "account" ? (
-                    <select
-                      className={`${field.type === "account" ? ui.select : ui.input} ${field.key === "mobile" || String(field.type) === "number" ? ui.inputMono : ""} ${fieldErrors[field.key] ? ui.invalid : ""}`}
-                      required
-                      value={draft[field.key] || ""}
-                      onChange={(e) => {
-                        setDraft({ ...draft, [field.key]: e.target.value });
-                        if (fieldErrors[field.key]) setFieldErrors((p) => ({ ...p, [field.key]: "" }));
-                      }}
-                    >
-                      <option value="">{t("form.select_account")}</option>
+            <button type="button" className={ui.iconButton} onClick={() => setOpen(false)} aria-label={t("form.close")}>
+              <Icon name="x" size={15} />
+            </button>
+          </div>
+          <div className={ui.formGrid}>
+            {c.fields.map((field) => (
+              <div className={ui.field} key={field.key}>
+                <label>
+                  {getFieldLabel(field)} {field.required && <span className="text-[var(--neg)]">*</span>}
+                </label>
+                {field.type === "select" ? (
+                  <Select
+                    value={draft[field.key] || "cash"}
+                    onValueChange={(v) => {
+                      setDraft({ ...draft, [field.key]: v });
+                      if (fieldErrors[field.key]) setFieldErrors((p) => ({ ...p, [field.key]: "" }));
+                    }}
+                  >
+                    <SelectTrigger aria-label={getFieldLabel(field)}>
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="cash">Cash (Rokarr)</SelectItem>
+                      <SelectItem value="bank">Bank</SelectItem>
+                      <SelectItem value="wallet">Wallet</SelectItem>
+                      <SelectItem value="online">Online</SelectItem>
+                    </SelectContent>
+                  </Select>
+                ) : field.type === "account" ? (
+                  <Select
+                    required
+                    value={draft[field.key] ? String(draft[field.key]) : ""}
+                    onValueChange={(v) => {
+                      setDraft({ ...draft, [field.key]: v });
+                      if (fieldErrors[field.key]) setFieldErrors((p) => ({ ...p, [field.key]: "" }));
+                    }}
+                  >
+                    <SelectTrigger aria-label={getFieldLabel(field)} aria-invalid={fieldErrors[field.key] ? true : undefined}>
+                      <SelectValue placeholder={t("form.select_account")} />
+                    </SelectTrigger>
+                    <SelectContent>
                       {accounts
                         .filter((a) => a.isActive !== false)
                         .map((a) => (
-                          <option key={a.id} value={a.id}>
+                          <SelectItem key={a.id} value={String(a.id)}>
                             {String(a.name)}
-                          </option>
+                          </SelectItem>
                         ))}
-                    </select>
-                  ) : field.key === "mobile" ? (
-                    <input
-                      className={`${field.type === "account" ? ui.select : ui.input} ${field.key === "mobile" || String(field.type) === "number" ? ui.inputMono : ""} ${fieldErrors[field.key] ? ui.invalid : ""}`}
-                      required={field.required}
-                      type="tel"
-                      maxLength={15}
-                      placeholder="03001234567"
-                      value={draft[field.key] || ""}
-                      onChange={(e) => {
-                        const clean = sanitizePhoneInput(e.target.value);
-                        setDraft({ ...draft, [field.key]: clean });
-                        if (fieldErrors[field.key]) setFieldErrors((p) => ({ ...p, [field.key]: "" }));
-                      }}
-                    />
-                  ) : (
-                    <input
-                      className={`${field.type === "account" ? ui.select : ui.input} ${field.key === "mobile" || String(field.type) === "number" ? ui.inputMono : ""} ${fieldErrors[field.key] ? ui.invalid : ""}`}
-                      required={field.required}
-                      type={field.type || "text"}
-                      min={field.type === "number" ? "0" : undefined}
-                      maxLength={field.type === "email" ? 100 : 200}
-                      placeholder={field.type === "email" ? "name@example.com" : undefined}
-                      value={draft[field.key] || ""}
-                      onChange={(e) => {
-                        setDraft({ ...draft, [field.key]: e.target.value });
-                        if (fieldErrors[field.key]) setFieldErrors((p) => ({ ...p, [field.key]: "" }));
-                      }}
-                    />
-                  )}
-                  {fieldErrors[field.key] && (
-                    <span className={ui.fieldError}>
-                      <Icon name="alert" size={12} />
-                      {fieldErrors[field.key]}
-                    </span>
-                  )}
-                </div>
-              ))}
-            </div>
-            <div className={ui.formActions}>
-              <button
-                type="button"
-                className={ui.secondary}
-                onClick={() => setOpen(false)}
-              >
-                {t("action.cancel")}
-              </button>
-              <button className={ui.primary} disabled={saving}>
-                {saving
-                  ? t("form.saving")
-                  : editing
-                  ? t("action.save_changes")
-                  : t("action.save")}
-              </button>
-            </div>
-          </form>
-        </div>
-      )}
+                    </SelectContent>
+                  </Select>
+                ) : field.key === "mobile" ? (
+                  <input
+                    className={`${field.type === "account" ? ui.select : ui.input} ${field.key === "mobile" || String(field.type) === "number" ? ui.inputMono : ""} ${fieldErrors[field.key] ? ui.invalid : ""}`}
+                    required={field.required}
+                    type="tel"
+                    maxLength={15}
+                    placeholder="03001234567"
+                    value={draft[field.key] || ""}
+                    onChange={(e) => {
+                      const clean = sanitizePhoneInput(e.target.value);
+                      setDraft({ ...draft, [field.key]: clean });
+                      if (fieldErrors[field.key]) setFieldErrors((p) => ({ ...p, [field.key]: "" }));
+                    }}
+                  />
+                ) : (
+                  <input
+                    className={`${field.type === "account" ? ui.select : ui.input} ${field.key === "mobile" || String(field.type) === "number" ? ui.inputMono : ""} ${fieldErrors[field.key] ? ui.invalid : ""}`}
+                    required={field.required}
+                    type={field.type || "text"}
+                    min={field.type === "number" ? "0" : undefined}
+                    maxLength={field.type === "email" ? 100 : 200}
+                    placeholder={field.type === "email" ? "name@example.com" : undefined}
+                    value={draft[field.key] || ""}
+                    onChange={(e) => {
+                      setDraft({ ...draft, [field.key]: e.target.value });
+                      if (fieldErrors[field.key]) setFieldErrors((p) => ({ ...p, [field.key]: "" }));
+                    }}
+                  />
+                )}
+                {fieldErrors[field.key] && (
+                  <span className={ui.fieldError}>
+                    <Icon name="alert" size={12} />
+                    {fieldErrors[field.key]}
+                  </span>
+                )}
+              </div>
+            ))}
+          </div>
+          <div className={ui.formActions}>
+            <button
+              type="button"
+              className={ui.secondary}
+              onClick={() => setOpen(false)}
+            >
+              {t("action.cancel")}
+            </button>
+            <button className={ui.primary} disabled={saving}>
+              {saving
+                ? t("form.saving")
+                : editing
+                ? t("action.save_changes")
+                : t("action.save")}
+            </button>
+          </div>
+        </form>
+      </Overlay>
 
       {/* Customer Purchase History Modal */}
-      {historyCustomer && (
-        <div
-          className={ui.modal}
-          onMouseDown={(e) => {
-            if (e.target === e.currentTarget) setHistoryCustomer(null);
-          }}
-        >
+      <Overlay open={historyCustomer !== null} onClose={() => setHistoryCustomer(null)} variant="drawer">
+        {historyCustomer && (
           <div className={ui.sheet} style={{ width: "min(680px, 100%)" }} role="dialog" aria-modal="true" aria-label="Customer purchase history">
             <div className={ui.sheetHead}>
               <div className="flex min-w-0 items-center gap-3">
@@ -861,16 +886,10 @@ export function BusinessManagementPage({ mode }: { mode: Mode }) {
               </button>
             </div>
           </div>
-        </div>
-      )}
+        )}
+      </Overlay>
 
-      {selectedReceipt && (
-        <PosReceiptModal
-          isOpen={true}
-          receipt={selectedReceipt}
-          onClose={() => setSelectedReceipt(null)}
-        />
-      )}
+      <PosReceiptModal isOpen={selectedReceipt !== null} receipt={selectedReceipt} onClose={() => setSelectedReceipt(null)} />
     </WorkspaceShell>
   );
 }

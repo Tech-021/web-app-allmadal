@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { FormEvent, useState } from "react";
-import { AuthShell, Field } from "@/app/components/auth-shell";
+import { AuthAlert, AuthButton, AuthShell, Field, authStyles } from "@/app/components/auth-shell";
 import { publicApi } from "@/app/lib/api";
 
 export default function ForgotPasswordPage() {
@@ -50,19 +50,19 @@ export default function ForgotPasswordPage() {
 
             <Link
               href="/login"
-              className="mt-6 inline-flex h-11 w-full items-center justify-center rounded-[10px] bg-[var(--brand)] text-[14px] font-medium text-[var(--on-brand)] transition hover:bg-[var(--brand-strong)]"
+              className={`${authStyles.btn} ${authStyles.primary} mt-6`}
             >
               Wapas Login Page Par Jayein
             </Link>
           </div>
         ) : (
           <div>
-            <h1 className="m-0 text-[28px] font-semibold leading-tight tracking-[-.03em] text-[var(--text)]">Reset password</h1>
+            <h1 className={authStyles.title}>Reset password</h1>
             <p className="mt-1.5 text-sm text-[var(--muted)]">
               Apna registered email address enter karein. Hum aapko password reset karne ka link bhejenge.
             </p>
 
-            <form className="mt-7 space-y-4.5" onSubmit={submit}>
+            <form className={`mt-7 ${authStyles.fields}`} onSubmit={submit}>
               <Field
                 label="Email address"
                 name="email"
@@ -75,21 +75,14 @@ export default function ForgotPasswordPage() {
               />
 
               {error && (
-                <p role="alert" className="al-pop rounded-[10px] border border-[color-mix(in_oklab,var(--neg)_25%,transparent)] bg-[var(--neg-soft)] px-3.5 py-2.5 text-[13px] font-medium text-[var(--neg)]">
-                  {error}
-                </p>
+                <AuthAlert>{error}</AuthAlert>
               )}
 
-              <button
-                disabled={busy}
-                className="h-11 w-full rounded-[10px] bg-[var(--brand)] text-[14px] font-medium text-[var(--on-brand)] shadow-[inset_0_1px_0_rgba(255,255,255,.18),0_1px_2px_rgba(10,94,72,.3)] transition-[background-color,transform] duration-150 hover:bg-[var(--brand-strong)] active:scale-[0.99] disabled:cursor-not-allowed disabled:opacity-60 cursor-pointer"
-              >
-                {busy ? "Sending link…" : "Reset Link Bhejein"}
-              </button>
+              <AuthButton state={busy ? "busy" : "idle"} busyLabel="Sending link…">Reset Link Bhejein</AuthButton>
             </form>
 
             <div className="mt-7 text-center">
-              <Link className="inline-flex items-center gap-1.5 text-xs font-medium text-[var(--brand)] hover:underline" href="/login">
+              <Link className={authStyles.backLink} href="/login">
                 <svg className="size-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2.5">
                   <path strokeLinecap="round" strokeLinejoin="round" d="M10.5 19.5L3 12m0 0l7.5-7.5M3 12h18" />
                 </svg>

@@ -2,6 +2,7 @@
 
 import React from "react";
 import { useLanguage } from "./language-context";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/app/components/ui/select";
 
 export interface PaginationControlsProps {
   currentPage: number;
@@ -56,19 +57,18 @@ export function PaginationControls({
           </span>
 
           {onPageSizeChange && (
-            <select
-              value={pageSize}
-              onChange={(e) => onPageSizeChange(Number(e.target.value))}
-              aria-label="Items per page"
-              className="h-6 min-h-6 px-1 text-[11.5px] font-medium bg-[var(--surface)] border border-[var(--border)] rounded-md text-[var(--text-2)] outline-none focus:border-[var(--brand)] cursor-pointer"
-              title={isUrdu ? "Har safha" : "Per page"}
-            >
-              {pageSizeOptions.map((opt) => (
-                <option key={opt} value={opt}>
-                  {opt}
-                </option>
-              ))}
-            </select>
+            <Select value={String(pageSize)} onValueChange={(v) => onPageSizeChange(Number(v))}>
+              <SelectTrigger size="sm" aria-label={isUrdu ? "Har safha" : "Items per page"} className="!h-6 w-auto gap-1 rounded-md px-1.5 text-[11.5px] font-medium text-[var(--text-2)] max-sm:min-h-6">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent className="min-w-[4.5rem]">
+                {pageSizeOptions.map((opt) => (
+                  <SelectItem key={opt} value={String(opt)}>
+                    {opt}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
           )}
         </div>
 
@@ -150,17 +150,18 @@ export function PaginationControls({
         {onPageSizeChange && (
           <div className="flex items-center gap-1.5 ml-1">
             <span className="text-[11.5px] text-[var(--muted)] whitespace-nowrap">{isUrdu ? "Har safha:" : "Per page:"}</span>
-            <select
-              value={pageSize}
-              onChange={(e) => onPageSizeChange(Number(e.target.value))}
-              className="h-8 min-h-8 px-2 text-xs font-medium bg-[var(--surface)] border border-[var(--border)] rounded-lg text-[var(--text)] outline-none focus:border-[var(--brand)] cursor-pointer"
-            >
-              {pageSizeOptions.map((opt) => (
-                <option key={opt} value={opt}>
-                  {opt}
-                </option>
-              ))}
-            </select>
+            <Select value={String(pageSize)} onValueChange={(v) => onPageSizeChange(Number(v))}>
+              <SelectTrigger size="sm" aria-label={isUrdu ? "Har safha" : "Items per page"} className="w-auto gap-1.5 text-xs font-medium">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent className="min-w-[4.5rem]">
+                {pageSizeOptions.map((opt) => (
+                  <SelectItem key={opt} value={String(opt)}>
+                    {opt}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
           </div>
         )}
       </div>
